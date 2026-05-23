@@ -544,6 +544,17 @@ h2 {
   white-space: nowrap;
 }
 
+.update-status-area {
+  min-height: 40px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--muted);
+  background: rgba(32, 40, 51, 0.62);
+  border: 1px solid var(--border-soft);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
 .reset-card {
   align-items: flex-start;
 }

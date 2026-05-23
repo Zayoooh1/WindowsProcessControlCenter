@@ -1,5 +1,7 @@
 const SETTINGS_STORAGE_KEY = "wpcc.settings";
 const VALID_UPDATE_INTERVALS = ["3d", "weekly", "monthly"];
+const UPDATE_STATE_KEY = "wpcc.updateState";
+const CURRENT_VERSION = "0.1.0";
 
 const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
@@ -70,6 +72,7 @@ const elements = {
   autoInstallToggle: document.getElementById("autoInstallToggle"),
   ignoredUpdateVersionDisplay: document.getElementById("ignoredUpdateVersionDisplay"),
   manualCheckButton: document.getElementById("manualCheckButton"),
+  updateStatusArea: document.getElementById("updateStatusArea"),
   searchInput: document.getElementById("searchInput"),
   processRows: document.getElementById("processRows"),
   detailsContent: document.getElementById("detailsContent"),
@@ -328,7 +331,220 @@ function renderSettings() {
   elements.autoInstallToggle.checked = false;
   elements.autoInstallToggle.disabled = true;
   elements.ignoredUpdateVersionDisplay.textContent = state.settings.ignoredUpdateVersion || "None";
-  elements.manualCheckButton.disabled = true;
+  elements.manualCheckButton.disabled = false;
+  renderUpdateStatus();
+}
+
+function loadUpdateState() {
+  try {
+    const raw = window.localStorage.getItem(UPDATE_STATE_KEY);
+    if (!raw) return {
+      lastCheckedAt: null,
+      lastKnownVersion: null,
+      latestReleaseUrl: null,
+      ignoredVersion: state.settings.ignoredUpdateVersion || null,
+    };
+    const parsed = JSON.parse(raw);
+    return {
+      lastCheckedAt: parsed.lastCheckedAt || null,
+      lastKnownVersion: parsed.lastKnownVersion || null,
+      latestReleaseUrl: parsed.latestReleaseUrl || null,
+      ignoredVersion: parsed.ignoredVersion ?? (state.settings.ignoredUpdateVersion || null),
+    };
+  } catch (e) {
+    return {
+      lastCheckedAt: null,
+      lastKnownVersion: null,
+      latestReleaseUrl: null,
+      ignoredVersion: state.settings.ignoredUpdateVersion || null,
+    };
+  }
+}
+
+function saveUpdateState(obj) {
+  try {
+    window.localStorage.setItem(UPDATE_STATE_KEY, JSON.stringify(obj));
+  } catch (e) {
+    // ignore storage failures
+  }
+}
+
+function parseSemVer(input) {
+  if (!input || typeof input !== "string") return null;
+  const s = input.trim().replace(/^v/i, "");
+  const m = s.match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
+  if (!m) return null;
+  return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) };
+}
+
+function compareSemVer(aStr, bStr) {
+  const a = parseSemVer(aStr);
+  const b = parseSemVer(bStr);
+  if (!a || !b) return null;
+  if (a.major !== b.major) return a.major < b.major ? -1 : 1;
+  if (a.minor !== b.minor) return a.minor < b.minor ? -1 : 1;
+  if (a.patch !== b.patch) return a.patch < b.patch ? -1 : 1;
+  return 0;
+}
+
+function formatDateIso(d) {
+  try {
+    return new Date(d).toLocaleString();
+  } catch {
+    return String(d);
+  }
+}
+
+function renderUpdateStatus() {
+  if (!elements.updateStatusArea) return;
+  const stateObj = loadUpdateState();
+  if (!stateObj.lastCheckedAt) {
+    elements.updateStatusArea.textContent = "Never checked";
+    return;
+  }
+
+  const latest = stateObj.lastKnownVersion || "Unknown";
+  let status = "Last checked: " + formatDateIso(stateObj.lastCheckedAt) + " — ";
+  const cmp = compareSemVer(CURRENT_VERSION, latest);
+  if (stateObj.lastKnownVersion === null) {
+    status += "Failed to determine latest release.";
+  } else if (stateObj.ignoredVersion && stateObj.ignoredVersion === stateObj.lastKnownVersion) {
+    status += `Latest: ${latest} (ignored)`;
+  } else if (cmp === null) {
+    status += `Latest: ${latest} (unable to compare versions)`;
+  } else if (cmp >= 0) {
+    status += `You are up to date.`;
+  } else {
+    status += `New version available: ${latest}`;
+  }
+
+  if (stateObj.latestReleaseUrl) {
+    status += ` — ${stateObj.latestReleaseUrl}`;
+  }
+
+  elements.updateStatusArea.textContent = status;
+}
+
+async function checkForUpdates(manual = false) {
+  if (!elements.updateStatusArea) return;
+  elements.updateStatusArea.textContent = "Checking for updates...";
+
+  const abort = new AbortController();
+  const timeout = setTimeout(() => abort.abort(), 8000);
+  let updateState = loadUpdateState();
+  try {
+    const resp = await fetch("https://api.github.com/repos/Zayoooh1/WindowsProcessControlCenter/releases/latest", {
+      method: "GET",
+      headers: { Accept: "application/vnd.github.v3+json" },
+      signal: abort.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      elements.updateStatusArea.textContent = `Failed to check for updates: ${resp.status} ${resp.statusText}`;
+      updateState.lastCheckedAt = new Date().toISOString();
+      saveUpdateState(updateState);
+      return;
+    }
+
+    const json = await resp.json().catch(() => null);
+    if (!json) {
+      elements.updateStatusArea.textContent = "Failed to parse update information.";
+      updateState.lastCheckedAt = new Date().toISOString();
+      saveUpdateState(updateState);
+      return;
+    }
+
+    if (json.prerelease) {
+      elements.updateStatusArea.textContent = "No stable release found.";
+      updateState.lastCheckedAt = new Date().toISOString();
+      saveUpdateState(updateState);
+      return;
+    }
+
+    const tag = json.tag_name || json.name || null;
+    const parsedVersion = tag ? tag.replace(/^v/i, "") : null;
+    const releaseUrl = json.html_url || null;
+    const releaseName = json.name || json.tag_name || "";
+
+    // detect assets
+    let installerExe = null;
+    let portableZip = null;
+    if (Array.isArray(json.assets)) {
+      for (const asset of json.assets) {
+        const name = String(asset.name || "").toLowerCase();
+        if (!installerExe && name.endsWith('.exe')) installerExe = asset.browser_download_url || null;
+        if (!portableZip && (name.endsWith('.zip') || name.endsWith('.portable.zip'))) portableZip = asset.browser_download_url || null;
+      }
+    }
+
+    updateState.lastCheckedAt = new Date().toISOString();
+    updateState.lastKnownVersion = parsedVersion || null;
+    updateState.latestReleaseUrl = releaseUrl;
+    updateState.ignoredVersion = updateState.ignoredVersion || state.settings.ignoredUpdateVersion || null;
+    saveUpdateState(updateState);
+
+    // render status
+    if (!parsedVersion) {
+      elements.updateStatusArea.textContent = `Checked ${formatDateIso(updateState.lastCheckedAt)} — unable to parse latest version.`;
+      return;
+    }
+
+    const cmp = compareSemVer(CURRENT_VERSION, parsedVersion);
+    if (cmp === null) {
+      elements.updateStatusArea.textContent = `Checked ${formatDateIso(updateState.lastCheckedAt)} — latest ${parsedVersion}. (Comparison unavailable)`;
+      return;
+    }
+
+    if (updateState.ignoredVersion && updateState.ignoredVersion === parsedVersion) {
+      elements.updateStatusArea.textContent = `This version ${parsedVersion} is currently ignored.` + (releaseUrl ? ` ${releaseUrl}` : "");
+      return;
+    }
+
+    if (cmp <= -1) {
+      // latest is greater
+      let details = `New version available: ${parsedVersion}`;
+      if (releaseName) details += ` — ${releaseName}`;
+      if (releaseUrl) details += ` — ${releaseUrl}`;
+      if (installerExe) details += ` — installer: ${installerExe}`;
+      if (portableZip) details += ` — portable: ${portableZip}`;
+      elements.updateStatusArea.textContent = details;
+    } else {
+      elements.updateStatusArea.textContent = `You are up to date. (${CURRENT_VERSION})`;
+    }
+  } catch (e) {
+    clearTimeout(timeout);
+    if (e && e.name === 'AbortError') {
+      elements.updateStatusArea.textContent = 'Update check timed out.';
+    } else {
+      elements.updateStatusArea.textContent = 'Failed to check for updates.';
+    }
+    updateState.lastCheckedAt = new Date().toISOString();
+    saveUpdateState(updateState);
+  }
+}
+
+function shouldCheckByInterval(updateState) {
+  if (!updateState || !updateState.lastCheckedAt) return true;
+  const last = new Date(updateState.lastCheckedAt);
+  if (Number.isNaN(last.getTime())) return true;
+  const interval = state.settings.updateCheckInterval || 'weekly';
+  const days = interval === '3d' ? 3 : interval === 'monthly' ? 30 : 7;
+  const next = new Date(last.getTime() + days * 24 * 60 * 60 * 1000);
+  return new Date() >= next;
+}
+
+function runAutoUpdateCheckIfNeeded() {
+  try {
+    if (!state.settings.updateChecksEnabled) return;
+    const updateState = loadUpdateState();
+    if (!shouldCheckByInterval(updateState)) return;
+    // don't block UI
+    setTimeout(() => checkForUpdates(false), 100);
+  } catch (e) {
+    // swallow
+  }
 }
 
 function renderDashboard() {
@@ -1448,6 +1664,9 @@ elements.resetSettingsButton.addEventListener("click", () => {
   state.resetSettingsModalOpen = true;
   render();
 });
+elements.manualCheckButton.addEventListener("click", () => {
+  checkForUpdates(true);
+});
 elements.searchInput.addEventListener("input", (event) => {
   state.query = event.target.value;
   applyFilter();
@@ -1455,3 +1674,4 @@ elements.searchInput.addEventListener("input", (event) => {
 
 render();
 requestProcesses();
+runAutoUpdateCheckIfNeeded();

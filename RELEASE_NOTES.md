@@ -2,19 +2,12 @@
 
 Release date: 2026-05-23
 
-**Update: Update checker settings.**
+**Update: GitHub Releases update checker implemented.**
 
-- Added a new Updates section in the Settings tab with frontend-only update checking preferences.
-- Settings stored in existing `wpcc.settings` localStorage key.
-- New settings:
-  - "Check for updates automatically" toggle (default: enabled).
-  - "Update check interval" dropdown (3 days, Weekly, Monthly; default: Weekly). Disabled when auto checks are off.
-  - "Install updates automatically" locked/disabled toggle (planned for future).
-  - "Ignored update version" read-only display (default: None).
-  - "Check for updates now" disabled placeholder button.
-- NormalizeSettings safely handles missing/ invalid update fields.
-- Reset settings restores update fields to defaults.
-- Actual GitHub release scanning is not implemented in this task.
+- The frontend now performs real GitHub Releases checks against `Zayoooh1/WindowsProcessControlCenter` and shows update status in Settings → Updates.
+- Local update state is stored in `localStorage` as `wpcc.updateState` with fields: `lastCheckedAt`, `lastKnownVersion`, `latestReleaseUrl`, `ignoredVersion`.
+- Automatic checks respect the existing `wpcc.settings.updateChecksEnabled` and `updateCheckInterval` settings. Manual "Check for updates now" performs an immediate check.
+- Version parsing strips leading `v` and compares `major.minor.patch` numerically. Prerelease releases are ignored. No automatic download or installation is performed.
 
 **Earlier update: Windows 10 compatibility and DPI/responsive audit.**
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Windows Process Control Center</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -311,9 +311,12 @@
               <article class="panel setting-card">
                 <div class="setting-copy">
                   <h3>Check for updates now</h3>
-                  <p>Manual update checking will be implemented in a future task.</p>
+                  <p>Check GitHub Releases for a newer WPCC version.</p>
                 </div>
-                <button id="manualCheckButton" class="secondary-button" type="button" disabled>Check for updates now</button>
+                <div style="display: grid; gap:8px; align-items:start;">
+                  <button id="manualCheckButton" class="secondary-button" type="button">Check for updates now</button>
+                  <div id="updateStatusArea" class="update-status-area">Never checked</div>
+                </div>
               </article>
             </div>
           </section>

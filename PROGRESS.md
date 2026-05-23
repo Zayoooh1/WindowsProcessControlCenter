@@ -66,19 +66,12 @@ This file is intentionally kept short for public-facing repository history. Deta
   - Double-click or single-click restores/focuses the main window.
   - Clean removal on app exit.
 
-## Update Checker Settings
+## Update Checker
 
-- Added a new Updates section to the Settings tab with frontend-only update checking preferences.
-- Settings stored in the existing `wpcc.settings` localStorage key.
-- Settings added:
-  - `updateChecksEnabled` (bool, default `true`): toggle to enable/disable automatic update checks.
-  - `updateCheckInterval` (string, default `"weekly"`): dropdown with options "Every 3 days", "Weekly", "Monthly". Disabled when auto checks are off.
-  - `autoInstallUpdates` (bool, default `false`): locked disabled toggle for planned auto-install feature.
-  - `ignoredUpdateVersion` (string|null, default `null`): read-only display of ignored release version.
-  - Disabled "Check for updates now" button as a placeholder for future implementation.
-- NormalizeSettings safely handles missing fields, invalid values, and localStorage unavailability.
-- Reset settings restores all update fields to defaults.
-- Actual GitHub release scanning is **not implemented** in this task.
+- Implemented real GitHub Releases scanning in the WebView2 frontend. The app queries the public API `https://api.github.com/repos/Zayoooh1/WindowsProcessControlCenter/releases/latest` for release metadata and shows update status in Settings → Updates.
+- The local update state is stored under `wpcc.updateState` in `localStorage` and includes `lastCheckedAt`, `lastKnownVersion`, `latestReleaseUrl`, and `ignoredVersion`.
+- Automatic checking respects `wpcc.settings.updateChecksEnabled` and `updateCheckInterval` (3d/weekly/monthly). Manual "Check for updates now" is enabled and always performs a check.
+- The checker performs semantic version parsing (strips leading `v`, compares major/minor/patch numerically) and ignores prerelease releases. Friendly error messages are shown for network/API/JSON errors and timeouts.
 
 ## Windows 10 Compatibility and DPI/Responsive Audit
 

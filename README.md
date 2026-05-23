@@ -34,6 +34,10 @@ The app can display real process snapshots, summarize the current snapshot on a 
 
 The app uses the Evergreen WebView2 Runtime installed on Windows. Many Windows 10/11 systems already have it.
 
+## Update checking
+
+The frontend now includes a GitHub Releases update checker that queries the public GitHub Releases API for Zayoooh1/WindowsProcessControlCenter. Automatic checking can be configured in Settings, but installation is not automatic and no files are downloaded silently. Update metadata and last-checked state are stored in `localStorage` under `wpcc.updateState`.
+
 Check locally:
 
 ```powershell
