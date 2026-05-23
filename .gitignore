@@ -5,6 +5,7 @@ bin/
 obj/
 dist/
 *.zip
+*-setup.exe
 
 # CMake generated files
 CMakeFiles/

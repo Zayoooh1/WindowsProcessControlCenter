@@ -12,6 +12,7 @@ This file is intentionally kept short for public-facing repository history. Deta
 - Native C++/WinAPI backend for process enumeration and guarded process actions.
 - CMake build with automatic WebView2 SDK download.
 - Portable release packaging through `scripts/package_release.ps1`.
+- Optional Inno Setup installer packaging through `scripts/build_installer.ps1`.
 
 ## Implemented in 0.1.0
 
@@ -25,6 +26,7 @@ This file is intentionally kept short for public-facing repository history. Deta
 - Windows GPU Preference management per executable path through current-user Windows Graphics Settings.
 - Blocking for critical, protected, inaccessible, and self processes.
 - Portable Release folder and ZIP packaging.
+- Optional per-user Windows installer with shortcuts, Start Menu entry, optional HKCU autostart, and uninstall support.
 
 ## Documentation
 
@@ -38,9 +40,10 @@ This file is intentionally kept short for public-facing repository history. Deta
 - WebView2 Runtime must be installed on the target machine.
 - GPU Preference may require restarting the target app and does not live-switch a running process.
 - Freeze/Resume state is session-local.
-- No profiles, rules, presets, autostart, installer, code signing, or auto-update yet.
+- No profiles, rules, presets, code signing, or auto-update yet.
 - No process tree termination, child-process force kill, freeze tree, or resume tree.
 - No NVIDIA Control Panel integration or global GPU setting changes.
+- The installer build requires Inno Setup 6 locally; WebView2 Runtime is still required on the installed machine.
 
 ## Suggested Next Steps
 

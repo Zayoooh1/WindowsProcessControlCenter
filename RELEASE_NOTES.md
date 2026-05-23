@@ -34,6 +34,16 @@ WindowsProcessControlCenter.exe
 
 The `web/` folder must remain beside the executable.
 
+## Installer Package
+
+An optional Windows installer is also available:
+
+```text
+WindowsProcessControlCenter-0.1.0-setup.exe
+```
+
+The installer uses Inno Setup, installs per user by default, supports custom install locations, can create desktop and Start Menu shortcuts, can optionally start the app with Windows through HKCU Run, and supports normal Windows uninstall.
+
 ## Requirements
 
 - Windows 10 or newer.

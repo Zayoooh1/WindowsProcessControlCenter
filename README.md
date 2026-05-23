@@ -86,6 +86,44 @@ The portable folder contains:
 
 The `web/` folder must stay beside the executable. The app does not load external frontend assets, CDNs, or web scripts.
 
+## Installer Build
+
+Windows Process Control Center can also be packaged as a Windows installer using Inno Setup 6.
+
+Install Inno Setup from:
+
+- [Inno Setup](https://jrsoftware.org/isinfo.php)
+
+The build script looks for `ISCC.exe` in `PATH` and in standard install locations:
+
+- `C:\Program Files (x86)\Inno Setup 6\ISCC.exe`
+- `C:\Program Files\Inno Setup 6\ISCC.exe`
+
+Build the installer from the repository root:
+
+```powershell
+.\scripts\build_installer.ps1
+```
+
+The generated installer is written to:
+
+```text
+dist/installer/WindowsProcessControlCenter-0.1.0-setup.exe
+```
+
+The installer is per-user by default and does not require administrator rights for the default location:
+
+```text
+%LOCALAPPDATA%\Programs\WindowsProcessControlCenter
+```
+
+It lets the user choose the install location, create a desktop shortcut, create a Start Menu folder, and optionally start the app with Windows through the current user's `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` key. Uninstall removes installed files and the optional autostart entry.
+
+## Distribution Options
+
+- Portable ZIP: no installation. Unzip the package, keep `web/` beside the executable, and run `WindowsProcessControlCenter.exe`.
+- Installer EXE: normal per-user installation with optional shortcuts, optional autostart, and Windows uninstall support.
+
 ## Run
 
 After a Debug build:
