@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Windows Process Control Center</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="top-bar">
+      <div>
+        <h1>Windows Process Control Center</h1>
+        <p>Read-only process monitor</p>
+      </div>
+      <div class="top-actions">
+        <span class="mode-pill">User mode</span>
+        <span id="processCount" class="count">0 processes</span>
+        <button id="refreshButton" class="primary-button" type="button">Refresh</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <nav class="sidebar" aria-label="Main navigation">
+        <div class="nav-title">Navigation</div>
+        <button class="nav-item" type="button">Dashboard</button>
+        <button class="nav-item active" type="button">Processes</button>
+        <button class="nav-item" type="button">Rules / Profiles</button>
+        <button class="nav-item" type="button">Settings</button>
+        <button class="nav-item" type="button">About</button>
+      </nav>
+
+      <main class="process-panel">
+        <section class="panel table-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Processes</h2>
+              <p id="snapshotSummary">Waiting for process snapshot...</p>
+            </div>
+          </div>
+
+          <label class="search-box" aria-label="Search processes">
+            <span>Search</span>
+            <input id="searchInput" type="search" placeholder="Process, PID, or executable path" autocomplete="off">
+          </label>
+
+          <div id="errorBanner" class="error-banner hidden"></div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>PID</th>
+                  <th>Process</th>
+                  <th>Executable Path</th>
+                  <th>CPU Priority</th>
+                  <th>Admin</th>
+                  <th>Access</th>
+                </tr>
+              </thead>
+              <tbody id="processRows">
+                <tr>
+                  <td colspan="6" class="empty-cell">Loading processes...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="panel details-panel">
+          <div class="details-title">
+            <h2>Process details</h2>
+            <p>Read-only inspection</p>
+          </div>
+
+          <div id="detailsContent" class="details-content empty-details">
+            Select a process to inspect its details.
+          </div>
+        </aside>
+      </main>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

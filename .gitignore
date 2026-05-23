@@ -1,0 +1,59 @@
+# Build outputs
+build/
+out/
+bin/
+obj/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+*.cmake
+!CMakeLists.txt
+CMakeUserPresets.json
+
+# Visual Studio and MSVC local files
+.vs/
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+*.opensdf
+*.sdf
+*.ipch
+*.aps
+*.ncb
+*.opendb
+*.tlog
+*.lastbuildstate
+*.log
+
+# Compiler and linker artifacts
+*.obj
+*.pdb
+*.ilk
+*.idb
+*.pch
+*.res
+*.exp
+*.lib
+*.dll
+*.exe
+*.manifest
+
+# NuGet / dependency caches generated inside build trees
+packages/
+_deps/
+*.nupkg
+
+# WebView2 runtime data generated beside the executable
+WebView2UserData/
+
+# OS/editor noise
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.swp
+*.tmp
+*.temp

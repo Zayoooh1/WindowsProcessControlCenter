@@ -1,0 +1,423 @@
+# Progress
+
+## Task 01 - Project Foundation
+
+Status: completed.
+
+Created a clean C++20 Win32 desktop application foundation named `WindowsProcessControlCenter`. The app uses DirectX 11 and Dear ImGui for a modern dark UI shell. Real Windows process management is intentionally out of scope for this task.
+
+## Added and Changed Files
+
+- `CMakeLists.txt`
+- `README.md`
+- `PROGRESS.md`
+- `docs/.gitkeep`
+- `third_party/.gitkeep`
+- `src/main.cpp`
+- `src/app/Application.h`
+- `src/app/Application.cpp`
+- `src/core/ProcessInfo.h`
+- `src/core/ProcessMockProvider.h`
+- `src/core/ProcessMockProvider.cpp`
+- `src/platform/D3D11Renderer.h`
+- `src/platform/D3D11Renderer.cpp`
+- `src/platform/Win32Window.h`
+- `src/platform/Win32Window.cpp`
+- `src/ui/UiLayer.h`
+- `src/ui/UiLayer.cpp`
+
+## What Works
+
+- CMake project generation for Visual Studio/MSVC.
+- C++20 Windows desktop target.
+- Dear ImGui dependency download via CMake `FetchContent`.
+- Win32 window creation with a minimum size.
+- DirectX 11 device, swap chain, render target, resize handling, and present loop.
+- Dear ImGui frame lifecycle.
+- Modern dark UI shell with top bar, sidebar, process table, search field, and details panel.
+- Mock process data displayed in the table.
+- Placeholder process action buttons with `Not implemented yet` feedback.
+
+## Build Verification
+
+- `cmake -S . -B build -G "Visual Studio 17 2022" -A x64`
+- `cmake --build build --config Debug`
+- `cmake --build build --config Release`
+- Application launch smoke test passed.
+- Layout screenshots captured at `1280x720`, `1366x768`, `1600x900`, and `1920x1080`.
+
+Generated executables:
+
+- `C:\Vibe\WinProcessManager\build\Debug\WindowsProcessControlCenter.exe`
+- `C:\Vibe\WinProcessManager\build\Release\WindowsProcessControlCenter.exe`
+
+## Not Implemented Yet
+
+- Real process enumeration.
+- Ending processes.
+- Freezing or resuming processes.
+- Changing CPU priority.
+- Changing GPU preference.
+- Settings persistence.
+- Profiles and rules.
+- Autostart behavior.
+- Elevation or admin-mode workflow.
+
+## Suggested Next Stage
+
+Implement safe read-only process enumeration in `src/core/`, then replace the mock provider with a real process snapshot provider while keeping all destructive process actions disabled.
+
+## Task 02 - Read-Only Windows Process Enumeration
+
+Status: completed.
+
+Replaced the mock process rows with a real read-only process snapshot provider. The application now enumerates active Windows processes, attempts to read executable paths and CPU priority classes, and reports access status without crashing when a process cannot be opened.
+
+## Added, Changed, and Removed Files
+
+- Changed `CMakeLists.txt`
+- Changed `README.md`
+- Changed `PROGRESS.md`
+- Changed `src/core/ProcessInfo.h`
+- Added `src/core/ProcessProvider.h`
+- Added `src/core/ProcessProvider.cpp`
+- Changed `src/ui/UiLayer.h`
+- Changed `src/ui/UiLayer.cpp`
+- Removed `src/core/ProcessMockProvider.h`
+- Removed `src/core/ProcessMockProvider.cpp`
+
+## What Works
+
+- Real process enumeration through `CreateToolhelp32Snapshot`, `Process32FirstW`, and `Process32NextW`.
+- Safe process probing through `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)`.
+- Best-effort executable path lookup with `QueryFullProcessImageNameW`.
+- CPU priority class lookup with `GetPriorityClass`.
+- Proper handle cleanup through RAII.
+- Processes that cannot be opened remain visible and are labeled as `Access denied`, `Protected/System`, or `Unknown`.
+- Refresh button reloads the process snapshot on demand.
+- Search filters by process name, PID, and executable path.
+- Details panel shows process name, PID, executable path, CPU priority, access status, admin requirement hint, and access error details when available.
+
+## Known Limitations
+
+- Some protected, system, or cross-integrity processes may not expose full path or priority details from a normal user session.
+- Access classification is conservative and based on WinAPI result codes plus a small system-process heuristic.
+- Process data is a snapshot refreshed at startup or when `Refresh` is clicked, not a live stream.
+- CPU usage, memory usage, process tree, signatures, icons, and command lines are not shown yet.
+
+## Still Not Implemented
+
+- Ending processes.
+- Freezing or resuming processes.
+- Changing CPU priority.
+- Changing GPU preference.
+- Settings persistence.
+- Profiles and rules.
+- Autostart behavior.
+- Elevation or admin-mode workflow.
+
+## Build Verification
+
+- `cmake --build build --config Debug`
+- `cmake --build build --config Release`
+
+Generated executables:
+
+- `C:\Vibe\WinProcessManager\build\Debug\WindowsProcessControlCenter.exe`
+- `C:\Vibe\WinProcessManager\build\Release\WindowsProcessControlCenter.exe`
+
+## Suggested Next Stage
+
+Add richer read-only process metadata such as memory usage, CPU usage snapshot, parent PID, process architecture, icons, and command-line details before enabling any management actions.
+
+## Task 03 - Modern UI / UX Overhaul
+
+Status: completed.
+
+Refined the application UI without adding new system capabilities. The app still uses the Task 02 read-only process enumeration path, but the presentation now has a more deliberate desktop-tool feel with a dedicated theme module, Segoe UI font loading, calmer colors, better spacing, badges, and clearer panel hierarchy.
+
+## Added and Changed Files
+
+- Changed `CMakeLists.txt`
+- Changed `README.md`
+- Changed `PROGRESS.md`
+- Changed `src/ui/UiLayer.h`
+- Changed `src/ui/UiLayer.cpp`
+- Added `src/ui/UiTheme.h`
+- Added `src/ui/UiTheme.cpp`
+
+## UI Improvements
+
+- Added a central `UiTheme` module for palette, ImGui styling, and system font loading.
+- Switched to Segoe UI from `C:\Windows\Fonts\segoeui.ttf` with ImGui default font fallback.
+- Reworked the dark theme with softer panels, subtle borders, restrained accent colors, and less stock ImGui styling.
+- Redesigned the top bar with app title, subtitle, user mode badge, process counter, and refresh action.
+- Improved sidebar spacing, active item treatment, and visual separation.
+- Redesigned the process table with clearer column sizing, row spacing, selected-row treatment, path truncation, and tooltips for long text.
+- Added badge/chip rendering for CPU priority, admin hint, and access status.
+- Improved the right details panel with sections for basic information, executable path, runtime status, and future actions.
+- Changed future process actions to disabled buttons with `Not implemented yet` tooltips.
+
+## Still Not Implemented
+
+- Ending processes.
+- Freezing or resuming processes.
+- Changing CPU priority.
+- Changing GPU preference.
+- Settings persistence.
+- Profiles and rules.
+- Autostart behavior.
+- Registry modifications.
+- Forced administrator elevation.
+
+## Build Verification
+
+- `cmake --build build --config Debug`
+- `cmake --build build --config Release`
+
+Generated executables:
+
+- `C:\Vibe\WinProcessManager\build\Debug\WindowsProcessControlCenter.exe`
+- `C:\Vibe\WinProcessManager\build\Release\WindowsProcessControlCenter.exe`
+
+## Suggested Next Stage
+
+Add richer read-only process metadata and sorting controls, such as memory usage, CPU usage sampling, parent PID, architecture, icons, and stable table sorting, before enabling any process management actions.
+
+## Task 04 - UI/UX Polish v2, Layout Fixes, and GUI Library Decision
+
+Status: completed.
+
+Continued UI-only polish without changing process-management behavior. The layout now has safer global margins, more consistent panel padding, a less stock ImGui table, clearer sidebar spacing, and a documented GUI library decision.
+
+## Added and Changed Files
+
+- Changed `README.md`
+- Changed `PROGRESS.md`
+- Added `docs/GUI_LIBRARY_DECISION.md`
+- Changed `src/ui/UiLayer.cpp`
+- Changed `src/ui/UiTheme.h`
+- Changed `src/ui/UiTheme.cpp`
+
+## UI Improvements
+
+- Added centralized layout metrics in `UiTheme` for app padding, panel padding, gaps, row height, button height, and panel sizing.
+- Increased Segoe UI base font size and applied DPI-aware ImGui style scaling.
+- Shifted the whole application inward so no major panel starts at the window edge.
+- Refined the dark palette toward graphite panels, softer borders, and calmer accent colors.
+- Improved top bar spacing, right-side control alignment, process counter placement, and status badge styling.
+- Improved sidebar padding, active indicator, item height, hover state, and spacing below `NAVIGATION`.
+- Improved the process table with wider PID padding, taller rows, less aggressive selection, hover treatment, wider badge columns, and better path tooltip behavior.
+- Improved search input styling with stronger padding, rounded frame, and calmer border/background.
+- Reworked the details panel into clearer sections: Basic information, Executable path, Runtime status, CPU priority, Access status, Admin requirement, and Future actions.
+- Kept future actions visibly disabled instead of presenting them as active blue buttons.
+
+## Layout Fixes
+
+- Fixed UI feeling attached to the top, left, and right window edges.
+- Fixed sidebar text appearing too close to the left edge.
+- Fixed the PID column feeling too close to the table edge.
+- Reduced cramped spacing between detail sections.
+- Reduced stock ImGui table appearance through row height, padding, colors, badges, and hover/selection treatment.
+- Preserved tooltip behavior for long executable paths.
+
+## GUI Library Decision Summary
+
+The recommendation is to stay on Dear ImGui for now. It keeps the build simple, fits the existing Win32/DX11/C++ codebase, and is efficient for dense process-manager workflows. Migration should be revisited later if accessibility, native Windows polish, or complex multi-window UI becomes more important. If migration becomes necessary, WinUI 3 is the strongest native Windows option, while Qt Widgets is a safer mature desktop alternative.
+
+## Still Not Implemented
+
+- Ending processes.
+- Freezing or resuming processes.
+- Changing CPU priority.
+- Changing GPU preference.
+- Settings persistence.
+- Profiles and rules.
+- Autostart behavior.
+- Registry modifications.
+- Forced administrator elevation.
+
+## Build Verification
+
+- `cmake -S . -B build -G "Visual Studio 17 2022" -A x64`
+- `cmake --build build --config Debug`
+- `cmake --build build --config Release`
+
+Generated executables:
+
+- `C:\Vibe\WinProcessManager\build\Debug\WindowsProcessControlCenter.exe`
+- `C:\Vibe\WinProcessManager\build\Release\WindowsProcessControlCenter.exe`
+
+## Suggested Next Stage
+
+Add read-only table sorting and richer process metadata, then perform visual QA with screenshots before starting any safe process-action design.
+
+## Task 05 - Refactor UI from Dear ImGui to WebView2
+
+Status: completed.
+
+Migrated the active UI from Dear ImGui/DX11 to Microsoft Edge WebView2. The application remains a native Win32 C++ desktop app, and the existing `ProcessProvider` backend remains responsible for read-only Windows process enumeration. The UI is now a local vanilla HTML/CSS/JavaScript frontend loaded from the copied `web/` folder.
+
+## Added Files
+
+- `src/ui_web/WebViewHost.h`
+- `src/ui_web/WebViewHost.cpp`
+- `src/ui_web/WebMessageBridge.h`
+- `src/ui_web/WebMessageBridge.cpp`
+- `web/index.html`
+- `web/styles.css`
+- `web/app.js`
+
+## Changed Files
+
+- `CMakeLists.txt`
+- `README.md`
+- `PROGRESS.md`
+- `docs/GUI_LIBRARY_DECISION.md`
+- `src/app/Application.h`
+- `src/app/Application.cpp`
+
+## Removed From Active Build
+
+- Dear ImGui FetchContent dependency.
+- ImGui backend/source compilation.
+- `src/platform/D3D11Renderer.cpp`
+- `src/platform/D3D11Renderer.h`
+- `src/ui/UiLayer.cpp`
+- `src/ui/UiLayer.h`
+- `src/ui/UiTheme.cpp`
+- `src/ui/UiTheme.h`
+
+The files remain in the repository as legacy reference, but WebView2 is now the normal startup path.
+
+## What Works
+
+- CMake automatically downloads `Microsoft.Web.WebView2` version `1.0.3967.48` from NuGet.
+- WebView2 SDK is extracted under `build/_deps/`.
+- WebView2 loader is linked statically.
+- `web/index.html`, `web/styles.css`, and `web/app.js` are copied beside the `.exe` after build.
+- App starts as a native Win32 window and loads local WebView2 frontend files.
+- Frontend sends `{ "type": "refreshProcesses" }` to C++.
+- C++ reads real process data through `ProcessProvider`.
+- C++ sends `{ "type": "processSnapshot", "processes": [...] }` to JavaScript.
+- Frontend renders process table, search/filtering, selection, details panel, badges, and disabled future actions.
+- Refresh button requests a fresh backend snapshot.
+
+## Known Limitations
+
+- WebView2 Runtime must be installed on the target machine.
+- The frontend is intentionally vanilla HTML/CSS/JS; there is no bundler, framework, or component compiler.
+- Table sorting is not implemented yet.
+- The old ImGui files have not been deleted yet.
+- Release disables WebView2 dev tools, but Debug leaves them available for development.
+
+## Still Not Implemented
+
+- Ending processes.
+- Freezing or resuming processes.
+- Changing CPU priority.
+- Changing GPU preference.
+- Settings persistence.
+- Profiles and rules.
+- Autostart behavior.
+- Registry modifications.
+- Forced administrator elevation.
+
+## Build Verification
+
+- `cmake -S . -B build -G "Visual Studio 17 2022" -A x64`
+- `cmake --build build --config Debug`
+- `cmake --build build --config Release`
+- Application launch smoke test passed.
+- WebView2 loaded local frontend from `build/Debug/web/index.html`.
+- Process snapshot loaded in the WebView2 UI.
+- Refresh, search, row selection, and details panel were smoke-tested.
+
+Generated executables:
+
+- `C:\Vibe\WinProcessManager\build\Debug\WindowsProcessControlCenter.exe`
+- `C:\Vibe\WinProcessManager\build\Release\WindowsProcessControlCenter.exe`
+
+## Suggested Next Stage
+
+Add frontend table sorting, column sizing persistence, and richer read-only process metadata while keeping all process actions disabled.
+
+## Task 06 - CPU Priority Control Through WebView2 UI
+
+Status: completed.
+
+Added the first real process-management action: changing CPU priority for an accessible selected process. The action is implemented in a dedicated backend module and exposed through the WebView2 message bridge. Other process actions remain disabled.
+
+## Added Files
+
+- `src/core/ProcessActions.h`
+- `src/core/ProcessActions.cpp`
+
+## Changed Files
+
+- `CMakeLists.txt`
+- `README.md`
+- `PROGRESS.md`
+- `src/ui_web/WebMessageBridge.h`
+- `src/ui_web/WebMessageBridge.cpp`
+- `src/ui_web/WebViewHost.h`
+- `src/ui_web/WebViewHost.cpp`
+- `web/app.js`
+- `web/styles.css`
+
+## What Works
+
+- WebView2 details panel now includes an active CPU Priority section.
+- Supported priority levels: `Realtime`, `High`, `Above Normal`, `Normal`, `Below Normal`, `Idle`.
+- Frontend sends `{ "type": "setCpuPriority", "pid": ..., "priority": "...", "confirmRealtime": ... }`.
+- Backend applies the action through `ProcessActions::SetCpuPriority`.
+- Backend responds with `actionResult`.
+- On success, the backend sends a fresh process snapshot so the UI reflects the new priority.
+- UI keeps the selected process when it still exists after refresh.
+
+## Safety Guards
+
+- Blocks PID 0.
+- Blocks the WindowsProcessControlCenter process itself.
+- Blocks `System` and `Protected/System` processes.
+- Blocks `Access denied` and inaccessible processes.
+- Detects processes that exited between snapshot and action.
+- Uses minimal required process rights: `PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION`.
+- Realtime priority requires a frontend checkbox and backend `confirmRealtime == true`.
+
+## Test Notes
+
+- Changed a Notepad process from `Normal` to `BelowNormal` through the WebView2 UI.
+- Verified the change with PowerShell `Get-Process`.
+- Restored the test Notepad process to `Normal` after verification.
+- Verified the Realtime UI warning and disabled Apply button without confirmation.
+
+## Still Not Implemented
+
+- Ending processes.
+- Freezing or resuming processes.
+- Changing GPU preference.
+- Settings persistence.
+- Profiles and rules.
+- Autostart behavior.
+- Registry modifications.
+- Forced administrator elevation.
+
+## Build Verification
+
+- `cmake -S . -B build -G "Visual Studio 17 2022" -A x64`
+- `cmake --build build --config Debug`
+- `cmake --build build --config Release`
+- Application launch smoke test passed.
+- WebView2 UI loaded.
+- Process list and Refresh still work.
+- Search and process selection still work.
+
+Generated executables:
+
+- `C:\Vibe\WinProcessManager\build\Debug\WindowsProcessControlCenter.exe`
+- `C:\Vibe\WinProcessManager\build\Release\WindowsProcessControlCenter.exe`
+
+## Suggested Next Stage
+
+Add non-destructive UX polish around CPU priority changes, such as clearer permission explanations and table sorting, before implementing any destructive actions like End Process.
