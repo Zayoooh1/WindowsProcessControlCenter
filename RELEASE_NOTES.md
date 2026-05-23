@@ -2,7 +2,19 @@
 
 Release date: 2026-05-23
 
-**Update: Added Windows resource metadata and application icon.**
+**Update: Windows 10 compatibility and DPI/responsive audit.**
+
+- DPI awareness now uses a safe fallback chain: per-monitor v2 -> per-monitor v1 -> system DPI aware, ensuring compatibility across Windows 10 1607+.
+- DWM dark title bar already had a safe fallback (attribute 20 -> 19) for older Windows 10 builds. Verified unchanged.
+- Tray icon implementation verified: uses standard `Shell_NotifyIconW`, no Windows 11-only dependencies.
+- Inno Setup installer verified: per-user install, no admin requirement, `x64compatible` architecture.
+- Responsive CSS improved with additional short-height breakpoints for 680px and 600px viewport heights.
+- All tabs (Dashboard, Processes, Rules/Profiles, Settings, About) reviewed for responsive behavior at 1280x720, 1366x768, 1600x900, and 1920x1080 at 100%, 125%, and 150% DPI scaling.
+- Tables and details panels use overflow scroll and remain usable at all tested resolutions.
+- README now includes a dedicated Compatibility section with Windows 10 fallback notes, DPI recommendations, and WebView2 Runtime requirement documentation.
+- **Note:** Windows 10 was not tested on a real device or VM in this task. Compatibility changes are based on code review, documented API fallback behavior, and Windows 11 validation. Real Windows 10 testing is still recommended.
+
+**Earlier update: Added Windows resource metadata and application icon.**
 
 ## Highlights
 

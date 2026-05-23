@@ -6,9 +6,24 @@ Windows Process Control Center is a C++20 Win32 desktop application for Windows 
 
 The app can display real process snapshots, summarize the current snapshot on a Dashboard tab, store frontend-only UI preferences in a Settings tab, change the CPU priority class of accessible user processes, safely terminate selected non-critical user processes after explicit confirmation, freeze/resume selected user processes during the current app session, and set Windows GPU Preference per executable path. It blocks known critical Windows processes and does not persist native config files, custom profiles, or app presets yet.
 
+## Compatibility
+
+- **Supported OS:** Windows 10 x64 (20H1 / build 19041 or newer recommended) and Windows 11 x64.
+- **Windows 10 fallback notes:**
+  - DPI awareness uses a safe fallback chain: per-monitor v2 -> per-monitor v1 -> system DPI aware. Compatible with Windows 10 1607+.
+  - Dark title bar uses the `DWMWA_USE_IMMERSIVE_DARK_MODE` attribute (20) where available, with a fallback to attribute 19 for older Windows 10 builds. The title bar always renders correctly regardless of dark-mode support.
+  - Tray icon uses standard `Shell_NotifyIconW` APIs with no Windows 11-only behavior.
+  - All feature-level code paths (CPU priority, freeze/resume, GPU preference, process termination) are Win32 API-based and do not depend on Windows 11.
+- **WebView2 Runtime requirement:** The app requires Microsoft Edge WebView2 Evergreen Runtime. It ships with Windows 11 and most Windows 10 installations. The installer shows a notice if it is not detected.
+- **DPI / resolution recommendations:**
+  - The app performs best at 1280x720 or higher with 100%–150% DPI scaling.
+  - The minimum window size is 1060 x 680 physical pixels.
+  - All tabs are scrollable and tested at 1280x720, 1366x768, 1600x900, and 1920x1080.
+- **Windows 10 real device testing:** Compatibility changes in this release were based on code review, documented API fallback behavior, and Windows 11 validation. Real Windows 10 VM or device testing is still recommended but was not performed in this task.
+
 ## Requirements
 
-- Windows 10 or newer
+- Windows 10 x64 (20H1 build 19041 or newer recommended) or Windows 11 x64
 - Visual Studio 2022 with MSVC C++ tools
 - Windows SDK
 - CMake 3.24 or newer

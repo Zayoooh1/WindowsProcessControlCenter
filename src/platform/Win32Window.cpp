@@ -13,7 +13,29 @@ namespace
 
     void EnableDpiAwareness()
     {
-        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        static bool s_awarenessSet = false;
+        if (s_awarenessSet)
+        {
+            return;
+        }
+
+        // Per-monitor DPI-aware v2 (Windows 10 Creators Update 1703+)
+        if (SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
+        {
+            s_awarenessSet = true;
+            return;
+        }
+
+        // Fall back to per-monitor DPI-aware v1 (Windows 10 Anniversary Update 1607+)
+        if (SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE))
+        {
+            s_awarenessSet = true;
+            return;
+        }
+
+        // Final fallback: system DPI aware (Windows Vista+)
+        SetProcessDPIAware();
+        s_awarenessSet = true;
     }
 
     void TryEnableDarkTitleBar(HWND hwnd)

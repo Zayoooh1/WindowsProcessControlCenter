@@ -1343,6 +1343,57 @@ body.reduced-motion *::after {
   }
 }
 
+@media (max-height: 680px) {
+  .app-shell {
+    padding: 8px;
+  }
+
+  .top-bar {
+    padding: 8px 10px;
+  }
+
+  .dashboard-hero,
+  .settings-hero,
+  .about-hero,
+  .rules-hero {
+    padding: 10px var(--panel-padding);
+  }
+
+  .dashboard-hero h2,
+  .settings-hero h2 {
+    font-size: 17px;
+  }
+
+  .dashboard-hero p {
+    margin-top: 4px;
+  }
+
+  .table-panel {
+    padding: 10px;
+  }
+}
+
+@media (max-height: 600px) {
+  .top-bar h1 {
+    font-size: 13px;
+  }
+
+  .top-bar p {
+    display: none;
+  }
+
+  .dashboard-hero h2,
+  .settings-hero h2 {
+    font-size: 15px;
+  }
+
+  .nav-item {
+    min-height: 34px;
+    margin-bottom: 4px;
+    padding: 0 10px 0 18px;
+  }
+}
+
 /* About View Styling */
 .about-view {
   min-width: 0;

@@ -66,9 +66,22 @@ This file is intentionally kept short for public-facing repository history. Deta
   - Double-click or single-click restores/focuses the main window.
   - Clean removal on app exit.
 
+## Windows 10 Compatibility and DPI/Responsive Audit
+
+- DPI awareness uses a safe fallback chain: per-monitor v2 -> per-monitor v1 -> system DPI aware (`SetProcessDPIAware`).
+- Dark title bar already had a safe fallback (attribute 20 -> 19) for older Windows 10 builds. No change needed.
+- Tray icon verified compatible: standard `Shell_NotifyIconW` APIs, no Windows 11-only code paths.
+- Installer verified: per-user install (`PrivilegesRequired=lowest`), `x64compatible` architecture, no admin requirement.
+- Responsive CSS reviewed and improved with additional short-height breakpoints for 680px and 600px viewport heights.
+- README now includes a dedicated Compatibility section listing supported OS, DPI recommendations, WebView2 Runtime requirement, and Windows 10 fallback notes.
+- **Known limitations:**
+  - Real Windows 10 VM/device testing was not performed. Compatibility is based on code review and documented API behavior only.
+  - At very high DPI scaling (>200%) combined with 1280x720, the sidebar is hidden (760px CSS breakpoint) and there is no alternative navigation. This is acceptable for current 0.1.0 scope.
+
 ## Suggested Next Steps
 
 - Add a lightweight action history/audit panel.
 - Add table sorting and richer read-only metadata.
 - Add native settings/config persistence if UI preferences should move beyond WebView2 localStorage.
 - Automate GitHub Release creation after manual validation.
+- Perform real Windows 10 VM/device testing to validate the compatibility changes.
