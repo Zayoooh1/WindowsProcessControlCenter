@@ -116,6 +116,7 @@ h2 {
 }
 
 .mode-pill,
+.version-pill,
 .count,
 .badge {
   display: inline-flex;
@@ -129,6 +130,11 @@ h2 {
 .mode-pill {
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+.version-pill {
+  color: #cfd8e3;
+  background: #263140;
 }
 
 .count {

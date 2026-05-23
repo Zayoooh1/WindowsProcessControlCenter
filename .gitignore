@@ -3,6 +3,8 @@ build/
 out/
 bin/
 obj/
+dist/
+*.zip
 
 # CMake generated files
 CMakeFiles/

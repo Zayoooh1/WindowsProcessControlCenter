@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.24)
 
+if(POLICY CMP0091)
+    cmake_policy(SET CMP0091 NEW)
+endif()
+
 project(WindowsProcessControlCenter
     VERSION 0.1.0
     DESCRIPTION "Modern Windows desktop shell for process control workflows"
@@ -9,6 +13,10 @@ project(WindowsProcessControlCenter
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 set(WEBVIEW2_VERSION "1.0.3967.48")
 set(WEBVIEW2_PACKAGE_DIR "${CMAKE_BINARY_DIR}/_deps/webview2-${WEBVIEW2_VERSION}")

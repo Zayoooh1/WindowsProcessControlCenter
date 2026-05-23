@@ -1,5 +1,7 @@
 # Windows Process Control Center
 
+Version: `0.1.0`
+
 Windows Process Control Center is a C++20 Win32 desktop application for Windows process inspection and controlled process-management workflows. The current UI is rendered with Microsoft Edge WebView2 using local vanilla HTML, CSS, and JavaScript, while the backend remains native C++/WinAPI.
 
 The app can display real process snapshots, change the CPU priority class of accessible user processes, safely terminate selected non-critical user processes after explicit confirmation, freeze/resume selected user processes during the current app session, and set Windows GPU Preference per executable path. It blocks known critical Windows processes and does not persist custom profiles or app presets yet.
@@ -58,6 +60,32 @@ build/Debug/web/app.js
 
 The same copy step runs for Release.
 
+## Portable Release Package
+
+Create a portable Release package from the repository root:
+
+```powershell
+.\scripts\package_release.ps1
+```
+
+The script configures/builds Release by default, creates a clean portable folder, copies the executable, copies the local `web/` frontend, copies release documentation, and creates a ZIP:
+
+```text
+dist/WindowsProcessControlCenter-0.1.0-portable/
+dist/WindowsProcessControlCenter-0.1.0-portable.zip
+```
+
+The portable folder contains:
+
+- `WindowsProcessControlCenter.exe`
+- `web/index.html`
+- `web/styles.css`
+- `web/app.js`
+- `README.md`
+- `RELEASE_NOTES.md`
+
+The `web/` folder must stay beside the executable. The app does not load external frontend assets, CDNs, or web scripts.
+
 ## Run
 
 After a Debug build:
@@ -70,6 +98,12 @@ After a Release build:
 
 ```powershell
 .\build\Release\WindowsProcessControlCenter.exe
+```
+
+After creating the portable package:
+
+```powershell
+.\dist\WindowsProcessControlCenter-0.1.0-portable\WindowsProcessControlCenter.exe
 ```
 
 ## Current Scope

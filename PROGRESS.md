@@ -724,3 +724,44 @@ Prepared the project as a release-candidate baseline. The active architecture is
 ## Suggested Next Stage
 
 Add a lightweight action history/audit panel and table sorting so process actions are easier to review without increasing system-level risk.
+
+## Task 11 - Portable Release Packaging, Versioning, and Release Notes
+
+Status: completed.
+
+Prepared version `0.1.0` for portable distribution. The project now has a repeatable PowerShell packaging script that creates a clean portable folder and ZIP without committing build outputs.
+
+## Added Files
+
+- `RELEASE_NOTES.md`
+- `scripts/package_release.ps1`
+
+## Changed Files
+
+- `.gitignore`
+- `CMakeLists.txt`
+- `README.md`
+- `PROGRESS.md`
+- `web/index.html`
+- `web/styles.css`
+
+## What Works
+
+- Project version is `0.1.0` in CMake and visible in the WebView2 top bar.
+- Release notes describe the `0.1.0` feature set, safety model, WebView2 Runtime requirement, and known limitations.
+- Packaging script builds Release by default.
+- Packaging script creates `dist/WindowsProcessControlCenter-0.1.0-portable/`.
+- Packaging script copies `WindowsProcessControlCenter.exe`, `web/`, `README.md`, and `RELEASE_NOTES.md`.
+- Packaging script creates `dist/WindowsProcessControlCenter-0.1.0-portable.zip`.
+- `.gitignore` excludes `dist/` and generated ZIP files.
+- MSVC runtime is configured for static linking to reduce external DLL needs for the portable package.
+
+## Known Limitations
+
+- Microsoft Edge WebView2 Runtime is still required on the target machine.
+- No installer is generated; this is a portable ZIP package.
+- No auto-update, signing, release tagging, or GitHub Release upload automation yet.
+
+## Suggested Next Stage
+
+Add release signing/version resource metadata and optionally automate GitHub Release creation after manual validation.
