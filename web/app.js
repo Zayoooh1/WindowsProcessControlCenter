@@ -33,9 +33,11 @@ const elements = {
   dashboardNavButton: document.getElementById("dashboardNavButton"),
   processesNavButton: document.getElementById("processesNavButton"),
   settingsNavButton: document.getElementById("settingsNavButton"),
+  aboutNavButton: document.getElementById("aboutNavButton"),
   dashboardView: document.getElementById("dashboardView"),
   processesView: document.getElementById("processesView"),
   settingsView: document.getElementById("settingsView"),
+  aboutView: document.getElementById("aboutView"),
   refreshButton: document.getElementById("refreshButton"),
   dashboardRefreshButton: document.getElementById("dashboardRefreshButton"),
   goToProcessesButton: document.getElementById("goToProcessesButton"),
@@ -259,12 +261,15 @@ function renderActiveView() {
   const dashboardActive = state.activeView === "dashboard";
   const processesActive = state.activeView === "processes";
   const settingsActive = state.activeView === "settings";
+  const aboutActive = state.activeView === "about";
   elements.dashboardView.classList.toggle("hidden-view", !dashboardActive);
   elements.processesView.classList.toggle("hidden-view", !processesActive);
   elements.settingsView.classList.toggle("hidden-view", !settingsActive);
+  elements.aboutView.classList.toggle("hidden-view", !aboutActive);
   elements.dashboardNavButton.classList.toggle("active", dashboardActive);
   elements.processesNavButton.classList.toggle("active", processesActive);
   elements.settingsNavButton.classList.toggle("active", settingsActive);
+  elements.aboutNavButton.classList.toggle("active", aboutActive);
 }
 
 function applySettingsEffects() {
@@ -1389,6 +1394,7 @@ elements.quickRefreshButton.addEventListener("click", requestProcesses);
 elements.dashboardNavButton.addEventListener("click", () => setActiveView("dashboard"));
 elements.processesNavButton.addEventListener("click", () => setActiveView("processes"));
 elements.settingsNavButton.addEventListener("click", () => setActiveView("settings"));
+elements.aboutNavButton.addEventListener("click", () => setActiveView("about"));
 elements.goToProcessesButton.addEventListener("click", () => setActiveView("processes"));
 elements.quickProcessesButton.addEventListener("click", () => setActiveView("processes"));
 elements.startScreenDashboard.addEventListener("change", () => updateSetting("startScreen", "dashboard"));

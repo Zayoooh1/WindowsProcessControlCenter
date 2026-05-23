@@ -1304,9 +1304,11 @@ body.reduced-motion *::after {
 
   .dashboard-hero,
   .settings-hero,
+  .about-hero,
   .hero-actions,
   .quick-actions,
   .setting-card,
+  .about-card,
   .reset-card {
     align-items: stretch;
     flex-direction: column;
@@ -1338,3 +1340,130 @@ body.reduced-motion *::after {
     padding-bottom: 13px;
   }
 }
+
+/* About View Styling */
+.about-view {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: grid;
+  grid-auto-rows: min-content;
+  gap: var(--gap);
+  padding-right: 4px;
+  scrollbar-color: #435165 transparent;
+}
+
+.about-view::-webkit-scrollbar {
+  width: 12px;
+}
+
+.about-view::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.about-view::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: #435165;
+  background-clip: padding-box;
+}
+
+.about-hero {
+  padding: var(--panel-padding);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background:
+    linear-gradient(135deg, rgba(32, 57, 77, 0.72), rgba(23, 29, 38, 0.94) 58%),
+    rgba(23, 29, 38, 0.94);
+}
+
+.about-hero h2 {
+  font-size: 20px;
+}
+
+.about-hero p {
+  max-width: 640px;
+  min-width: 0;
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.about-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
+  gap: var(--gap);
+}
+
+.about-card {
+  min-width: 0;
+  padding: var(--panel-padding);
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  background: rgba(27, 34, 44, 0.94);
+  overflow: hidden;
+}
+
+.about-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.about-info-list {
+  display: grid;
+  gap: 10px;
+}
+
+.about-info-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 120px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 10px;
+}
+
+.about-info-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.about-info-row strong {
+  color: var(--subtle);
+  font-weight: 505;
+}
+
+.about-info-row span {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.about-list {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.about-list li {
+  margin-bottom: 8px;
+}
+
+.about-list li:last-child {
+  margin-bottom: 0;
+}
+
+.about-list strong {
+  color: var(--text);
+}
+

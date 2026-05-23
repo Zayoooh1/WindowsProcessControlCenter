@@ -29,7 +29,7 @@
         <button id="processesNavButton" class="nav-item" type="button">Processes</button>
         <button class="nav-item" type="button" title="Coming later">Rules / Profiles</button>
         <button id="settingsNavButton" class="nav-item" type="button">Settings</button>
-        <button class="nav-item" type="button" title="Coming later">About</button>
+        <button id="aboutNavButton" class="nav-item" type="button">About</button>
       </nav>
 
       <main class="content-area">
@@ -273,6 +273,84 @@
               <button id="resetSettingsButton" class="secondary-button" type="button">Reset settings</button>
             </article>
           </section>
+        </section>
+
+        <section id="aboutView" class="about-view hidden-view">
+          <section class="panel about-hero">
+            <div>
+              <h2>About</h2>
+              <p>Windows Process Control Center</p>
+            </div>
+            <span class="badge neutral">v0.1.0</span>
+          </section>
+
+          <div class="about-grid">
+            <section class="panel about-card">
+              <div class="about-card-header">
+                <h2>Application details</h2>
+              </div>
+              <div class="about-info-list">
+                <div class="about-info-row"><strong>App Name</strong><span>Windows Process Control Center</span></div>
+                <div class="about-info-row"><strong>Version</strong><span>0.1.0</span></div>
+                <div class="about-info-row"><strong>Status</strong><span>Portable Preview / Release Candidate</span></div>
+              </div>
+            </section>
+
+            <section class="panel about-card">
+              <div class="about-card-header">
+                <h2>Main features</h2>
+              </div>
+              <ul class="about-list">
+                <li>CPU priority leveling & adjustment</li>
+                <li>Process freezing & thread suspension controls</li>
+                <li>Executable-level GPU preference management</li>
+                <li>Live process diagnostic listing and search</li>
+              </ul>
+            </section>
+
+            <section class="panel about-card">
+              <div class="about-card-header">
+                <h2>Safety model</h2>
+              </div>
+              <ul class="about-list">
+                <li>Critical Windows system processes are protected and blocked from modifications.</li>
+                <li>Destructive actions (e.g., End Process) require typed keyword confirmations.</li>
+                <li>Administrative check notifies user of potential access restriction issues.</li>
+              </ul>
+            </section>
+
+            <section class="panel about-card">
+              <div class="about-card-header">
+                <h2>Tech stack</h2>
+              </div>
+              <ul class="about-list">
+                <li><strong>Backend:</strong> C++ / Win32 API</li>
+                <li><strong>Frontend:</strong> HTML5, CSS3, JavaScript (ES6) hosted inside WebView2</li>
+                <li><strong>Bridge:</strong> CoreWebView2 asynchronous JSON-based message bridge</li>
+              </ul>
+            </section>
+
+            <section class="panel about-card">
+              <div class="about-card-header">
+                <h2>Distribution options</h2>
+              </div>
+              <ul class="about-list">
+                <li>Portable single executable execution</li>
+                <li>Windows Installer package (MSI)</li>
+              </ul>
+            </section>
+
+            <section class="panel about-card">
+              <div class="about-card-header">
+                <h2>Known limitations</h2>
+              </div>
+              <ul class="about-list">
+                <li>Process freeze/resume controls apply only to the current WPCC session.</li>
+                <li>GPU preference modifications require a target application restart to take effect.</li>
+                <li>Admin privilege level dictates the ability to alter protected system process states.</li>
+              </ul>
+            </section>
+          </div>
         </section>
       </main>
     </div>
