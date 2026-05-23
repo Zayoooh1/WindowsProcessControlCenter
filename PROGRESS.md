@@ -17,7 +17,7 @@ This file is intentionally kept short for public-facing repository history. Deta
 ## Implemented in 0.1.0
 
 - Real process listing with PID, name, executable path, CPU priority, access status, admin hint, runtime state, and GPU Preference.
-- Dashboard tab with current snapshot statistics, safety status, quick actions, last action summary, and available controls overview.
+- Dashboard tab with responsive current snapshot statistics, safety status, quick actions, last action summary, and available controls overview.
 - Refresh and frontend-side search by PID, process name, or executable path.
 - CPU Priority control for accessible user processes.
 - Realtime priority confirmation in the UI and backend.

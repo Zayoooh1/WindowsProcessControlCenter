@@ -156,7 +156,7 @@ Implemented so far:
 - JavaScript to C++ message bridge for `refreshProcesses`.
 - JavaScript to C++ message bridge for `setCpuPriority`.
 - JavaScript to C++ message bridge for `terminateProcess`.
-- Dashboard tab with snapshot statistics, safety status, quick actions, last action status, and available controls overview.
+- Dashboard tab with responsive snapshot statistics, safety status, quick actions, last action status, and available controls overview.
 - Read-only process enumeration using Windows APIs.
 - CPU priority changes for accessible processes through `OpenProcess` and `SetPriorityClass`.
 - Realtime priority safeguard requiring explicit frontend confirmation and backend validation.
