@@ -189,7 +189,7 @@ Implemented so far:
 - Dashboard tab with responsive snapshot statistics, safety status, quick actions, last action status, and available controls overview.
 - Settings tab with frontend-only preferences stored in `localStorage` under `wpcc.settings`.
 - About tab with application details, version information, safety model description, tech stack details, and known limitations.
-- Rules / Profiles tab interface prototype outlining planned automation rules (Auto-apply priority/GPU, presets, safe startup, import/export, conflict safeguards, and a disabled Create profile control).
+- Rules / Profiles tab fully supporting Profiles v1 persistent management UI using browser/WebView2 localStorage.
 - Settings for start screen, compact process table rows, executable path column visibility, details-panel safety notes, and reduced visual effects.
 - Read-only process enumeration using Windows APIs.
 - CPU priority changes for accessible processes through `OpenProcess` and `SetPriorityClass`.
@@ -239,14 +239,56 @@ Available UI preferences:
 
 If `localStorage` is missing, blocked, or contains unreadable settings JSON, the app falls back to safe defaults and the Settings tab shows a notice.
 
+## Profiles v1 (Local Storage Foundation)
+
+The Rules / Profiles tab supports saving persistent app-specific presets in browser/WebView2 `localStorage` using a single key:
+
+```text
+wpcc.profiles
+```
+
+### JSON Schema
+
+The localStorage item contains a JSON object structured as follows:
+
+```json
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "id": "string (unique identifier)",
+      "name": "string (profile display name)",
+      "targetExePath": "string (full executable path)",
+      "targetProcessName": "string (executable file name)",
+      "matchMode": "path | name",
+      "cpuPriority": "DoNotChange | High | AboveNormal | Normal | BelowNormal | Idle | Realtime",
+      "gpuPreference": "DoNotChange | SystemDefault | PowerSaving | HighPerformance",
+      "applyToFamily": "boolean",
+      "autoApply": "boolean (visible but inactive)",
+      "allowRealtime": "boolean",
+      "notes": "string",
+      "createdAt": "string (ISO 8601)",
+      "updatedAt": "string (ISO 8601)"
+    }
+  ]
+}
+```
+
+### Key Design Decisions
+
+- **Targeting Method:** To prevent configuration issues across application restarts and OS reboots, profiles target apps by **full executable path** (preferred) or **executable name** as fallback, rather than transient Process IDs (PIDs).
+- **Matching Scope:** In Profiles v1, all matching features are informational only. No process priority or GPU settings are auto-applied to active processes yet.
+- **Safety Safeguard:** Profiles configured with `Realtime` CPU priority can only be saved after explicitly checking the checkbox acknowledging standard performance impacts.
+- **Resiliency Fallback:** If `localStorage` is disabled or blocked, a warning banner is shown, and the application remains fully usable in-memory using fallback lists during the session.
+
 Not implemented yet:
 
 - Actual GitHub Releases scanning and update checking (settings UI exists, but backend scanning is planned for a future task).
 - Process tree termination or force-killing child processes.
 - Freeze/resume of process trees or child processes.
 - Live GPU switching for an already running process.
-- Native settings/config file persistence.
-- Native profiles, rules, autostart, elevation, or admin workflows (Rules / Profiles is currently a frontend-only prototype).
+- Native settings/config file persistence (settings and profiles are frontend-only localStorage elements).
+- Native C++ profile storage and automatic background auto-apply behaviors.
 
 GPU Preference may require restarting the target application and does not guarantee live switching for an already running process.
 

@@ -2,6 +2,16 @@
 
 Release date: 2026-05-23
 
+**Update: Profiles v1 localStorage foundation.**
+
+- Implemented the persistent Profiles v1 management UI in the Rules / Profiles tab.
+- Profiles can be created, updated, and deleted, persisting in WebView2 `localStorage` under a single `wpcc.profiles` registry key.
+- Profiles target apps using full executable path or process name rather than volatile Process IDs (PIDs).
+- Supports mapping CPU Priority presets and Graphics Preference classes per application.
+- Realtime priority saves are guarded by an interactive performance risk confirmation check.
+- Interactive custom modal overlays manage edit, cancel, and double-check delete confirmation routines cleanly without native browser popups.
+- Fallback mechanisms handle corrupted storage values gracefully and switch seamlessly to session-local in-memory tracking if localStorage is unavailable.
+
 **Update: GitHub Releases update checker implemented.**
 
 - The frontend now performs real GitHub Releases checks against `Zayoooh1/WindowsProcessControlCenter` and shows update status in Settings → Updates.

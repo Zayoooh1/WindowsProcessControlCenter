@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS = {
   ignoredUpdateVersion: null,
 };
 const initialSettingsState = loadSettings();
+const initialProfilesState = loadProfiles();
 
 const state = {
   activeView: initialSettingsState.settings.startScreen,
@@ -35,6 +36,14 @@ const state = {
   settingsStorageAvailable: initialSettingsState.storageAvailable,
   settingsStorageWarning: initialSettingsState.warning,
   resetSettingsModalOpen: false,
+  // Profiles State
+  profilesState: {
+    profiles: initialProfilesState.profiles,
+    storageAvailable: initialProfilesState.storageAvailable,
+    warning: initialProfilesState.warning,
+  },
+  editingProfileId: null,
+  deleteModalProfile: null,
 };
 
 const elements = {
@@ -77,6 +86,37 @@ const elements = {
   processRows: document.getElementById("processRows"),
   detailsContent: document.getElementById("detailsContent"),
   errorBanner: document.getElementById("errorBanner"),
+  // Profiles Elements
+  rulesStorageNotice: document.getElementById("rulesStorageNotice"),
+  rulesActionsBar: document.getElementById("rulesActionsBar"),
+  createProfileButton: document.getElementById("createProfileButton"),
+  rulesEmptyState: document.getElementById("rulesEmptyState"),
+  emptyCreateProfileButton: document.getElementById("emptyCreateProfileButton"),
+  profilesList: document.getElementById("profilesList"),
+  profileModal: document.getElementById("profileModal"),
+  profileModalTitle: document.getElementById("profileModalTitle"),
+  profileForm: document.getElementById("profileForm"),
+  profileName: document.getElementById("profileName"),
+  profileMatchMode: document.getElementById("profileMatchMode"),
+  profileExePath: document.getElementById("profileExePath"),
+  profileProcessName: document.getElementById("profileProcessName"),
+  exePathGroup: document.getElementById("exePathGroup"),
+  processNameGroup: document.getElementById("processNameGroup"),
+  profileCpuPriority: document.getElementById("profileCpuPriority"),
+  profileGpuPreference: document.getElementById("profileGpuPreference"),
+  profileRealtimeWarningBlock: document.getElementById("profileRealtimeWarningBlock"),
+  profileRealtimeCheckbox: document.getElementById("profileRealtimeCheckbox"),
+  profileApplyToFamily: document.getElementById("profileApplyToFamily"),
+  profileAutoApply: document.getElementById("profileAutoApply"),
+  profileNotes: document.getElementById("profileNotes"),
+  profileResetButton: document.getElementById("profileResetButton"),
+  profileCancelButton: document.getElementById("profileCancelButton"),
+  profileSaveButton: document.getElementById("profileSaveButton"),
+  deleteProfileModal: document.getElementById("deleteProfileModal"),
+  deleteProfileNameDisplay: document.getElementById("deleteProfileNameDisplay"),
+  deleteProfileTargetDisplay: document.getElementById("deleteProfileTargetDisplay"),
+  deleteProfileCancelButton: document.getElementById("deleteProfileCancelButton"),
+  deleteProfileConfirmButton: document.getElementById("deleteProfileConfirmButton"),
 };
 
 function loadSettings() {
@@ -151,6 +191,391 @@ function saveSettings() {
   } catch {
     state.settingsStorageAvailable = false;
     state.settingsStorageWarning = "Local settings storage is unavailable. Defaults are active for this session.";
+  }
+}
+
+// ==========================================
+// PROFILES V1 MANAGEMENT LOGIC
+// ==========================================
+
+const PROFILES_STORAGE_KEY = "wpcc.profiles";
+
+const VALID_PRIORITIES = ["DoNotChange", "High", "AboveNormal", "Normal", "BelowNormal", "Idle", "Realtime"];
+const VALID_GPU_PREFERENCES = ["DoNotChange", "SystemDefault", "PowerSaving", "HighPerformance"];
+const VALID_MATCH_MODES = ["path", "name"];
+
+function loadProfiles() {
+  const fallback = {
+    schemaVersion: 1,
+    profiles: [],
+    storageAvailable: false,
+    warning: "",
+  };
+
+  try {
+    const storage = window.localStorage;
+    const testKey = `${PROFILES_STORAGE_KEY}.test`;
+    storage.setItem(testKey, "1");
+    storage.removeItem(testKey);
+
+    const raw = storage.getItem(PROFILES_STORAGE_KEY);
+    if (!raw) {
+      return { schemaVersion: 1, profiles: [], storageAvailable: true, warning: "" };
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      const validated = normalizeProfiles(parsed);
+      return {
+        schemaVersion: validated.schemaVersion,
+        profiles: validated.profiles,
+        storageAvailable: true,
+        warning: "",
+      };
+    } catch {
+      return {
+        schemaVersion: 1,
+        profiles: [],
+        storageAvailable: true,
+        warning: "Saved profiles could not be read. Storage reset to defaults.",
+      };
+    }
+  } catch {
+    return {
+      schemaVersion: 1,
+      profiles: [],
+      storageAvailable: false,
+      warning: "Local storage is unavailable. Profiles cannot be persisted.",
+    };
+  }
+}
+
+function normalizeProfiles(parsed) {
+  const schemaVersion = parsed && typeof parsed.schemaVersion === "number" ? parsed.schemaVersion : 1;
+  const rawProfiles = parsed && Array.isArray(parsed.profiles) ? parsed.profiles : [];
+
+  const profiles = rawProfiles.map((p) => {
+    if (!p || typeof p !== "object") return null;
+
+    const id = typeof p.id === "string" && p.id ? p.id : `prof_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const name = typeof p.name === "string" ? p.name.trim() : "Unnamed Profile";
+    const targetExePath = typeof p.targetExePath === "string" ? p.targetExePath.trim() : "";
+    const targetProcessName = typeof p.targetProcessName === "string" ? p.targetProcessName.trim() : "";
+    const matchMode = VALID_MATCH_MODES.includes(p.matchMode) ? p.matchMode : "path";
+    const cpuPriority = VALID_PRIORITIES.includes(p.cpuPriority) ? p.cpuPriority : "DoNotChange";
+    const gpuPreference = VALID_GPU_PREFERENCES.includes(p.gpuPreference) ? p.gpuPreference : "DoNotChange";
+    const applyToFamily = Boolean(p.applyToFamily);
+    const autoApply = false;
+    const allowRealtime = Boolean(p.allowRealtime);
+    const notes = typeof p.notes === "string" ? p.notes.trim() : "";
+    const createdAt = typeof p.createdAt === "string" ? p.createdAt : new Date().toISOString();
+    const updatedAt = typeof p.updatedAt === "string" ? p.updatedAt : new Date().toISOString();
+
+    return {
+      id,
+      name,
+      targetExePath,
+      targetProcessName,
+      matchMode,
+      cpuPriority,
+      gpuPreference,
+      applyToFamily,
+      autoApply,
+      allowRealtime,
+      notes,
+      createdAt,
+      updatedAt,
+    };
+  }).filter(Boolean);
+
+  return {
+    schemaVersion,
+    profiles,
+  };
+}
+
+function saveProfiles() {
+  if (!state.profilesState.storageAvailable) {
+    return;
+  }
+
+  try {
+    const data = {
+      schemaVersion: 1,
+      profiles: state.profilesState.profiles,
+    };
+    window.localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(data));
+    state.profilesState.warning = "";
+  } catch {
+    state.profilesState.storageAvailable = false;
+    state.profilesState.warning = "Local storage is unavailable. Profiles cannot be persisted.";
+  }
+}
+
+function openProfileModal(profileId = null) {
+  state.editingProfileId = profileId;
+  const prof = profileId ? state.profilesState.profiles.find(p => p.id === profileId) : null;
+
+  elements.profileModalTitle.textContent = profileId ? "Edit profile" : "Create profile";
+  
+  elements.profileName.value = prof ? prof.name : "";
+  elements.profileMatchMode.value = prof ? prof.matchMode : "path";
+  elements.profileExePath.value = prof ? prof.targetExePath : "";
+  elements.profileProcessName.value = prof ? prof.targetProcessName : "";
+  elements.profileCpuPriority.value = prof ? prof.cpuPriority : "DoNotChange";
+  elements.profileGpuPreference.value = prof ? prof.gpuPreference : "DoNotChange";
+  elements.profileApplyToFamily.checked = prof ? prof.applyToFamily : false;
+  elements.profileAutoApply.checked = false;
+  elements.profileNotes.value = prof ? prof.notes : "";
+  elements.profileRealtimeCheckbox.checked = prof ? prof.allowRealtime : false;
+
+  updateMatchModeUi();
+  updateCpuRealtimeUi();
+
+  elements.profileModal.classList.remove("hidden-view");
+  elements.profileName.focus();
+}
+
+function closeProfileModal() {
+  state.editingProfileId = null;
+  elements.profileModal.classList.add("hidden-view");
+  if (elements.profilesList.classList.contains("hidden-view") || state.profilesState.profiles.length === 0) {
+    elements.emptyCreateProfileButton.focus();
+  } else {
+    elements.createProfileButton.focus();
+  }
+}
+
+function resetProfileForm() {
+  if (state.editingProfileId) {
+    openProfileModal(state.editingProfileId);
+  } else {
+    elements.profileName.value = "";
+    elements.profileMatchMode.value = "path";
+    elements.profileExePath.value = "";
+    elements.profileProcessName.value = "";
+    elements.profileCpuPriority.value = "DoNotChange";
+    elements.profileGpuPreference.value = "DoNotChange";
+    elements.profileApplyToFamily.checked = false;
+    elements.profileAutoApply.checked = false;
+    elements.profileNotes.value = "";
+    elements.profileRealtimeCheckbox.checked = false;
+
+    updateMatchModeUi();
+    updateCpuRealtimeUi();
+    elements.profileName.focus();
+  }
+}
+
+function saveProfileForm(event) {
+  event.preventDefault();
+
+  const priority = elements.profileCpuPriority.value;
+  const isRealtime = priority === "Realtime";
+  if (isRealtime && !elements.profileRealtimeCheckbox.checked) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  let prof = null;
+
+  if (state.editingProfileId) {
+    prof = state.profilesState.profiles.find(p => p.id === state.editingProfileId);
+  }
+
+  const profileData = {
+    id: prof ? prof.id : `prof_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name: elements.profileName.value.trim() || "Unnamed Profile",
+    targetExePath: elements.profileExePath.value.trim(),
+    targetProcessName: elements.profileProcessName.value.trim(),
+    matchMode: elements.profileMatchMode.value,
+    cpuPriority: priority,
+    gpuPreference: elements.profileGpuPreference.value,
+    applyToFamily: elements.profileApplyToFamily.checked,
+    autoApply: false,
+    allowRealtime: isRealtime && elements.profileRealtimeCheckbox.checked,
+    notes: elements.profileNotes.value.trim(),
+    createdAt: prof ? prof.createdAt : now,
+    updatedAt: now
+  };
+
+  if (state.editingProfileId) {
+    state.profilesState.profiles = state.profilesState.profiles.map(p => p.id === state.editingProfileId ? profileData : p);
+  } else {
+    state.profilesState.profiles.push(profileData);
+  }
+
+  saveProfiles();
+  closeProfileModal();
+  render();
+}
+
+function openDeleteProfileModal(profile) {
+  state.deleteModalProfile = profile;
+  elements.deleteProfileNameDisplay.textContent = profile.name;
+  elements.deleteProfileTargetDisplay.textContent = profile.matchMode === "path" 
+    ? (profile.targetExePath || "Any Executable") 
+    : (profile.targetProcessName || "Any Process");
+  elements.deleteProfileModal.classList.remove("hidden-view");
+  elements.deleteProfileCancelButton.focus();
+}
+
+function closeDeleteProfileModal() {
+  state.deleteModalProfile = null;
+  elements.deleteProfileModal.classList.add("hidden-view");
+}
+
+function confirmDeleteProfile() {
+  if (!state.deleteModalProfile) return;
+  state.profilesState.profiles = state.profilesState.profiles.filter(p => p.id !== state.deleteModalProfile.id);
+  saveProfiles();
+  closeDeleteProfileModal();
+  render();
+}
+
+function updateMatchModeUi() {
+  const isPath = elements.profileMatchMode.value === "path";
+  elements.exePathGroup.style.display = isPath ? "block" : "none";
+  elements.processNameGroup.style.display = isPath ? "none" : "block";
+}
+
+function updateCpuRealtimeUi() {
+  const isRealtime = elements.profileCpuPriority.value === "Realtime";
+  elements.profileRealtimeWarningBlock.classList.toggle("hidden-view", !isRealtime);
+  
+  const canSave = !isRealtime || elements.profileRealtimeCheckbox.checked;
+  elements.profileSaveButton.disabled = !canSave;
+}
+
+function renderProfiles() {
+  const hasWarning = Boolean(state.profilesState.warning);
+  elements.rulesStorageNotice.classList.toggle("hidden", !hasWarning);
+  if (hasWarning) {
+    elements.rulesStorageNotice.textContent = state.profilesState.warning;
+  }
+
+  const profiles = state.profilesState.profiles;
+  const hasProfiles = profiles.length > 0;
+
+  elements.rulesEmptyState.classList.toggle("hidden-view", hasProfiles);
+  elements.rulesActionsBar.classList.toggle("hidden-view", !hasProfiles);
+  elements.profilesList.classList.toggle("hidden-view", !hasProfiles);
+
+  if (!hasProfiles) {
+    return;
+  }
+
+  elements.profilesList.replaceChildren();
+
+  for (const prof of profiles) {
+    const card = document.createElement("article");
+    card.className = "profile-card";
+
+    const header = document.createElement("div");
+    header.className = "profile-card-header";
+    const title = document.createElement("h3");
+    title.className = "profile-card-title";
+    title.textContent = prof.name;
+    header.appendChild(title);
+    card.appendChild(header);
+
+    const target = document.createElement("div");
+    target.className = "profile-card-target";
+    const targetLabel = document.createElement("span");
+    targetLabel.className = "profile-card-target-label";
+    targetLabel.textContent = prof.matchMode === "path" ? "Match Path" : "Match Name";
+    const targetVal = document.createElement("span");
+    targetVal.style.wordBreak = "break-all";
+    targetVal.textContent = prof.matchMode === "path" ? (prof.targetExePath || "Any Executable") : (prof.targetProcessName || "Any Process");
+    target.appendChild(targetLabel);
+    target.appendChild(targetVal);
+    card.appendChild(target);
+
+    const presets = document.createElement("div");
+    presets.className = "profile-card-presets";
+
+    const cpuBadgeVal = prof.cpuPriority === "DoNotChange" ? "CPU: Keep Current" : `CPU: ${prof.cpuPriority}`;
+    const cpuBadge = badge(cpuBadgeVal, prof.cpuPriority === "DoNotChange" ? "neutral" : priorityTone(prof.cpuPriority));
+    presets.appendChild(cpuBadge);
+
+    const gpuBadgeVal = prof.gpuPreference === "DoNotChange" 
+      ? "GPU: Keep Current" 
+      : `GPU: ${gpuPreferenceLabel(prof.gpuPreference)}`;
+    const gpuBadge = badge(gpuBadgeVal, prof.gpuPreference === "DoNotChange" ? "neutral" : gpuPreferenceTone(prof.gpuPreference));
+    presets.appendChild(gpuBadge);
+
+    card.appendChild(presets);
+
+    if (prof.notes) {
+      const notes = document.createElement("div");
+      notes.className = "profile-card-notes";
+      notes.textContent = prof.notes;
+      card.appendChild(notes);
+    }
+
+    const meta = document.createElement("div");
+    meta.className = "profile-card-meta";
+
+    const familyRow = document.createElement("div");
+    familyRow.className = "profile-card-meta-row";
+    const familyLbl = document.createElement("span");
+    familyLbl.textContent = "Apply to family";
+    const familyVal = document.createElement("span");
+    familyVal.className = "profile-card-meta-value";
+    familyVal.textContent = prof.applyToFamily ? "Yes" : "No";
+    familyRow.appendChild(familyLbl);
+    familyRow.appendChild(familyVal);
+    meta.appendChild(familyRow);
+
+    const autoRow = document.createElement("div");
+    autoRow.className = "profile-card-meta-row";
+    const autoLbl = document.createElement("span");
+    autoLbl.textContent = "Auto apply";
+    const autoVal = document.createElement("span");
+    autoVal.className = "profile-card-meta-value";
+    autoVal.style.color = "var(--warning)";
+    autoVal.textContent = "Planned / Inactive";
+    autoRow.appendChild(autoLbl);
+    autoRow.appendChild(autoVal);
+    meta.appendChild(autoRow);
+
+    const dateRow = document.createElement("div");
+    dateRow.className = "profile-card-meta-row";
+    const dateLbl = document.createElement("span");
+    dateLbl.textContent = "Last updated";
+    const dateVal = document.createElement("span");
+    dateVal.className = "profile-card-meta-value";
+    dateVal.textContent = new Date(prof.updatedAt).toLocaleDateString();
+    dateRow.appendChild(dateLbl);
+    dateRow.appendChild(dateVal);
+    meta.appendChild(dateRow);
+
+    card.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "profile-card-actions";
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "profile-card-btn";
+    editBtn.textContent = "Edit";
+    editBtn.addEventListener("click", () => {
+      openProfileModal(prof.id);
+    });
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "profile-card-btn danger";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.addEventListener("click", () => {
+      openDeleteProfileModal(prof);
+    });
+
+    actions.appendChild(editBtn);
+    actions.appendChild(deleteBtn);
+    card.appendChild(actions);
+
+    elements.profilesList.appendChild(card);
   }
 }
 
@@ -274,6 +699,7 @@ function render() {
   renderTerminateModal();
   renderFreezeModal();
   renderResetSettingsModal();
+  renderProfiles();
 }
 
 function setActiveView(view) {
@@ -1804,11 +2230,17 @@ function hideError() {
 }
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && (state.terminateModalProcess || state.freezeModalProcess || state.resetSettingsModalOpen)) {
-    state.terminateModalProcess = null;
-    state.freezeModalProcess = null;
-    state.resetSettingsModalOpen = false;
-    render();
+  if (event.key === "Escape") {
+    if (state.terminateModalProcess || state.freezeModalProcess || state.resetSettingsModalOpen) {
+      state.terminateModalProcess = null;
+      state.freezeModalProcess = null;
+      state.resetSettingsModalOpen = false;
+      render();
+    } else if (state.editingProfileId !== null) {
+      closeProfileModal();
+    } else if (state.deleteModalProfile !== null) {
+      closeDeleteProfileModal();
+    }
   }
 });
 
@@ -1849,6 +2281,18 @@ elements.searchInput.addEventListener("input", (event) => {
   state.query = event.target.value;
   applyFilter();
 });
+
+// Bind Profile v1 UI Events
+elements.createProfileButton.addEventListener("click", () => openProfileModal(null));
+elements.emptyCreateProfileButton.addEventListener("click", () => openProfileModal(null));
+elements.profileCancelButton.addEventListener("click", closeProfileModal);
+elements.profileResetButton.addEventListener("click", resetProfileForm);
+elements.profileMatchMode.addEventListener("change", updateMatchModeUi);
+elements.profileCpuPriority.addEventListener("change", updateCpuRealtimeUi);
+elements.profileRealtimeCheckbox.addEventListener("change", updateCpuRealtimeUi);
+elements.profileForm.addEventListener("submit", saveProfileForm);
+elements.deleteProfileCancelButton.addEventListener("click", closeDeleteProfileModal);
+elements.deleteProfileConfirmButton.addEventListener("click", confirmDeleteProfile);
 
 render();
 requestProcesses();

@@ -418,69 +418,186 @@
           <section class="panel rules-hero">
             <div>
               <h2>Rules / Profiles</h2>
-              <p>Planned automation and app-specific presets for future releases.</p>
+              <p>Persistent app-specific presets for CPU Priority and GPU Preference.</p>
             </div>
-            <span class="badge warning">Planned</span>
+            <span class="badge success">Profiles v1</span>
           </section>
 
-          <div class="rules-grid">
-            <section class="panel rules-card">
-              <div class="rules-card-header">
-                <h2>Status</h2>
-                <span class="badge neutral">Not Available</span>
-              </div>
-              <div class="rules-status-message">
-                <p>Current release focuses on manual per-process control. Autopilot-style rules and profiles are planned to automatically manage processes in future updates.</p>
-              </div>
-              <div class="rules-actions-section">
-                <button class="primary-button" type="button" disabled>Create profile</button>
-                <p class="rules-note">Profiles are planned for a future version. Current release focuses on manual per-process control.</p>
-              </div>
-            </section>
+          <!-- Storage Warning Banner -->
+          <div id="rulesStorageNotice" class="settings-storage-notice hidden"></div>
 
-            <section class="panel rules-card">
-              <div class="rules-card-header">
-                <h2>Planned features</h2>
-              </div>
-              <div class="rules-feature-list">
-                <article class="rules-feature-item">
-                  <h3>Auto-apply CPU Priority</h3>
-                  <p>Automatically adjust CPU priority class when matching processes are detected.</p>
-                </article>
-                <article class="rules-feature-item">
-                  <h3>Auto-apply GPU Preference</h3>
-                  <p>Set and verify GPU preference rules dynamically based on configuration profiles.</p>
-                </article>
-                <article class="rules-feature-item">
-                  <h3>App-specific presets</h3>
-                  <p>Quick settings configurations designed for games, productivity apps, or dev environments.</p>
-                </article>
-                <article class="rules-feature-item">
-                  <h3>Safe startup profiles</h3>
-                  <p>Apply settings profiles automatically during system startup or user logon.</p>
-                </article>
-                <article class="rules-feature-item">
-                  <h3>Import / Export profiles</h3>
-                  <p>Share rules and profiles between machines via standardized XML/JSON configurations.</p>
-                </article>
-                <article class="rules-feature-item">
-                  <h3>Rule conflict protection</h3>
-                  <p>Avoid overlapping rules or deadlocks by verifying priorities and path configurations before applying changes.</p>
-                </article>
-              </div>
-            </section>
+          <div class="rules-layout">
+            <!-- Sidebar with safety and storage info -->
+            <div class="rules-info-sidebar">
+              <section class="panel rules-card">
+                <div class="rules-card-header">
+                  <h2>Safety note</h2>
+                </div>
+                <div class="rules-status-message">
+                  <p>Profiles are saved locally in this browser/WebView storage. They do not perform automatic actions yet.</p>
+                  <p style="margin-top: 10px; color: var(--danger); font-weight: 500;">End Process, Freeze and Resume are not supported in profiles.</p>
+                </div>
+              </section>
 
-            <section class="panel rules-card overview-card">
-              <div class="rules-card-header">
-                <h2>Safety model</h2>
+              <section class="panel rules-card">
+                <div class="rules-card-header">
+                  <h2>Storage information</h2>
+                </div>
+                <div class="about-info-list" style="margin-top: 8px;">
+                  <div class="about-info-row"><strong>storage type</strong><span>localStorage</span></div>
+                  <div class="about-info-row"><strong>storage key</strong><span>wpcc.profiles</span></div>
+                </div>
+                <p class="rules-note" style="margin-top: 12px; color: var(--subtle);">Native profiles.json storage is planned for a future version.</p>
+              </section>
+            </div>
+
+            <!-- Main area: Actions, empty state, and grid of cards -->
+            <div class="rules-main-content">
+              <div id="rulesActionsBar" class="rules-actions-bar hidden-view">
+                <button id="createProfileButton" class="primary-button" type="button">Create profile</button>
               </div>
-              <div class="safety-note">
-                Future rules must never automatically apply destructive actions like End Process or Freeze without explicit user confirmation.
+
+              <!-- Empty state -->
+              <div id="rulesEmptyState" class="panel rules-card empty-profiles-card">
+                <div style="font-size: 32px; margin-bottom: 12px;">📂</div>
+                <h3>No profiles yet</h3>
+                <p style="color: var(--muted); margin: 6px 0 16px 0; max-width: 320px; line-height: 1.4;">Create a profile to store CPU Priority and GPU Preference presets for apps.</p>
+                <button id="emptyCreateProfileButton" class="primary-button" type="button">Create profile</button>
               </div>
-            </section>
+
+              <!-- Profiles grid -->
+              <div id="profilesList" class="profile-cards-grid hidden-view"></div>
+            </div>
           </div>
         </section>
       </main>
+    </div>
+  </div>
+
+  <!-- Create/Edit Profile Modal -->
+  <div id="profileModal" class="modal-backdrop hidden-view">
+    <div class="confirm-modal profile-form-modal">
+      <h2 id="profileModalTitle">Create profile</h2>
+      
+      <form id="profileForm" style="margin-top: 16px; display: grid; gap: 14px;">
+        <div class="form-group">
+          <label for="profileName" style="display: block; margin-bottom: 6px; color: var(--muted);">Profile name</label>
+          <input type="text" id="profileName" placeholder="e.g. Heavy Game Preset" required style="width: 100%; height: 38px; border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; background: #202833; color: var(--text); outline: none;">
+        </div>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr; gap: 14px;">
+          <div class="form-group">
+            <label for="profileMatchMode" style="display: block; margin-bottom: 6px; color: var(--muted);">Match mode</label>
+            <select id="profileMatchMode" class="setting-select" style="width: 100%;">
+              <option value="path">Executable path</option>
+              <option value="name">Process name</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" id="exePathGroup">
+          <label for="profileExePath" style="display: block; margin-bottom: 6px; color: var(--muted);">Target executable path (preferred)</label>
+          <input type="text" id="profileExePath" placeholder="e.g. C:\Games\HeavyGame.exe" style="width: 100%; height: 38px; border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; background: #202833; color: var(--text); outline: none;">
+        </div>
+
+        <div class="form-group" id="processNameGroup">
+          <label for="profileProcessName" style="display: block; margin-bottom: 6px; color: var(--muted);">Target process name (fallback)</label>
+          <input type="text" id="profileProcessName" placeholder="e.g. HeavyGame.exe" style="width: 100%; height: 38px; border: 1px solid var(--border); border-radius: 9px; padding: 0 12px; background: #202833; color: var(--text); outline: none;">
+        </div>
+
+        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <div class="form-group">
+            <label for="profileCpuPriority" style="display: block; margin-bottom: 6px; color: var(--muted);">CPU Priority</label>
+            <select id="profileCpuPriority" class="setting-select" style="width: 100%;">
+              <option value="DoNotChange">Do not change</option>
+              <option value="High">High</option>
+              <option value="AboveNormal">Above normal</option>
+              <option value="Normal">Normal</option>
+              <option value="BelowNormal">Below normal</option>
+              <option value="Idle">Idle</option>
+              <option value="Realtime">Realtime</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="profileGpuPreference" style="display: block; margin-bottom: 6px; color: var(--muted);">GPU Preference</label>
+            <select id="profileGpuPreference" class="setting-select" style="width: 100%;">
+              <option value="DoNotChange">Do not change</option>
+              <option value="SystemDefault">System default</option>
+              <option value="PowerSaving">Power saving / iGPU</option>
+              <option value="HighPerformance">High performance / dGPU</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Realtime Priority Warning -->
+        <div id="profileRealtimeWarningBlock" class="modal-warning hidden-view" style="margin-top: 4px; margin-bottom: 4px; display: grid; gap: 8px;">
+          <p style="margin: 0; font-weight: 500;">Warning: Realtime priority can make Windows less responsive.</p>
+          <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="profileRealtimeCheckbox" style="cursor: pointer; width: 16px; height: 16px;">
+            <span style="font-size: 13px; color: var(--text);">I understand the risk of Realtime priority in this profile.</span>
+          </label>
+        </div>
+
+        <div class="form-switches" style="display: grid; gap: 12px; margin-top: 4px;">
+          <div class="form-switch-item" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid var(--border-soft); border-radius: 9px; padding: 10px 12px; background: rgba(27, 34, 44, 0.5);">
+            <div class="switch-label-group" style="display: grid; gap: 3px;">
+              <strong style="font-size: 13px; font-weight: 600;">Apply to family</strong>
+              <span style="font-size: 12px; color: var(--muted);">Applies to all instances sharing this app target</span>
+            </div>
+            <label class="switch-control">
+              <input id="profileApplyToFamily" type="checkbox">
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+
+          <div class="form-switch-item locked-setting" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid rgba(221, 176, 106, 0.28); border-radius: 9px; padding: 10px 12px; background: rgba(27, 34, 44, 0.5);">
+            <div class="switch-label-group" style="display: grid; gap: 3px;">
+              <strong style="font-size: 13px; font-weight: 600;">Auto apply</strong>
+              <span style="font-size: 12px; color: var(--warning);">Planned / Inactive — Not available yet</span>
+            </div>
+            <label class="switch-control locked">
+              <input id="profileAutoApply" type="checkbox" disabled>
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="profileNotes" style="display: block; margin-bottom: 6px; color: var(--muted);">Notes</label>
+          <textarea id="profileNotes" rows="2" placeholder="Enter optional notes about this profile..." style="width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 8px 12px; background: #202833; color: var(--text); outline: none; font-family: inherit; font-size: inherit; resize: vertical;"></textarea>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 6px;">
+          <button id="profileResetButton" class="secondary-button" type="button" style="margin-right: auto;">Reset form</button>
+          <button id="profileCancelButton" class="secondary-button" type="button">Cancel</button>
+          <button id="profileSaveButton" class="primary-button" type="submit">Save profile</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Profile Modal -->
+  <div id="deleteProfileModal" class="modal-backdrop hidden-view">
+    <div class="confirm-modal">
+      <h2>Delete profile?</h2>
+      <div class="modal-warning">
+        This action cannot be undone. The profile configuration will be permanently removed from storage.
+      </div>
+      
+      <div class="modal-info-line">
+        <span>Profile name</span>
+        <strong id="deleteProfileNameDisplay">Profile Name</strong>
+      </div>
+      <div class="modal-info-line">
+        <span>Target app</span>
+        <strong id="deleteProfileTargetDisplay">App target</strong>
+      </div>
+
+      <div class="modal-actions">
+        <button id="deleteProfileCancelButton" class="secondary-button" type="button">Cancel</button>
+        <button id="deleteProfileConfirmButton" class="danger-action-button" type="button">Delete</button>
+      </div>
     </div>
   </div>
 

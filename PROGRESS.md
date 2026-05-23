@@ -88,10 +88,36 @@ This file is intentionally kept short for public-facing repository history. Deta
   - Real Windows 10 VM/device testing was not performed. Compatibility is based on code review and documented API behavior only.
   - At very high DPI scaling (>200%) combined with 1280x720, the sidebar is hidden (760px CSS breakpoint) and there is no alternative navigation. This is acceptable for current 0.1.0 scope.
 
+## Profiles v1 Local Storage Foundation
+
+- Fully replaced the planned Rules / Profiles view placeholder with a functional, premium persistent management UI.
+- Implemented persistent profile configurations under WebView2 `localStorage` using the single `wpcc.profiles` registry key.
+- Supports the following core fields per profile item:
+  - `id`: unique UUID/timestamp string identifier.
+  - `name`: user display name.
+  - `targetExePath`: full executable file path.
+  - `targetProcessName`: executable filename fallback.
+  - `matchMode`: target mapping style (`path` or `name`).
+  - `cpuPriority`: target priority preset class (`DoNotChange`, `High`, `AboveNormal`, `Normal`, `BelowNormal`, `Idle`, or `Realtime`).
+  - `gpuPreference`: target Graphics Preference class (`DoNotChange`, `SystemDefault`, `PowerSaving`, or `HighPerformance`).
+  - `applyToFamily`: whether setting applies across family executable instances (boolean).
+  - `autoApply`: whether preset dynamically auto-applies on recognition (boolean, visible but inactive).
+  - `allowRealtime`: safeguard check indicating permission to map Realtime class (boolean).
+  - `notes`: freeform notes textarea string.
+  - `createdAt` and `updatedAt` ISO date records.
+- Implemented safety validation and parser safeguards for missing JSON configurations, old file schemas, unexpected field schemas, or corrupted storage profiles.
+- Implemented in-memory fallback routines that support full profile addition, editing, and deletion during a session if localStorage is completely disabled or blocked by WebView2.
+- Interactive safety check block prevents saving a profile with a `Realtime` class unless standard risks are explicitly acknowledged.
+- Beautiful confirmation modal overlays prevent deletion of profile records without dynamic, double-check actions (no browser native alerts).
+
+### Known Limitations
+
+- All profiles matchings and setups are informational. No native process prioritization or GPU preference auto-applications are performed yet.
+- C++ native background monitoring and file-based `profiles.json` native saves are planned for subsequent milestones.
+
 ## Suggested Next Steps
 
-- Add a lightweight action history/audit panel.
+- Add C++ native profiles.json backings and auto-apply rules engine.
+- Add lightweight action history/audit panel.
 - Add table sorting and richer read-only metadata.
-- Add native settings/config persistence if UI preferences should move beyond WebView2 localStorage.
-- Automate GitHub Release creation after manual validation.
 - Perform real Windows 10 VM/device testing to validate the compatibility changes.
