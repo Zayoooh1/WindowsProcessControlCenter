@@ -218,6 +218,11 @@ namespace wpcc
         }
     }
 
+    void WebViewHost::RefreshProcesses()
+    {
+        SendProcessSnapshot();
+    }
+
     void WebViewHost::SendProcessSnapshot()
     {
         try

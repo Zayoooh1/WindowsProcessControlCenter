@@ -185,6 +185,7 @@ Implemented so far:
 - Application icon (`assets/icon.ico`) with multi-resolution support: 16×16, 24×24, 32×32, 48×48, 64×64, 128×128, 256×256.
 - Win32 window class icon (title bar, taskbar, Alt+Tab) loaded from resources.
 - Installer uses the application icon for the setup executable and created shortcuts.
+- System tray icon with right-click context menu (Open, Refresh process snapshot, Exit) and double-click to restore. Removed cleanly on exit.
 
 ## Settings
 

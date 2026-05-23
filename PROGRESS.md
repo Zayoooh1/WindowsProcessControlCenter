@@ -60,6 +60,11 @@ This file is intentionally kept short for public-facing repository history. Deta
 - Win32 window class icon (large and small) loaded from resources.
 - Inno Setup installer uses the icon for the installer executable and installed shortcuts.
 - Version resource integration for Apps & Features and File Properties details.
+- System tray icon (`src/platform/TrayIcon.h`, `src/platform/TrayIcon.cpp`):
+  - Tray icon visible while the app is running.
+  - Right-click context menu: Open, Refresh process snapshot, Exit.
+  - Double-click or single-click restores/focuses the main window.
+  - Clean removal on app exit.
 
 ## Suggested Next Steps
 
@@ -67,4 +72,3 @@ This file is intentionally kept short for public-facing repository history. Deta
 - Add table sorting and richer read-only metadata.
 - Add native settings/config persistence if UI preferences should move beyond WebView2 localStorage.
 - Automate GitHub Release creation after manual validation.
-- Add system tray icon and minimize-to-tray behavior.

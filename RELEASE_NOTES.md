@@ -75,6 +75,10 @@ The installer uses Inno Setup, installs per user by default, supports custom ins
 - File Explorer shows the icon on the executable and shortcuts.
 - Inno Setup installer uses the icon for the installer executable and setup wizard.
 - Version information visible in File Properties > Details and Apps & Features.
+- System tray icon with right-click context menu (Open, Refresh process snapshot, Exit).
+- Tray icon uses the app icon resource and shows tooltip "Windows Process Control Center".
+- Double-click or single-click on tray icon restores/focuses the main window.
+- Tray icon is removed cleanly when the application exits.
 
 ## Known Limitations
 
@@ -83,4 +87,3 @@ The installer uses Inno Setup, installs per user by default, supports custom ins
 - Native profiles, rules, presets, native settings file, or backend settings persistence yet (Rules / Profiles is currently a frontend-only design prototype).
 - No process tree termination, child-process force kill, freeze tree, or resume tree.
 - No NVIDIA Control Panel integration or global GPU setting changes.
-- No system tray icon yet.

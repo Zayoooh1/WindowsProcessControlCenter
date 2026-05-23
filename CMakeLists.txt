@@ -66,6 +66,8 @@ add_executable(WindowsProcessControlCenter WIN32
     src/core/ProcessProvider.h
     src/platform/Win32Window.cpp
     src/platform/Win32Window.h
+    src/platform/TrayIcon.cpp
+    src/platform/TrayIcon.h
     src/ui_web/WebMessageBridge.cpp
     src/ui_web/WebMessageBridge.h
     src/ui_web/WebViewHost.cpp

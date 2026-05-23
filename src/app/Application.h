@@ -1,6 +1,7 @@
 #pragma once
 
 #include "platform/Win32Window.h"
+#include "platform/TrayIcon.h"
 #include "ui_web/WebViewHost.h"
 
 #include <Windows.h>
@@ -20,10 +21,14 @@ namespace wpcc
 
     private:
         LRESULT HandleWindowMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, bool& handled);
+        void HandleTrayNotification(WPARAM wParam, LPARAM lParam);
+        void ShowTrayContextMenu();
+        void RestoreMainWindow();
 
         HINSTANCE m_instance;
         int m_showCommand;
         Win32Window m_window;
+        TrayIcon m_trayIcon;
         std::unique_ptr<WebViewHost> m_webViewHost;
         bool m_comInitialized = false;
         bool m_running = false;

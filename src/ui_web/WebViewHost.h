@@ -21,6 +21,7 @@ namespace wpcc
         bool Initialize(HWND hwnd);
         void Resize();
         void Shutdown();
+        void RefreshProcesses();
 
     private:
         void OnEnvironmentCreated(HRESULT result, ICoreWebView2Environment* environment);
