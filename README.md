@@ -40,6 +40,15 @@ The frontend now includes a GitHub Releases update checker that queries the publ
 
 Note: The frontend checker queries the public Releases API endpoint and requires a public release to be present. A `404` response from GitHub will be shown as: "Failed to check for updates. The GitHub release endpoint returned 404. This may happen when the repository is private or no public release exists." Private repositories or missing public releases are not supported by this frontend-only checker; a future update manifest or an authenticated backend would be required to support those scenarios.
 
+Update prompt UX:
+
+- When a newer release is detected the frontend shows an in-app update dialog with:
+  - current version, latest version, release title, short release notes summary, release page link, and detected assets (installer EXE, portable ZIP).
+  - Buttons: Open release page, Download installer (opens browser), Download portable ZIP (opens browser), Remind me later, Ignore this version, Disable update checks.
+- "Ignore this version" stores the ignored version in both `wpcc.settings.ignoredUpdateVersion` and `wpcc.updateState.ignoredVersion` so the UI will not prompt again for that exact version.
+- "Disable update checks" turns off automatic checking (`wpcc.settings.updateChecksEnabled = false`) while keeping the manual check available.
+- Downloads open the browser and are never auto-run by the app.
+
 Check locally:
 
 ```powershell

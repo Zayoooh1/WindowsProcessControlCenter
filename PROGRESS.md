@@ -73,6 +73,8 @@ This file is intentionally kept short for public-facing repository history. Deta
 - Automatic checking respects `wpcc.settings.updateChecksEnabled` and `updateCheckInterval` (3d/weekly/monthly). Manual "Check for updates now" is enabled and always performs a check.
 - The checker performs semantic version parsing (strips leading `v`, compares major/minor/patch numerically) and ignores prerelease releases. Friendly error messages are shown for network/API/JSON errors and timeouts.
   - Note: a HTTP 404 from the GitHub API is reported as a friendly message explaining that the repository may be private or that no public release exists. The frontend checker requires a public Releases endpoint.
+- Implemented an in-app update prompt dialog when a newer release is detected (manual or auto check). The dialog shows version details, release notes summary, asset links, and buttons: Open release, Download installer (opens browser), Download portable ZIP (opens browser), Remind me later, Ignore this version, Disable update checks.
+- Ignored version is stored in both `wpcc.settings.ignoredUpdateVersion` and `wpcc.updateState.ignoredVersion` and is respected by auto and manual checks.
 
 ## Windows 10 Compatibility and DPI/Responsive Audit
 

@@ -515,6 +515,19 @@ async function checkForUpdates(manual = false) {
       if (installerExe) details += ` — installer: ${installerExe}`;
       if (portableZip) details += ` — portable: ${portableZip}`;
       elements.updateStatusArea.textContent = details;
+      // show modal with release details
+      try {
+        showUpdateModal({
+          parsedVersion,
+          releaseName,
+          releaseUrl,
+          installerExe,
+          portableZip,
+          body: json.body || "",
+        });
+      } catch (e) {
+        // ignore modal errors
+      }
     } else {
       elements.updateStatusArea.textContent = `You are up to date. (${CURRENT_VERSION})`;
     }
@@ -550,6 +563,166 @@ function runAutoUpdateCheckIfNeeded() {
   } catch (e) {
     // swallow
   }
+}
+
+function closeUpdateModal() {
+  document.querySelector(".update-modal-backdrop")?.remove();
+}
+
+function showUpdateModal(release) {
+  // release: { parsedVersion, releaseName, releaseUrl, installerExe, portableZip, body }
+  closeUpdateModal();
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop update-modal-backdrop";
+
+  const modal = document.createElement("div");
+  modal.className = "confirm-modal update-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-label", "Update available");
+
+  const title = document.createElement("h2");
+  title.textContent = "Update available";
+  modal.appendChild(title);
+
+  const info = document.createElement("div");
+  info.className = "update-info";
+  info.innerHTML = `
+    <p>Current version: <strong>${CURRENT_VERSION}</strong></p>
+    <p>Latest version: <strong>${release.parsedVersion}</strong></p>
+  `;
+  if (release.releaseName) {
+    const rn = document.createElement("p");
+    rn.textContent = `Release: ${release.releaseName}`;
+    info.appendChild(rn);
+  }
+  if (release.body) {
+    const body = document.createElement("p");
+    const summary = String(release.body).split('\n').slice(0,3).join(' ');
+    body.textContent = summary;
+    body.className = "update-notes";
+    info.appendChild(body);
+  }
+
+  modal.appendChild(info);
+
+  const assets = document.createElement("div");
+  assets.className = "update-assets";
+  const list = document.createElement("ul");
+  list.className = "update-asset-list";
+  if (release.installerExe) {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = release.installerExe;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = "Installer EXE available";
+    li.appendChild(a);
+    list.appendChild(li);
+  }
+  if (release.portableZip) {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = release.portableZip;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = "Portable ZIP available";
+    li.appendChild(a);
+    list.appendChild(li);
+  }
+  if (release.releaseUrl) {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = release.releaseUrl;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = "Open release page";
+    li.appendChild(a);
+    list.appendChild(li);
+  }
+  if (list.children.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = "No downloadable assets detected.";
+    list.appendChild(li);
+  }
+  assets.appendChild(list);
+  modal.appendChild(assets);
+
+  const actions = document.createElement("div");
+  actions.className = "modal-actions update-modal-actions";
+
+  const openRelease = document.createElement("button");
+  openRelease.type = "button";
+  openRelease.className = "primary-button";
+  openRelease.textContent = "Open release page";
+  openRelease.addEventListener("click", () => {
+    if (release.releaseUrl) window.open(release.releaseUrl, "_blank");
+  });
+
+  const downloadInstaller = document.createElement("button");
+  downloadInstaller.type = "button";
+  downloadInstaller.className = "secondary-button";
+  downloadInstaller.textContent = "Download installer";
+  downloadInstaller.disabled = !release.installerExe;
+  downloadInstaller.addEventListener("click", () => {
+    if (release.installerExe) window.open(release.installerExe, "_blank");
+  });
+
+  const downloadZip = document.createElement("button");
+  downloadZip.type = "button";
+  downloadZip.className = "secondary-button";
+  downloadZip.textContent = "Download portable ZIP";
+  downloadZip.disabled = !release.portableZip;
+  downloadZip.addEventListener("click", () => {
+    if (release.portableZip) window.open(release.portableZip, "_blank");
+  });
+
+  const remindLater = document.createElement("button");
+  remindLater.type = "button";
+  remindLater.className = "secondary-button";
+  remindLater.textContent = "Remind me later";
+  remindLater.addEventListener("click", () => {
+    closeUpdateModal();
+  });
+
+  const ignoreVersion = document.createElement("button");
+  ignoreVersion.type = "button";
+  ignoreVersion.className = "warning-action-button";
+  ignoreVersion.textContent = "Ignore this version";
+  ignoreVersion.addEventListener("click", () => {
+    // persist ignored version to both settings and updateState
+    state.settings.ignoredUpdateVersion = release.parsedVersion;
+    saveSettings();
+    const us = loadUpdateState();
+    us.ignoredVersion = release.parsedVersion;
+    saveUpdateState(us);
+    render();
+    closeUpdateModal();
+  });
+
+  const disableChecks = document.createElement("button");
+  disableChecks.type = "button";
+  disableChecks.className = "danger-action-button";
+  disableChecks.textContent = "Disable update checks";
+  disableChecks.addEventListener("click", () => {
+    state.settings.updateChecksEnabled = false;
+    saveSettings();
+    render();
+    closeUpdateModal();
+  });
+
+  actions.appendChild(openRelease);
+  actions.appendChild(downloadInstaller);
+  actions.appendChild(downloadZip);
+  actions.appendChild(remindLater);
+  actions.appendChild(ignoreVersion);
+  actions.appendChild(disableChecks);
+
+  modal.appendChild(actions);
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+  openRelease.focus();
 }
 
 function renderDashboard() {
