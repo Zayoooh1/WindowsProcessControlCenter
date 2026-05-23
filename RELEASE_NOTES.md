@@ -8,6 +8,8 @@ Release date: 2026-05-23
 - Local vanilla HTML/CSS/JavaScript frontend copied beside the executable.
 - Dashboard tab with responsive snapshot statistics, safety status, quick actions, last action status, and available controls overview.
 - Settings tab with frontend-only UI preferences saved in WebView2 `localStorage`.
+- About tab displaying application info, versioning, tech stack details, and known limitations.
+- Rules / Profiles tab design prototype describing planned features (Auto-apply priority/GPU, presets, safe startup, import/export, conflict safeguards, and a disabled Create profile control).
 - Real Windows process listing through C++/WinAPI.
 - Search by PID, process name, or executable path.
 - Details panel with path, CPU priority, runtime state, access status, admin hint, and GPU Preference.
@@ -65,6 +67,6 @@ The installer uses Inno Setup, installs per user by default, supports custom ins
 
 - GPU Preference is per executable path and may require restarting the target app.
 - GPU Preference does not guarantee live switching for an already running process.
-- No profiles, rules, presets, native settings file, or backend settings persistence yet.
+- Native profiles, rules, presets, native settings file, or backend settings persistence yet (Rules / Profiles is currently a frontend-only design prototype).
 - No process tree termination, child-process force kill, freeze tree, or resume tree.
 - No NVIDIA Control Panel integration or global GPU setting changes.

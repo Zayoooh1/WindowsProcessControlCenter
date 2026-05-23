@@ -158,6 +158,8 @@ Implemented so far:
 - JavaScript to C++ message bridge for `terminateProcess`.
 - Dashboard tab with responsive snapshot statistics, safety status, quick actions, last action status, and available controls overview.
 - Settings tab with frontend-only preferences stored in `localStorage` under `wpcc.settings`.
+- About tab with application details, version information, safety model description, tech stack details, and known limitations.
+- Rules / Profiles tab interface prototype outlining planned automation rules (Auto-apply priority/GPU, presets, safe startup, import/export, conflict safeguards, and a disabled Create profile control).
 - Settings for start screen, compact process table rows, executable path column visibility, details-panel safety notes, and reduced visual effects.
 - Read-only process enumeration using Windows APIs.
 - CPU priority changes for accessible processes through `OpenProcess` and `SetPriorityClass`.
@@ -207,7 +209,7 @@ Not implemented yet:
 - Freeze/resume of process trees or child processes.
 - Live GPU switching for an already running process.
 - Native settings/config file persistence.
-- Profiles, rules, autostart, elevation, or admin workflows.
+- Native profiles, rules, autostart, elevation, or admin workflows (Rules / Profiles is currently a frontend-only prototype).
 
 GPU Preference may require restarting the target application and does not guarantee live switching for an already running process.
 

@@ -1305,10 +1305,12 @@ body.reduced-motion *::after {
   .dashboard-hero,
   .settings-hero,
   .about-hero,
+  .rules-hero,
   .hero-actions,
   .quick-actions,
   .setting-card,
   .about-card,
+  .rules-card,
   .reset-card {
     align-items: stretch;
     flex-direction: column;
@@ -1465,5 +1467,128 @@ body.reduced-motion *::after {
 
 .about-list strong {
   color: var(--text);
+}
+
+/* Rules / Profiles View Styling */
+.rules-view {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: grid;
+  grid-auto-rows: min-content;
+  gap: var(--gap);
+  padding-right: 4px;
+  scrollbar-color: #435165 transparent;
+}
+
+.rules-view::-webkit-scrollbar {
+  width: 12px;
+}
+
+.rules-view::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.rules-view::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: #435165;
+  background-clip: padding-box;
+}
+
+.rules-hero {
+  padding: var(--panel-padding);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background:
+    linear-gradient(135deg, rgba(32, 57, 77, 0.72), rgba(23, 29, 38, 0.94) 58%),
+    rgba(23, 29, 38, 0.94);
+}
+
+.rules-hero h2 {
+  font-size: 20px;
+}
+
+.rules-hero p {
+  max-width: 640px;
+  min-width: 0;
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.rules-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
+  gap: var(--gap);
+}
+
+.rules-card {
+  min-width: 0;
+  padding: var(--panel-padding);
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  background: rgba(27, 34, 44, 0.94);
+  overflow: hidden;
+}
+
+.rules-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.rules-status-message {
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.rules-actions-section {
+  display: grid;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.rules-actions-section button {
+  width: fit-content;
+}
+
+.rules-note {
+  color: var(--subtle);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.rules-feature-list {
+  display: grid;
+  gap: 14px;
+}
+
+.rules-feature-item {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(32, 40, 51, 0.62);
+}
+
+.rules-feature-item h3 {
+  margin: 0 0 6px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.rules-feature-item p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.4;
 }
 

@@ -19,6 +19,8 @@ This file is intentionally kept short for public-facing repository history. Deta
 - Real process listing with PID, name, executable path, CPU priority, access status, admin hint, runtime state, and GPU Preference.
 - Dashboard tab with responsive current snapshot statistics, safety status, quick actions, last action summary, and available controls overview.
 - Settings tab with frontend-only UI preferences saved in `localStorage` under `wpcc.settings`.
+- About tab displaying version, tech stack description, safety notes, and known limitations.
+- Rules / Profiles tab design prototype describing planned features (Auto-apply priority/GPU, presets, safe startup, import/export, conflict safeguards, and a disabled Create profile button).
 - Settings include start screen, compact process table, executable path column visibility, details-panel safety notes, reduced visual effects, and locked destructive-action confirmations.
 - Refresh and frontend-side search by PID, process name, or executable path.
 - CPU Priority control for accessible user processes.
@@ -44,7 +46,7 @@ This file is intentionally kept short for public-facing repository history. Deta
 - GPU Preference may require restarting the target app and does not live-switch a running process.
 - Freeze/Resume state is session-local.
 - Settings are local WebView2 UI preferences only; there is no native config file yet.
-- No profiles, rules, presets, code signing, or auto-update yet.
+- Native profiles, rules, presets, code signing, or auto-update yet (Rules / Profiles is currently a frontend-only design prototype).
 - No process tree termination, child-process force kill, freeze tree, or resume tree.
 - No NVIDIA Control Panel integration or global GPU setting changes.
 - The installer build requires Inno Setup 6 locally; WebView2 Runtime is still required on the installed machine.

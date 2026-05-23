@@ -34,10 +34,12 @@ const elements = {
   processesNavButton: document.getElementById("processesNavButton"),
   settingsNavButton: document.getElementById("settingsNavButton"),
   aboutNavButton: document.getElementById("aboutNavButton"),
+  rulesNavButton: document.getElementById("rulesNavButton"),
   dashboardView: document.getElementById("dashboardView"),
   processesView: document.getElementById("processesView"),
   settingsView: document.getElementById("settingsView"),
   aboutView: document.getElementById("aboutView"),
+  rulesView: document.getElementById("rulesView"),
   refreshButton: document.getElementById("refreshButton"),
   dashboardRefreshButton: document.getElementById("dashboardRefreshButton"),
   goToProcessesButton: document.getElementById("goToProcessesButton"),
@@ -262,14 +264,17 @@ function renderActiveView() {
   const processesActive = state.activeView === "processes";
   const settingsActive = state.activeView === "settings";
   const aboutActive = state.activeView === "about";
+  const rulesActive = state.activeView === "rules";
   elements.dashboardView.classList.toggle("hidden-view", !dashboardActive);
   elements.processesView.classList.toggle("hidden-view", !processesActive);
   elements.settingsView.classList.toggle("hidden-view", !settingsActive);
   elements.aboutView.classList.toggle("hidden-view", !aboutActive);
+  elements.rulesView.classList.toggle("hidden-view", !rulesActive);
   elements.dashboardNavButton.classList.toggle("active", dashboardActive);
   elements.processesNavButton.classList.toggle("active", processesActive);
   elements.settingsNavButton.classList.toggle("active", settingsActive);
   elements.aboutNavButton.classList.toggle("active", aboutActive);
+  elements.rulesNavButton.classList.toggle("active", rulesActive);
 }
 
 function applySettingsEffects() {
@@ -1395,6 +1400,7 @@ elements.dashboardNavButton.addEventListener("click", () => setActiveView("dashb
 elements.processesNavButton.addEventListener("click", () => setActiveView("processes"));
 elements.settingsNavButton.addEventListener("click", () => setActiveView("settings"));
 elements.aboutNavButton.addEventListener("click", () => setActiveView("about"));
+elements.rulesNavButton.addEventListener("click", () => setActiveView("rules"));
 elements.goToProcessesButton.addEventListener("click", () => setActiveView("processes"));
 elements.quickProcessesButton.addEventListener("click", () => setActiveView("processes"));
 elements.startScreenDashboard.addEventListener("change", () => updateSetting("startScreen", "dashboard"));
