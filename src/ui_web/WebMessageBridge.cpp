@@ -39,6 +39,12 @@ namespace wpcc
             return WebMessageType::ResumeProcess;
         }
 
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"setGpuPreference\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::SetGpuPreference;
+        }
+
         return WebMessageType::Unknown;
     }
 
@@ -77,6 +83,16 @@ namespace wpcc
         return request;
     }
 
+    SetGpuPreferenceRequest WebMessageBridge::ParseSetGpuPreferenceRequest(std::wstring_view messageJson) const
+    {
+        SetGpuPreferenceRequest request{};
+        request.pid = ExtractUnsignedLong(messageJson, L"pid");
+        request.expectedName = ExtractString(messageJson, L"expectedName");
+        request.executablePath = ExtractString(messageJson, L"exePath");
+        request.preference = ExtractString(messageJson, L"preference");
+        return request;
+    }
+
     std::wstring WebMessageBridge::BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes) const
     {
         std::wostringstream json;
@@ -95,6 +111,7 @@ namespace wpcc
             json << L"\"name\":\"" << EscapeJson(process.name) << L"\",";
             json << L"\"path\":\"" << EscapeJson(process.executablePath) << L"\",";
             json << L"\"cpuPriority\":\"" << EscapeJson(process.cpuPriority) << L"\",";
+            json << L"\"gpuPreference\":\"" << EscapeJson(process.gpuPreference) << L"\",";
             json << L"\"isFrozenByApp\":" << (process.isFrozenByApp ? L"true" : L"false") << L",";
             json << L"\"adminNeeded\":" << (process.likelyRequiresAdmin ? L"true" : L"false") << L",";
             json << L"\"accessStatus\":\"" << EscapeJson(process.accessStatus) << L"\",";
@@ -123,6 +140,10 @@ namespace wpcc
         if (result.win32ErrorCode != 0)
         {
             json << L",\"win32ErrorCode\":" << result.win32ErrorCode;
+        }
+        if (!result.currentPreference.empty())
+        {
+            json << L",\"currentPreference\":\"" << EscapeJson(result.currentPreference) << L"\"";
         }
         json << L"}";
         return json.str();

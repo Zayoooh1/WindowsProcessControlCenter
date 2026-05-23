@@ -579,3 +579,86 @@ Generated executables:
 ## Suggested Next Stage
 
 Add GPU Preference design and capability research, or add an action history/log panel so users can review CPU priority, End Process, Freeze, and Resume outcomes in one place.
+
+## Task 09 - GPU Preference Per Executable Through WebView2 UI
+
+Status: completed.
+
+Added Windows GPU Preference management for the selected process executable path. This setting is stored per user and per executable path through Windows Graphics Settings registry values, and it may require restarting the target app to take effect.
+
+## Added Files
+
+- `src/core/GpuPreferenceManager.h`
+- `src/core/GpuPreferenceManager.cpp`
+
+## Changed Files
+
+- `CMakeLists.txt`
+- `README.md`
+- `PROGRESS.md`
+- `src/core/ProcessActions.h`
+- `src/core/ProcessInfo.h`
+- `src/ui_web/WebMessageBridge.h`
+- `src/ui_web/WebMessageBridge.cpp`
+- `src/ui_web/WebViewHost.h`
+- `src/ui_web/WebViewHost.cpp`
+- `web/index.html`
+- `web/styles.css`
+- `web/app.js`
+
+## What Works
+
+- Process snapshots now include `gpuPreference`.
+- WebView2 process table shows `GPU Preference`.
+- Details panel includes an active GPU Preference section.
+- Supported values: `SystemDefault`, `PowerSaving`, and `HighPerformance`.
+- `SystemDefault` removes the executable path value from `HKCU\Software\Microsoft\DirectX\UserGpuPreferences`.
+- `PowerSaving` writes `GpuPreference=1;`.
+- `HighPerformance` writes `GpuPreference=2;`.
+- Frontend sends `{ "type": "setGpuPreference", "pid": ..., "expectedName": "...", "exePath": "...", "preference": "..." }`.
+- Backend validates the process identity and executable path before writing HKCU.
+- Backend returns `actionResult` with `currentPreference`.
+- Successful updates trigger a fresh process snapshot.
+
+## GPU Preference Limitations
+
+- GPU Preference is a Windows per-user, per-executable setting.
+- It usually affects the next launch of the target application.
+- It does not guarantee live switching for an already running process.
+- It does not interact with NVIDIA Control Panel or vendor-specific global settings.
+- It does not restart, kill, or relaunch the target app.
+
+## Safety Guards
+
+- Blocks PID 0 and PID 4.
+- Blocks protected/system processes.
+- Requires a non-empty `.exe` executable path.
+- Blocks unavailable paths and stale process identity/path mismatches.
+- Writes only under HKCU for the current user.
+- Does not require administrator rights when HKCU write access is available.
+
+## Still Not Implemented
+
+- Profiles and rules.
+- Autostart behavior.
+- Settings persistence outside Windows GPU Preference.
+- Registry changes outside per-user Windows Graphics Settings.
+- Forced administrator elevation.
+- Live GPU switching for running processes.
+- NVIDIA Control Panel integration.
+- Global GPU settings.
+
+## Build Verification
+
+- `cmake -S . -B build -G "Visual Studio 17 2022" -A x64`
+- `cmake --build build --config Debug`
+- `cmake --build build --config Release`
+
+Generated executables:
+
+- `C:\Vibe\WinProcessManager\build\Debug\WindowsProcessControlCenter.exe`
+- `C:\Vibe\WinProcessManager\build\Release\WindowsProcessControlCenter.exe`
+
+## Suggested Next Stage
+
+Add an action history panel and richer process metadata so CPU Priority, End Process, Freeze/Resume, and GPU Preference outcomes are easier to audit from the UI.

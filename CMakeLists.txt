@@ -59,6 +59,8 @@ add_executable(WindowsProcessControlCenter WIN32
     src/app/Application.cpp
     src/app/Application.h
     src/core/ProcessInfo.h
+    src/core/GpuPreferenceManager.cpp
+    src/core/GpuPreferenceManager.h
     src/core/ProcessActions.cpp
     src/core/ProcessActions.h
     src/core/ProcessProvider.cpp
@@ -93,6 +95,7 @@ endif()
 
 target_link_libraries(WindowsProcessControlCenter PRIVATE
     ${WEBVIEW2_LOADER_LIB}
+    advapi32
     ole32
     shell32
     shlwapi

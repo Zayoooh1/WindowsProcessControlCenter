@@ -7,6 +7,7 @@ const state = {
   pendingTerminatePid: null,
   pendingFreezePid: null,
   pendingResumePid: null,
+  pendingGpuPid: null,
   terminateModalProcess: null,
   freezeModalProcess: null,
   actionResult: null,
@@ -83,6 +84,15 @@ function handleHostMessage(event) {
     return;
   }
 
+  if (message.type === "actionResult" && message.action === "setGpuPreference") {
+    elements.refreshButton.disabled = false;
+    state.pendingGpuPid = null;
+    state.actionResult = message;
+    showStatus(message.message || "GPU preference action completed.", Boolean(message.success));
+    render();
+    return;
+  }
+
   if (message.type === "error") {
     elements.refreshButton.disabled = false;
     showError(message.message || "Unknown backend error.");
@@ -122,7 +132,7 @@ function renderRows() {
   if (state.filtered.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 7;
+    cell.colSpan = 8;
     cell.className = "empty-cell";
     cell.textContent = state.processes.length === 0 ? "No process snapshot loaded." : "No processes match the current search.";
     row.appendChild(cell);
@@ -143,6 +153,7 @@ function renderRows() {
     row.appendChild(pathCell(process.path || "Unavailable"));
     row.appendChild(badgeCell(runtimeLabel(process), runtimeTone(process)));
     row.appendChild(badgeCell(process.cpuPriority || "Unknown", priorityTone(process.cpuPriority)));
+    row.appendChild(badgeCell(gpuPreferenceLabel(process.gpuPreference), gpuPreferenceTone(process.gpuPreference)));
     row.appendChild(badgeCell(process.adminNeeded ? "Likely" : "No", process.adminNeeded ? "warning" : "neutral"));
     row.appendChild(badgeCell(process.accessStatus || "Unknown", accessTone(process.accessStatus)));
     elements.processRows.appendChild(row);
@@ -171,6 +182,7 @@ function renderDetails() {
     badge(runtimeLabel(selected), runtimeTone(selected)),
   ]));
   elements.detailsContent.appendChild(cpuPrioritySection(selected));
+  elements.detailsContent.appendChild(gpuPreferenceSection(selected));
   elements.detailsContent.appendChild(section("Access status", [
     badge(selected.accessStatus || "Unknown", accessTone(selected.accessStatus)),
   ]));
@@ -188,7 +200,7 @@ function renderDetails() {
 
   const actions = document.createElement("div");
   actions.className = "future-actions";
-  for (const label of ["Set GPU Preference"]) {
+  for (const label of []) {
     const button = document.createElement("button");
     button.type = "button";
     button.disabled = true;
@@ -196,7 +208,9 @@ function renderDetails() {
     button.title = "Not implemented yet";
     actions.appendChild(button);
   }
-  elements.detailsContent.appendChild(section("Future actions", [actions]));
+  if (actions.childElementCount > 0) {
+    elements.detailsContent.appendChild(section("Future actions", [actions]));
+  }
 }
 
 function cpuPrioritySection(process) {
@@ -285,6 +299,104 @@ function cpuPrioritySection(process) {
   container.appendChild(form);
   renderActionResult(container, process.pid);
   updateRealtimeUi();
+  return container;
+}
+
+function gpuPreferenceSection(process) {
+  const container = document.createElement("section");
+  container.className = "detail-section gpu-preference-section";
+
+  const heading = document.createElement("div");
+  heading.className = "section-label";
+  heading.textContent = "GPU preference";
+  container.appendChild(heading);
+  container.appendChild(badge(gpuPreferenceLabel(process.gpuPreference), gpuPreferenceTone(process.gpuPreference)));
+
+  const info = document.createElement("div");
+  info.className = "gpu-info";
+  info.textContent = "GPU preference is applied per executable path and may require restarting the target app.";
+  container.appendChild(info);
+
+  const unavailableReason = getGpuPreferenceUnavailableReason(process);
+  const form = document.createElement("div");
+  form.className = "priority-form";
+
+  if (unavailableReason) {
+    const reason = document.createElement("div");
+    reason.className = "priority-disabled-reason";
+    reason.textContent = unavailableReason;
+    form.appendChild(reason);
+  }
+
+  const select = document.createElement("select");
+  select.className = "priority-select";
+  const options = [
+    ["SystemDefault", "System default"],
+    ["PowerSaving", "Power saving / iGPU"],
+    ["HighPerformance", "High performance / dGPU"],
+  ];
+  const currentPreference = normalizeGpuPreference(process.gpuPreference);
+  for (const [value, label] of options) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.selected = value === currentPreference;
+    select.appendChild(option);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "gpu-actions";
+
+  const applyButton = document.createElement("button");
+  applyButton.className = "apply-priority-button";
+  applyButton.type = "button";
+  applyButton.textContent = state.pendingGpuPid === process.pid ? "Applying..." : "Apply GPU Preference";
+
+  const resetButton = document.createElement("button");
+  resetButton.className = "secondary-button";
+  resetButton.type = "button";
+  resetButton.textContent = "Reset to System default";
+
+  const updateDisabledState = () => {
+    const disabled = Boolean(unavailableReason) || state.pendingGpuPid === process.pid;
+    select.disabled = disabled;
+    applyButton.disabled = disabled;
+    resetButton.disabled = disabled || currentPreference === "SystemDefault";
+  };
+
+  applyButton.addEventListener("click", () => {
+    state.pendingGpuPid = process.pid;
+    state.actionResult = null;
+    render();
+    postToHost({
+      type: "setGpuPreference",
+      pid: process.pid,
+      expectedName: process.name || "",
+      exePath: process.path || "",
+      preference: select.value,
+    });
+  });
+
+  resetButton.addEventListener("click", () => {
+    state.pendingGpuPid = process.pid;
+    state.actionResult = null;
+    render();
+    postToHost({
+      type: "setGpuPreference",
+      pid: process.pid,
+      expectedName: process.name || "",
+      exePath: process.path || "",
+      preference: "SystemDefault",
+    });
+  });
+
+  form.appendChild(select);
+  actions.appendChild(applyButton);
+  actions.appendChild(resetButton);
+  form.appendChild(actions);
+  container.appendChild(form);
+  renderActionResult(container, process.pid, "setGpuPreference");
+  updateDisabledState();
   return container;
 }
 
@@ -621,6 +733,23 @@ function getPriorityUnavailableReason(process) {
   return "";
 }
 
+function getGpuPreferenceUnavailableReason(process) {
+  const path = String(process.path || "").trim();
+  if (!path || path === "Unavailable" || !path.toLowerCase().endsWith(".exe")) {
+    return "GPU preference requires a valid executable path.";
+  }
+
+  if (process.pid === 0 || process.pid === 4 || process.name === "System" || process.accessStatus === "Protected/System") {
+    return "Protected/system process GPU preference cannot be changed here.";
+  }
+
+  if (process.accessStatus === "Access denied" && !path) {
+    return "GPU preference requires a valid executable path.";
+  }
+
+  return "";
+}
+
 function getTerminateUnavailableReason(process) {
   const name = String(process.name || "");
   const loweredName = name.toLowerCase();
@@ -758,6 +887,14 @@ function normalizePriority(priority) {
   return priority || "Normal";
 }
 
+function normalizeGpuPreference(preference) {
+  if (preference === "PowerSaving" || preference === "HighPerformance" || preference === "SystemDefault") {
+    return preference;
+  }
+
+  return "SystemDefault";
+}
+
 function textCell(value) {
   const cell = document.createElement("td");
   cell.textContent = value ?? "";
@@ -820,6 +957,29 @@ function priorityTone(priority) {
   }
   if (priority === "Above normal") {
     return "warning";
+  }
+  return "neutral";
+}
+
+function gpuPreferenceLabel(preference) {
+  if (preference === "PowerSaving") {
+    return "Power saving";
+  }
+  if (preference === "HighPerformance") {
+    return "High performance";
+  }
+  if (preference === "SystemDefault") {
+    return "System default";
+  }
+  return "Unknown";
+}
+
+function gpuPreferenceTone(preference) {
+  if (preference === "HighPerformance") {
+    return "warning";
+  }
+  if (preference === "PowerSaving") {
+    return "success";
   }
   return "neutral";
 }

@@ -10,6 +10,7 @@ namespace wpcc
         std::string name;
         std::string executablePath;
         std::string cpuPriority;
+        std::string gpuPreference = "Unknown";
         std::string accessStatus;
         std::string accessError;
         bool likelyRequiresAdmin = false;

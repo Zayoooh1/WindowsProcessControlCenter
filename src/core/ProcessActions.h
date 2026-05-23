@@ -13,6 +13,7 @@ namespace wpcc
         unsigned long pid = 0;
         std::string message;
         unsigned long win32ErrorCode = 0;
+        std::string currentPreference;
     };
 
     struct FrozenThreadRecord

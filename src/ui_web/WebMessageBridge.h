@@ -17,6 +17,7 @@ namespace wpcc
         TerminateProcess,
         FreezeProcess,
         ResumeProcess,
+        SetGpuPreference,
     };
 
     struct SetCpuPriorityRequest
@@ -46,6 +47,14 @@ namespace wpcc
         std::string expectedName;
     };
 
+    struct SetGpuPreferenceRequest
+    {
+        unsigned long pid = 0;
+        std::string expectedName;
+        std::string executablePath;
+        std::string preference;
+    };
+
     class WebMessageBridge
     {
     public:
@@ -54,6 +63,7 @@ namespace wpcc
         TerminateProcessRequest ParseTerminateProcessRequest(std::wstring_view messageJson) const;
         FreezeProcessRequest ParseFreezeProcessRequest(std::wstring_view messageJson) const;
         ResumeProcessRequest ParseResumeProcessRequest(std::wstring_view messageJson) const;
+        SetGpuPreferenceRequest ParseSetGpuPreferenceRequest(std::wstring_view messageJson) const;
         std::wstring BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes) const;
         std::wstring BuildActionResultMessage(std::string_view action, const ProcessActionResult& result) const;
         std::wstring BuildErrorMessage(std::string_view message) const;

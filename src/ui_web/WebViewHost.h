@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/ProcessActions.h"
+#include "core/GpuPreferenceManager.h"
 #include "core/ProcessProvider.h"
 #include "ui_web/WebMessageBridge.h"
 
@@ -31,6 +32,7 @@ namespace wpcc
         void HandleTerminateProcess(std::wstring_view messageJson);
         void HandleFreezeProcess(std::wstring_view messageJson);
         void HandleResumeProcess(std::wstring_view messageJson);
+        void HandleSetGpuPreference(std::wstring_view messageJson);
         void SendError(std::string_view message);
         void ShowInitializationError(std::wstring_view message) const;
 
@@ -50,6 +52,7 @@ namespace wpcc
         bool m_navigationHandlerRegistered = false;
         ProcessProvider m_processProvider;
         ProcessActions m_processActions;
+        GpuPreferenceManager m_gpuPreferenceManager;
         WebMessageBridge m_bridge;
     };
 }

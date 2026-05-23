@@ -2,7 +2,7 @@
 
 Windows Process Control Center is a C++20 Win32 desktop application for Windows process inspection and controlled process-management workflows. The current UI is rendered with Microsoft Edge WebView2 using local vanilla HTML, CSS, and JavaScript, while the backend remains native C++/WinAPI.
 
-The app can display real process snapshots, change the CPU priority class of accessible user processes, safely terminate selected non-critical user processes after explicit confirmation, and freeze/resume selected user processes during the current app session. It does not change GPU preference or persist process settings yet.
+The app can display real process snapshots, change the CPU priority class of accessible user processes, safely terminate selected non-critical user processes after explicit confirmation, freeze/resume selected user processes during the current app session, and set Windows GPU Preference per executable path. It does not persist custom profiles or app presets yet.
 
 ## Requirements
 
@@ -92,6 +92,8 @@ Implemented so far:
 - Safe Resume action that resumes only threads frozen by this app in the current session.
 - Runtime status badges: `Running` and `Frozen by app`.
 - Automatic best-effort resume of processes frozen by this app when Windows Process Control Center closes.
+- Windows GPU Preference management per executable path through `HKCU\Software\Microsoft\DirectX\UserGpuPreferences`.
+- GPU preference values use the Windows Graphics Settings convention: no registry value means `SystemDefault`, `GpuPreference=1;` means `PowerSaving`, and `GpuPreference=2;` means `HighPerformance`.
 - Backend guards that block protected, inaccessible, self, and critical Windows processes.
 - Process filtering by name, PID, or executable path.
 - Process details panel with executable path, CPU priority, access status, admin requirement hint, and access error details when available.
@@ -99,11 +101,13 @@ Implemented so far:
 
 Not implemented yet:
 
-- GPU preference changes.
 - Process tree termination or force-killing child processes.
 - Freeze/resume of process trees or child processes.
+- Live GPU switching for an already running process.
 - Settings persistence.
 - Profiles, rules, autostart, elevation, or admin workflows.
+
+GPU Preference may require restarting the target application and does not guarantee live switching for an already running process.
 
 ## Project Structure
 

@@ -287,7 +287,7 @@ h2 {
 
 table {
   width: 100%;
-  min-width: 1040px;
+  min-width: 1180px;
   border-collapse: collapse;
 }
 
@@ -498,6 +498,25 @@ tbody tr.selected {
 .priority-form {
   display: grid;
   gap: 10px;
+}
+
+.gpu-preference-section {
+  gap: 10px;
+}
+
+.gpu-info {
+  border: 1px solid rgba(120, 168, 201, 0.26);
+  border-radius: 9px;
+  padding: 10px 11px;
+  color: var(--muted);
+  background: rgba(32, 57, 77, 0.42);
+  line-height: 1.4;
+}
+
+.gpu-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 9px;
 }
 
 .priority-select {

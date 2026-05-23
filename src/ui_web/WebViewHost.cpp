@@ -167,6 +167,9 @@ namespace wpcc
                     case WebMessageType::ResumeProcess:
                         HandleResumeProcess(messageJson);
                         break;
+                    case WebMessageType::SetGpuPreference:
+                        HandleSetGpuPreference(messageJson);
+                        break;
                     default:
                         SendError("Unsupported frontend message.");
                         break;
@@ -223,6 +226,7 @@ namespace wpcc
             for (ProcessInfo& process : processes)
             {
                 process.isFrozenByApp = m_processActions.IsFrozenByApp(process.pid);
+                process.gpuPreference = m_gpuPreferenceManager.GetPreferenceForExecutablePath(process.executablePath);
             }
             const std::wstring message = m_bridge.BuildProcessSnapshotMessage(processes);
             m_webView->PostWebMessageAsJson(message.c_str());
@@ -292,6 +296,23 @@ namespace wpcc
         if (m_webView)
         {
             const std::wstring actionResult = m_bridge.BuildActionResultMessage("resumeProcess", result);
+            m_webView->PostWebMessageAsJson(actionResult.c_str());
+        }
+
+        if (result.success)
+        {
+            SendProcessSnapshot();
+        }
+    }
+
+    void WebViewHost::HandleSetGpuPreference(std::wstring_view messageJson)
+    {
+        const SetGpuPreferenceRequest request = m_bridge.ParseSetGpuPreferenceRequest(messageJson);
+        ProcessActionResult result = m_gpuPreferenceManager.SetPreferenceForProcess(request.pid, request.expectedName, request.executablePath, request.preference);
+
+        if (m_webView)
+        {
+            const std::wstring actionResult = m_bridge.BuildActionResultMessage("setGpuPreference", result);
             m_webView->PostWebMessageAsJson(actionResult.c_str());
         }
 
