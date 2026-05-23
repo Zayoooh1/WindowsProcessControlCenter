@@ -6,6 +6,7 @@ Release date: 2026-05-23
 
 - The frontend now performs real GitHub Releases checks against `Zayoooh1/WindowsProcessControlCenter` and shows update status in Settings → Updates.
 - Local update state is stored in `localStorage` as `wpcc.updateState` with fields: `lastCheckedAt`, `lastKnownVersion`, `latestReleaseUrl`, `ignoredVersion`.
+- A HTTP 404 response from the GitHub Releases API is surfaced with a friendly message explaining that the repo may be private or no public release exists. The frontend checker requires a public Releases endpoint.
 - Automatic checks respect the existing `wpcc.settings.updateChecksEnabled` and `updateCheckInterval` settings. Manual "Check for updates now" performs an immediate check.
 - Version parsing strips leading `v` and compares `major.minor.patch` numerically. Prerelease releases are ignored. No automatic download or installation is performed.
 

@@ -38,6 +38,8 @@ The app uses the Evergreen WebView2 Runtime installed on Windows. Many Windows 1
 
 The frontend now includes a GitHub Releases update checker that queries the public GitHub Releases API for Zayoooh1/WindowsProcessControlCenter. Automatic checking can be configured in Settings, but installation is not automatic and no files are downloaded silently. Update metadata and last-checked state are stored in `localStorage` under `wpcc.updateState`.
 
+Note: The frontend checker queries the public Releases API endpoint and requires a public release to be present. A `404` response from GitHub will be shown as: "Failed to check for updates. The GitHub release endpoint returned 404. This may happen when the repository is private or no public release exists." Private repositories or missing public releases are not supported by this frontend-only checker; a future update manifest or an authenticated backend would be required to support those scenarios.
+
 Check locally:
 
 ```powershell

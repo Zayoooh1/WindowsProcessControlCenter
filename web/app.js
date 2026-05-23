@@ -441,8 +441,13 @@ async function checkForUpdates(manual = false) {
     clearTimeout(timeout);
 
     if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      elements.updateStatusArea.textContent = `Failed to check for updates: ${resp.status} ${resp.statusText}`;
+      // Provide a friendly message for 404 which commonly means no public release
+      if (resp.status === 404) {
+        elements.updateStatusArea.textContent = "Failed to check for updates. The GitHub release endpoint returned 404. This may happen when the repository is private or no public release exists.";
+      } else {
+        const text = await resp.text().catch(() => "");
+        elements.updateStatusArea.textContent = `Failed to check for updates: ${resp.status} ${resp.statusText}`;
+      }
       updateState.lastCheckedAt = new Date().toISOString();
       saveUpdateState(updateState);
       return;

@@ -72,6 +72,7 @@ This file is intentionally kept short for public-facing repository history. Deta
 - The local update state is stored under `wpcc.updateState` in `localStorage` and includes `lastCheckedAt`, `lastKnownVersion`, `latestReleaseUrl`, and `ignoredVersion`.
 - Automatic checking respects `wpcc.settings.updateChecksEnabled` and `updateCheckInterval` (3d/weekly/monthly). Manual "Check for updates now" is enabled and always performs a check.
 - The checker performs semantic version parsing (strips leading `v`, compares major/minor/patch numerically) and ignores prerelease releases. Friendly error messages are shown for network/API/JSON errors and timeouts.
+  - Note: a HTTP 404 from the GitHub API is reported as a friendly message explaining that the repository may be private or that no public release exists. The frontend checker requires a public Releases endpoint.
 
 ## Windows 10 Compatibility and DPI/Responsive Audit
 
