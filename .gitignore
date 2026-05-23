@@ -52,6 +52,27 @@ _deps/
 # WebView2 runtime data generated beside the executable
 WebView2UserData/
 
+# Secrets / local config
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+*.cer
+*.crt
+*.snk
+secrets/
+local/
+*.bak
+*.old
+
+# Local screenshots / recordings
+screenshots/
+recordings/
+*.mp4
+*.mov
+*.mkv
+
 # OS/editor noise
 Thumbs.db
 Desktop.ini
