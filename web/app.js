@@ -1,5 +1,16 @@
+const SETTINGS_STORAGE_KEY = "wpcc.settings";
+const DEFAULT_SETTINGS = {
+  startScreen: "dashboard",
+  compactProcessTable: false,
+  showExecutablePathColumn: true,
+  showSafetyNotes: true,
+  reduceVisualEffects: false,
+  confirmDestructiveActions: true,
+};
+const initialSettingsState = loadSettings();
+
 const state = {
-  activeView: "dashboard",
+  activeView: initialSettingsState.settings.startScreen,
   processes: [],
   filtered: [],
   selectedPid: null,
@@ -12,13 +23,19 @@ const state = {
   terminateModalProcess: null,
   freezeModalProcess: null,
   actionResult: null,
+  settings: initialSettingsState.settings,
+  settingsStorageAvailable: initialSettingsState.storageAvailable,
+  settingsStorageWarning: initialSettingsState.warning,
+  resetSettingsModalOpen: false,
 };
 
 const elements = {
   dashboardNavButton: document.getElementById("dashboardNavButton"),
   processesNavButton: document.getElementById("processesNavButton"),
+  settingsNavButton: document.getElementById("settingsNavButton"),
   dashboardView: document.getElementById("dashboardView"),
   processesView: document.getElementById("processesView"),
+  settingsView: document.getElementById("settingsView"),
   refreshButton: document.getElementById("refreshButton"),
   dashboardRefreshButton: document.getElementById("dashboardRefreshButton"),
   goToProcessesButton: document.getElementById("goToProcessesButton"),
@@ -29,11 +46,87 @@ const elements = {
   dashboardSummary: document.getElementById("dashboardSummary"),
   dashboardStats: document.getElementById("dashboardStats"),
   lastActionContent: document.getElementById("lastActionContent"),
+  settingsStorageNotice: document.getElementById("settingsStorageNotice"),
+  startScreenDashboard: document.getElementById("startScreenDashboard"),
+  startScreenProcesses: document.getElementById("startScreenProcesses"),
+  compactTableToggle: document.getElementById("compactTableToggle"),
+  showPathToggle: document.getElementById("showPathToggle"),
+  showSafetyNotesToggle: document.getElementById("showSafetyNotesToggle"),
+  confirmDestructiveToggle: document.getElementById("confirmDestructiveToggle"),
+  reduceEffectsToggle: document.getElementById("reduceEffectsToggle"),
+  resetSettingsButton: document.getElementById("resetSettingsButton"),
   searchInput: document.getElementById("searchInput"),
   processRows: document.getElementById("processRows"),
   detailsContent: document.getElementById("detailsContent"),
   errorBanner: document.getElementById("errorBanner"),
 };
+
+function loadSettings() {
+  const fallback = {
+    settings: { ...DEFAULT_SETTINGS },
+    storageAvailable: false,
+    warning: "",
+  };
+
+  try {
+    const storage = window.localStorage;
+    const testKey = `${SETTINGS_STORAGE_KEY}.test`;
+    storage.setItem(testKey, "1");
+    storage.removeItem(testKey);
+
+    const raw = storage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) {
+      return { ...fallback, storageAvailable: true };
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      return {
+        settings: normalizeSettings(parsed),
+        storageAvailable: true,
+        warning: "",
+      };
+    } catch {
+      return {
+        settings: { ...DEFAULT_SETTINGS },
+        storageAvailable: true,
+        warning: "Saved settings could not be read. Defaults are active until settings are saved again.",
+      };
+    }
+  } catch {
+    return {
+      settings: { ...DEFAULT_SETTINGS },
+      storageAvailable: false,
+      warning: "Local settings storage is unavailable. Defaults are active for this session.",
+    };
+  }
+}
+
+function normalizeSettings(value) {
+  const source = value && typeof value === "object" ? value : {};
+  return {
+    startScreen: source.startScreen === "processes" ? "processes" : "dashboard",
+    compactProcessTable: Boolean(source.compactProcessTable),
+    showExecutablePathColumn: source.showExecutablePathColumn !== false,
+    showSafetyNotes: source.showSafetyNotes !== false,
+    reduceVisualEffects: Boolean(source.reduceVisualEffects),
+    confirmDestructiveActions: true,
+  };
+}
+
+function saveSettings() {
+  if (!state.settingsStorageAvailable) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
+    state.settingsStorageWarning = "";
+  } catch {
+    state.settingsStorageAvailable = false;
+    state.settingsStorageWarning = "Local settings storage is unavailable. Defaults are active for this session.";
+  }
+}
 
 function postToHost(message) {
   if (!window.chrome?.webview) {
@@ -146,12 +239,15 @@ function applyFilter() {
 function render() {
   elements.processCount.textContent = `${state.processes.length} processes`;
   elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
+  applySettingsEffects();
   renderActiveView();
   renderDashboard();
+  renderSettings();
   renderRows();
   renderDetails();
   renderTerminateModal();
   renderFreezeModal();
+  renderResetSettingsModal();
 }
 
 function setActiveView(view) {
@@ -161,10 +257,42 @@ function setActiveView(view) {
 
 function renderActiveView() {
   const dashboardActive = state.activeView === "dashboard";
+  const processesActive = state.activeView === "processes";
+  const settingsActive = state.activeView === "settings";
   elements.dashboardView.classList.toggle("hidden-view", !dashboardActive);
-  elements.processesView.classList.toggle("hidden-view", dashboardActive);
+  elements.processesView.classList.toggle("hidden-view", !processesActive);
+  elements.settingsView.classList.toggle("hidden-view", !settingsActive);
   elements.dashboardNavButton.classList.toggle("active", dashboardActive);
-  elements.processesNavButton.classList.toggle("active", !dashboardActive);
+  elements.processesNavButton.classList.toggle("active", processesActive);
+  elements.settingsNavButton.classList.toggle("active", settingsActive);
+}
+
+function applySettingsEffects() {
+  document.body.classList.toggle("compact-process-table", state.settings.compactProcessTable);
+  document.body.classList.toggle("hide-executable-path", !state.settings.showExecutablePathColumn);
+  document.body.classList.toggle("reduced-motion", state.settings.reduceVisualEffects);
+}
+
+function updateSetting(key, value) {
+  state.settings = normalizeSettings({
+    ...state.settings,
+    [key]: value,
+  });
+  saveSettings();
+  render();
+}
+
+function renderSettings() {
+  elements.settingsStorageNotice.classList.toggle("hidden", !state.settingsStorageWarning);
+  elements.settingsStorageNotice.textContent = state.settingsStorageWarning;
+  elements.startScreenDashboard.checked = state.settings.startScreen === "dashboard";
+  elements.startScreenProcesses.checked = state.settings.startScreen === "processes";
+  elements.compactTableToggle.checked = state.settings.compactProcessTable;
+  elements.showPathToggle.checked = state.settings.showExecutablePathColumn;
+  elements.showSafetyNotesToggle.checked = state.settings.showSafetyNotes;
+  elements.reduceEffectsToggle.checked = state.settings.reduceVisualEffects;
+  elements.confirmDestructiveToggle.checked = true;
+  elements.confirmDestructiveToggle.disabled = true;
 }
 
 function renderDashboard() {
@@ -348,9 +476,11 @@ function renderDetails() {
   elements.detailsContent.appendChild(section("Admin requirement", [
     valueLine(selected.adminNeeded ? "Likely required for some future process actions" : "Not detected for this read-only snapshot"),
   ]));
-  elements.detailsContent.appendChild(section("Safety model", [
-    safetyNote("Critical Windows processes are blocked. Destructive actions require confirmation and target only the selected process."),
-  ]));
+  if (state.settings.showSafetyNotes) {
+    elements.detailsContent.appendChild(section("Safety model", [
+      safetyNote("Critical Windows processes are blocked. Destructive actions require confirmation and target only the selected process."),
+    ]));
+  }
   elements.detailsContent.appendChild(freezeResumeSection(selected));
   elements.detailsContent.appendChild(terminateSection(selected));
 
@@ -836,6 +966,73 @@ function renderFreezeModal() {
   input.focus();
 }
 
+function renderResetSettingsModal() {
+  document.querySelector(".reset-modal-backdrop")?.remove();
+
+  if (!state.resetSettingsModalOpen) {
+    return;
+  }
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop reset-modal-backdrop";
+
+  const modal = document.createElement("div");
+  modal.className = "confirm-modal reset-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-label", "Reset settings");
+
+  const title = document.createElement("h2");
+  title.textContent = "Reset settings?";
+  modal.appendChild(title);
+
+  const text = document.createElement("p");
+  text.textContent = "This clears local WPCC interface preferences and restores the default Dashboard start screen, normal process table spacing, visible executable path column, visible safety notes, and normal visual effects.";
+  modal.appendChild(text);
+
+  const actions = document.createElement("div");
+  actions.className = "modal-actions";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "secondary-button";
+  cancelButton.textContent = "Cancel";
+  cancelButton.addEventListener("click", () => {
+    state.resetSettingsModalOpen = false;
+    render();
+  });
+
+  const resetButton = document.createElement("button");
+  resetButton.type = "button";
+  resetButton.className = "warning-action-button";
+  resetButton.textContent = "Confirm reset";
+  resetButton.addEventListener("click", () => {
+    resetSettingsToDefaults();
+  });
+
+  actions.appendChild(cancelButton);
+  actions.appendChild(resetButton);
+  modal.appendChild(actions);
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+  cancelButton.focus();
+}
+
+function resetSettingsToDefaults() {
+  try {
+    window.localStorage?.removeItem(SETTINGS_STORAGE_KEY);
+    state.settingsStorageAvailable = true;
+    state.settingsStorageWarning = "";
+  } catch {
+    state.settingsStorageAvailable = false;
+    state.settingsStorageWarning = "Local settings storage is unavailable. Defaults are active for this session.";
+  }
+
+  state.settings = { ...DEFAULT_SETTINGS };
+  state.resetSettingsModalOpen = false;
+  render();
+}
+
 function modalInfoLine(label, value, title) {
   const row = document.createElement("div");
   row.className = "modal-info-line";
@@ -1177,9 +1374,10 @@ function hideError() {
 }
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && (state.terminateModalProcess || state.freezeModalProcess)) {
+  if (event.key === "Escape" && (state.terminateModalProcess || state.freezeModalProcess || state.resetSettingsModalOpen)) {
     state.terminateModalProcess = null;
     state.freezeModalProcess = null;
+    state.resetSettingsModalOpen = false;
     render();
   }
 });
@@ -1190,8 +1388,20 @@ elements.dashboardRefreshButton.addEventListener("click", requestProcesses);
 elements.quickRefreshButton.addEventListener("click", requestProcesses);
 elements.dashboardNavButton.addEventListener("click", () => setActiveView("dashboard"));
 elements.processesNavButton.addEventListener("click", () => setActiveView("processes"));
+elements.settingsNavButton.addEventListener("click", () => setActiveView("settings"));
 elements.goToProcessesButton.addEventListener("click", () => setActiveView("processes"));
 elements.quickProcessesButton.addEventListener("click", () => setActiveView("processes"));
+elements.startScreenDashboard.addEventListener("change", () => updateSetting("startScreen", "dashboard"));
+elements.startScreenProcesses.addEventListener("change", () => updateSetting("startScreen", "processes"));
+elements.compactTableToggle.addEventListener("change", (event) => updateSetting("compactProcessTable", event.target.checked));
+elements.showPathToggle.addEventListener("change", (event) => updateSetting("showExecutablePathColumn", event.target.checked));
+elements.showSafetyNotesToggle.addEventListener("change", (event) => updateSetting("showSafetyNotes", event.target.checked));
+elements.reduceEffectsToggle.addEventListener("change", (event) => updateSetting("reduceVisualEffects", event.target.checked));
+elements.confirmDestructiveToggle.addEventListener("change", () => renderSettings());
+elements.resetSettingsButton.addEventListener("click", () => {
+  state.resetSettingsModalOpen = true;
+  render();
+});
 elements.searchInput.addEventListener("input", (event) => {
   state.query = event.target.value;
   applyFilter();

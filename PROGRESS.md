@@ -18,6 +18,8 @@ This file is intentionally kept short for public-facing repository history. Deta
 
 - Real process listing with PID, name, executable path, CPU priority, access status, admin hint, runtime state, and GPU Preference.
 - Dashboard tab with responsive current snapshot statistics, safety status, quick actions, last action summary, and available controls overview.
+- Settings tab with frontend-only UI preferences saved in `localStorage` under `wpcc.settings`.
+- Settings include start screen, compact process table, executable path column visibility, details-panel safety notes, reduced visual effects, and locked destructive-action confirmations.
 - Refresh and frontend-side search by PID, process name, or executable path.
 - CPU Priority control for accessible user processes.
 - Realtime priority confirmation in the UI and backend.
@@ -41,6 +43,7 @@ This file is intentionally kept short for public-facing repository history. Deta
 - WebView2 Runtime must be installed on the target machine.
 - GPU Preference may require restarting the target app and does not live-switch a running process.
 - Freeze/Resume state is session-local.
+- Settings are local WebView2 UI preferences only; there is no native config file yet.
 - No profiles, rules, presets, code signing, or auto-update yet.
 - No process tree termination, child-process force kill, freeze tree, or resume tree.
 - No NVIDIA Control Panel integration or global GPU setting changes.
@@ -51,4 +54,5 @@ This file is intentionally kept short for public-facing repository history. Deta
 - Add Windows version resource metadata and optional code signing.
 - Add a lightweight action history/audit panel.
 - Add table sorting and richer read-only metadata.
+- Add native settings/config persistence if UI preferences should move beyond WebView2 localStorage.
 - Automate GitHub Release creation after manual validation.

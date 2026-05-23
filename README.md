@@ -4,7 +4,7 @@ Version: `0.1.0`
 
 Windows Process Control Center is a C++20 Win32 desktop application for Windows process inspection and controlled process-management workflows. The current UI is rendered with Microsoft Edge WebView2 using local vanilla HTML, CSS, and JavaScript, while the backend remains native C++/WinAPI.
 
-The app can display real process snapshots, summarize the current snapshot on a Dashboard tab, change the CPU priority class of accessible user processes, safely terminate selected non-critical user processes after explicit confirmation, freeze/resume selected user processes during the current app session, and set Windows GPU Preference per executable path. It blocks known critical Windows processes and does not persist custom profiles or app presets yet.
+The app can display real process snapshots, summarize the current snapshot on a Dashboard tab, store frontend-only UI preferences in a Settings tab, change the CPU priority class of accessible user processes, safely terminate selected non-critical user processes after explicit confirmation, freeze/resume selected user processes during the current app session, and set Windows GPU Preference per executable path. It blocks known critical Windows processes and does not persist native config files, custom profiles, or app presets yet.
 
 ## Requirements
 
@@ -157,6 +157,8 @@ Implemented so far:
 - JavaScript to C++ message bridge for `setCpuPriority`.
 - JavaScript to C++ message bridge for `terminateProcess`.
 - Dashboard tab with responsive snapshot statistics, safety status, quick actions, last action status, and available controls overview.
+- Settings tab with frontend-only preferences stored in `localStorage` under `wpcc.settings`.
+- Settings for start screen, compact process table rows, executable path column visibility, details-panel safety notes, and reduced visual effects.
 - Read-only process enumeration using Windows APIs.
 - CPU priority changes for accessible processes through `OpenProcess` and `SetPriorityClass`.
 - Realtime priority safeguard requiring explicit frontend confirmation and backend validation.
@@ -174,15 +176,37 @@ Implemented so far:
   - End Process requires typing the exact process name or PID in a custom confirmation modal.
   - Freeze requires typing the exact process name or PID and can temporarily stop the target app's UI.
   - Freeze state is session-local; WPCC tries to resume processes it froze when closing.
+  - Destructive confirmations are always required and cannot be disabled in Settings.
 - Process filtering by name, PID, or executable path.
 - Process details panel with executable path, CPU priority, access status, admin requirement hint, and access error details when available.
+
+## Settings
+
+The Settings tab stores local interface preferences in WebView2 `localStorage` using a single key:
+
+```text
+wpcc.settings
+```
+
+These settings are frontend-only. They do not create a native configuration file and do not change backend process-management safeguards.
+
+Available UI preferences:
+
+- Start screen: choose Dashboard or Processes on startup.
+- Compact process table: use tighter process table rows.
+- Show executable path column: hide or show the path column while keeping the path visible in the details panel.
+- Show safety notes in details panel: show or hide the Safety model section.
+- Reduce visual effects: reduce UI transitions and motion-sensitive effects.
+- Always require confirmation for destructive actions: visible as enabled and locked. End Process and Freeze confirmations cannot be disabled.
+
+If `localStorage` is missing, blocked, or contains unreadable settings JSON, the app falls back to safe defaults and the Settings tab shows a notice.
 
 Not implemented yet:
 
 - Process tree termination or force-killing child processes.
 - Freeze/resume of process trees or child processes.
 - Live GPU switching for an already running process.
-- Settings persistence.
+- Native settings/config file persistence.
 - Profiles, rules, autostart, elevation, or admin workflows.
 
 GPU Preference may require restarting the target application and does not guarantee live switching for an already running process.
