@@ -170,6 +170,12 @@ namespace wpcc
                     case WebMessageType::SetGpuPreference:
                         HandleSetGpuPreference(messageJson);
                         break;
+                    case WebMessageType::LoadProfiles:
+                        HandleLoadProfiles();
+                        break;
+                    case WebMessageType::SaveProfiles:
+                        HandleSaveProfiles(messageJson);
+                        break;
                     default:
                         SendError("Unsupported frontend message.");
                         break;
@@ -325,6 +331,38 @@ namespace wpcc
         {
             SendProcessSnapshot();
         }
+    }
+
+    void WebViewHost::HandleLoadProfiles()
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        const ProfileLoadResult result = ProfileStore::LoadProfiles();
+        const std::wstring response = m_bridge.BuildProfilesLoadedMessage(result.success, result.jsonContent, result.warning);
+        m_webView->PostWebMessageAsJson(response.c_str());
+    }
+
+    void WebViewHost::HandleSaveProfiles(std::wstring_view messageJson)
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        const std::string profilesJson = m_bridge.ParseSaveProfilesRequest(messageJson);
+        if (profilesJson.empty())
+        {
+            const std::wstring response = m_bridge.BuildProfilesSavedMessage(false, L"No profiles data received.");
+            m_webView->PostWebMessageAsJson(response.c_str());
+            return;
+        }
+
+        const ProfileSaveResult result = ProfileStore::SaveProfiles(profilesJson);
+        const std::wstring response = m_bridge.BuildProfilesSavedMessage(result.success, result.warning);
+        m_webView->PostWebMessageAsJson(response.c_str());
     }
 
     void WebViewHost::SendError(std::string_view message)

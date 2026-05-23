@@ -45,6 +45,18 @@ namespace wpcc
             return WebMessageType::SetGpuPreference;
         }
 
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"loadProfiles\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::LoadProfiles;
+        }
+
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"saveProfiles\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::SaveProfiles;
+        }
+
         return WebMessageType::Unknown;
     }
 
@@ -81,6 +93,11 @@ namespace wpcc
         request.pid = ExtractUnsignedLong(messageJson, L"pid");
         request.expectedName = ExtractString(messageJson, L"expectedName");
         return request;
+    }
+
+    std::string WebMessageBridge::ParseSaveProfilesRequest(std::wstring_view messageJson) const
+    {
+        return ExtractString(messageJson, L"profiles");
     }
 
     SetGpuPreferenceRequest WebMessageBridge::ParseSetGpuPreferenceRequest(std::wstring_view messageJson) const
@@ -120,6 +137,43 @@ namespace wpcc
         }
 
         json << L"]}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildProfilesLoadedMessage(bool success, const std::string& profilesJson, std::wstring_view warning) const
+    {
+        std::wostringstream json;
+        json << L"{";
+        json << L"\"type\":\"profilesLoaded\",";
+        json << L"\"success\":" << (success ? L"true" : L"false");
+
+        if (success && !profilesJson.empty())
+        {
+            json << L",\"profiles\":" << Utf8ToWide(profilesJson);
+        }
+
+        if (!warning.empty())
+        {
+            json << L",\"warning\":\"" << EscapeJson(WideToUtf8(warning)) << L"\"";
+        }
+
+        json << L"}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildProfilesSavedMessage(bool success, std::wstring_view warning) const
+    {
+        std::wostringstream json;
+        json << L"{";
+        json << L"\"type\":\"profilesSaved\",";
+        json << L"\"success\":" << (success ? L"true" : L"false");
+
+        if (!warning.empty())
+        {
+            json << L",\"warning\":\"" << EscapeJson(WideToUtf8(warning)) << L"\"";
+        }
+
+        json << L"}";
         return json.str();
     }
 

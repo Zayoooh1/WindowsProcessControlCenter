@@ -18,6 +18,8 @@ namespace wpcc
         FreezeProcess,
         ResumeProcess,
         SetGpuPreference,
+        LoadProfiles,
+        SaveProfiles,
     };
 
     struct SetCpuPriorityRequest
@@ -64,8 +66,11 @@ namespace wpcc
         FreezeProcessRequest ParseFreezeProcessRequest(std::wstring_view messageJson) const;
         ResumeProcessRequest ParseResumeProcessRequest(std::wstring_view messageJson) const;
         SetGpuPreferenceRequest ParseSetGpuPreferenceRequest(std::wstring_view messageJson) const;
+        std::string ParseSaveProfilesRequest(std::wstring_view messageJson) const;
         std::wstring BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes) const;
         std::wstring BuildActionResultMessage(std::string_view action, const ProcessActionResult& result) const;
+        std::wstring BuildProfilesLoadedMessage(bool success, const std::string& profilesJson, std::wstring_view warning) const;
+        std::wstring BuildProfilesSavedMessage(bool success, std::wstring_view warning) const;
         std::wstring BuildErrorMessage(std::string_view message) const;
 
     private:

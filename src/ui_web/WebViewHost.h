@@ -3,6 +3,7 @@
 #include "core/ProcessActions.h"
 #include "core/GpuPreferenceManager.h"
 #include "core/ProcessProvider.h"
+#include "core/ProfileStore.h"
 #include "ui_web/WebMessageBridge.h"
 
 #include <Windows.h>
@@ -34,6 +35,8 @@ namespace wpcc
         void HandleFreezeProcess(std::wstring_view messageJson);
         void HandleResumeProcess(std::wstring_view messageJson);
         void HandleSetGpuPreference(std::wstring_view messageJson);
+        void HandleLoadProfiles();
+        void HandleSaveProfiles(std::wstring_view messageJson);
         void SendError(std::string_view message);
         void ShowInitializationError(std::wstring_view message) const;
 
