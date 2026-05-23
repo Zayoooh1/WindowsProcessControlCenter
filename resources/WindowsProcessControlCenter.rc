@@ -1,0 +1,33 @@
+#include <windows.h>
+#include "resource.h"
+
+IDI_APP_ICON   ICON   "..\\assets\\icon.ico"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     0,1,0,0
+PRODUCTVERSION  0,1,0,0
+FILEFLAGSMASK   0x3fL
+FILEFLAGS       0x0L
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      VER_COMPANY_NAME_STR
+            VALUE "FileDescription",  VER_FILE_DESCRIPTION_STR
+            VALUE "FileVersion",      VER_FILE_VERSION_STR
+            VALUE "InternalName",     VER_INTERNAL_NAME_STR
+            VALUE "LegalCopyright",   VER_COPYRIGHT_STR
+            VALUE "OriginalFilename", VER_ORIGINAL_FILENAME_STR
+            VALUE "ProductName",      VER_PRODUCT_NAME_STR
+            VALUE "ProductVersion",   VER_PRODUCT_VERSION_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 0x04B0
+    END
+END

@@ -3,6 +3,7 @@
 #define MyAppVersion "0.1.0"
 #define MyAppPublisher "Windows Process Control Center"
 #define MyAppId "{{6FDC4703-94B6-4E3D-98B1-B22588940D1E}"
+#define MyAppIcon "..\assets\icon.ico"
 #define PortableDir "..\dist\WindowsProcessControlCenter-0.1.0-portable"
 
 [Setup]
@@ -25,6 +26,7 @@ PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+SetupIconFile={#MyAppIcon}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupLogging=yes
 

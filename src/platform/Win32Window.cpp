@@ -1,4 +1,5 @@
 #include "platform/Win32Window.h"
+#include "resource.h"
 
 #include <dwmapi.h>
 
@@ -48,6 +49,8 @@ namespace wpcc
         windowClass.style = CS_CLASSDC;
         windowClass.lpfnWndProc = StaticWindowProc;
         windowClass.hInstance = m_instance;
+        windowClass.hIcon = LoadIconW(m_instance, MAKEINTRESOURCEW(IDI_APP_ICON));
+        windowClass.hIconSm = LoadIconW(m_instance, MAKEINTRESOURCEW(IDI_APP_ICON));
         windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
         windowClass.lpszClassName = WindowClassName;
 

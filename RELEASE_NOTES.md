@@ -2,6 +2,8 @@
 
 Release date: 2026-05-23
 
+**Update: Added Windows resource metadata and application icon.**
+
 ## Highlights
 
 - Native Win32 desktop application with a WebView2 UI.
@@ -63,6 +65,17 @@ The installer uses Inno Setup, installs per user by default, supports custom ins
 - Realtime CPU priority can make Windows less responsive and requires explicit confirmation.
 - Critical Windows processes such as `explorer.exe`, `svchost.exe`, `lsass.exe`, and `csrss.exe` are blocked.
 
+## Windows Resource Metadata and Icon Integration
+
+- Application icon with multi-resolution support: 16×16, 24×24, 32×32, 48×48, 64×64, 128×128, and 256×256.
+- Windows version resource embedded in the executable:
+  - File version 0.1.0, product version 0.1.0.
+  - Product name, file description, original filename, and copyright metadata.
+- Win32 window class uses the icon for the title bar, taskbar, and Alt+Tab.
+- File Explorer shows the icon on the executable and shortcuts.
+- Inno Setup installer uses the icon for the installer executable and setup wizard.
+- Version information visible in File Properties > Details and Apps & Features.
+
 ## Known Limitations
 
 - GPU Preference is per executable path and may require restarting the target app.
@@ -70,3 +83,4 @@ The installer uses Inno Setup, installs per user by default, supports custom ins
 - Native profiles, rules, presets, native settings file, or backend settings persistence yet (Rules / Profiles is currently a frontend-only design prototype).
 - No process tree termination, child-process force kill, freeze tree, or resume tree.
 - No NVIDIA Control Panel integration or global GPU setting changes.
+- No system tray icon yet.

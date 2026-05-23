@@ -51,10 +51,20 @@ This file is intentionally kept short for public-facing repository history. Deta
 - No NVIDIA Control Panel integration or global GPU setting changes.
 - The installer build requires Inno Setup 6 locally; WebView2 Runtime is still required on the installed machine.
 
+## Implemented Since 0.1.0
+
+- Application icon (`assets/icon.ico`) with multiple resolutions: 16×16, 24×24, 32×32, 48×48, 64×64, 128×128, 256×256.
+- Windows resource metadata (`resources/WindowsProcessControlCenter.rc`, `resources/resource.h`):
+  - File version 0.1.0 and product version 0.1.0.
+  - Product name, file description, original filename, and copyright.
+- Win32 window class icon (large and small) loaded from resources.
+- Inno Setup installer uses the icon for the installer executable and installed shortcuts.
+- Version resource integration for Apps & Features and File Properties details.
+
 ## Suggested Next Steps
 
-- Add Windows version resource metadata and optional code signing.
 - Add a lightweight action history/audit panel.
 - Add table sorting and richer read-only metadata.
 - Add native settings/config persistence if UI preferences should move beyond WebView2 localStorage.
 - Automate GitHub Release creation after manual validation.
+- Add system tray icon and minimize-to-tray behavior.

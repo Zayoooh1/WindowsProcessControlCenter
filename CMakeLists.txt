@@ -70,10 +70,12 @@ add_executable(WindowsProcessControlCenter WIN32
     src/ui_web/WebMessageBridge.h
     src/ui_web/WebViewHost.cpp
     src/ui_web/WebViewHost.h
+    resources/WindowsProcessControlCenter.rc
 )
 
 target_include_directories(WindowsProcessControlCenter PRIVATE
     src
+    resources
     ${WEBVIEW2_INCLUDE_DIR}
 )
 
