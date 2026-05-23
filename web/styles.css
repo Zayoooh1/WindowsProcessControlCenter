@@ -19,6 +19,7 @@
   --danger: #df7373;
   --danger-bg: #4b2429;
   --neutral-bg: #252e3a;
+  --focus: #93bed8;
   --shadow: rgba(0, 0, 0, 0.28);
   --radius: 14px;
   --gap: 16px;
@@ -49,6 +50,13 @@ button,
 input,
 select {
   font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid rgba(147, 190, 216, 0.76);
+  outline-offset: 2px;
 }
 
 .app-shell {
@@ -173,6 +181,9 @@ h2 {
   color: var(--muted);
   background: transparent;
   text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: default;
 }
 
@@ -283,6 +294,25 @@ h2 {
   border-radius: 12px;
   border: 1px solid var(--border-soft);
   background: #141a22;
+  scrollbar-color: #435165 #141a22;
+}
+
+.table-wrap::-webkit-scrollbar,
+.details-panel::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.table-wrap::-webkit-scrollbar-track,
+.details-panel::-webkit-scrollbar-track {
+  background: #141a22;
+}
+
+.table-wrap::-webkit-scrollbar-thumb,
+.details-panel::-webkit-scrollbar-thumb {
+  border: 3px solid #141a22;
+  border-radius: 999px;
+  background: #435165;
 }
 
 table {
@@ -346,6 +376,7 @@ tbody tr.selected {
   width: fit-content;
   min-height: 26px;
   font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .badge.neutral {
@@ -378,6 +409,7 @@ tbody tr.selected {
   padding: 18px;
   overflow: auto;
   background: rgba(27, 34, 44, 0.94);
+  scrollbar-color: #435165 #171d26;
 }
 
 .details-title {
@@ -428,6 +460,15 @@ tbody tr.selected {
   border-radius: 9px;
   color: #768496;
   background: #202733;
+}
+
+.safety-note {
+  border: 1px solid rgba(120, 168, 201, 0.22);
+  border-radius: 10px;
+  padding: 10px 11px;
+  color: var(--muted);
+  background: rgba(37, 46, 58, 0.52);
+  line-height: 1.4;
 }
 
 .terminate-section {
@@ -517,6 +558,10 @@ tbody tr.selected {
   display: grid;
   grid-template-columns: 1fr;
   gap: 9px;
+}
+
+.details-content .action-message {
+  overflow-wrap: anywhere;
 }
 
 .priority-select {
@@ -712,6 +757,33 @@ tbody tr.selected {
   }
 
   .details-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    grid-template-rows: auto minmax(0, 1fr);
+    padding: 12px;
+  }
+
+  .top-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .top-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
     display: none;
   }
 }

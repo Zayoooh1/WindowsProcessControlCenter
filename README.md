@@ -2,7 +2,7 @@
 
 Windows Process Control Center is a C++20 Win32 desktop application for Windows process inspection and controlled process-management workflows. The current UI is rendered with Microsoft Edge WebView2 using local vanilla HTML, CSS, and JavaScript, while the backend remains native C++/WinAPI.
 
-The app can display real process snapshots, change the CPU priority class of accessible user processes, safely terminate selected non-critical user processes after explicit confirmation, freeze/resume selected user processes during the current app session, and set Windows GPU Preference per executable path. It does not persist custom profiles or app presets yet.
+The app can display real process snapshots, change the CPU priority class of accessible user processes, safely terminate selected non-critical user processes after explicit confirmation, freeze/resume selected user processes during the current app session, and set Windows GPU Preference per executable path. It blocks known critical Windows processes and does not persist custom profiles or app presets yet.
 
 ## Requirements
 
@@ -79,6 +79,7 @@ Implemented so far:
 - Win32 desktop application entry point and native window.
 - WebView2 host for local frontend rendering.
 - Vanilla HTML/CSS/JS frontend in `web/`.
+- Best-effort dark native title bar on supported Windows builds, with a normal Windows title bar fallback.
 - C++ to JavaScript message bridge for process snapshots.
 - JavaScript to C++ message bridge for `refreshProcesses`.
 - JavaScript to C++ message bridge for `setCpuPriority`.
@@ -95,6 +96,11 @@ Implemented so far:
 - Windows GPU Preference management per executable path through `HKCU\Software\Microsoft\DirectX\UserGpuPreferences`.
 - GPU preference values use the Windows Graphics Settings convention: no registry value means `SystemDefault`, `GpuPreference=1;` means `PowerSaving`, and `GpuPreference=2;` means `HighPerformance`.
 - Backend guards that block protected, inaccessible, self, and critical Windows processes.
+- UI warnings for destructive or risky actions:
+  - Realtime priority requires an explicit risk checkbox and backend confirmation.
+  - End Process requires typing the exact process name or PID in a custom confirmation modal.
+  - Freeze requires typing the exact process name or PID and can temporarily stop the target app's UI.
+  - Freeze state is session-local; WPCC tries to resume processes it froze when closing.
 - Process filtering by name, PID, or executable path.
 - Process details panel with executable path, CPU priority, access status, admin requirement hint, and access error details when available.
 - Disabled future action buttons for process-management functions.
@@ -109,6 +115,14 @@ Not implemented yet:
 
 GPU Preference may require restarting the target application and does not guarantee live switching for an already running process.
 
+## Safety Notes
+
+- Critical Windows processes such as `System`, `Registry`, `smss.exe`, `csrss.exe`, `wininit.exe`, `winlogon.exe`, `services.exe`, `lsass.exe`, `svchost.exe`, `fontdrvhost.exe`, `dwm.exe`, `explorer.exe`, and `audiodg.exe` are blocked from destructive actions.
+- Realtime CPU priority can make the system less responsive. The UI and backend both require explicit confirmation before it is applied.
+- End Process terminates only the selected process, not its child processes, and should be used only when unsaved work is not at risk.
+- Freeze suspends current threads for one selected process and Resume only restores threads frozen by this app in the current session.
+- GPU Preference writes only the current user's Windows Graphics Settings entry under `HKCU`.
+
 ## Project Structure
 
 ```text
@@ -117,7 +131,6 @@ src/
   core/       Process model and read-only process provider.
   platform/   Win32 window wrapper.
   ui_web/     WebView2 host and message bridge.
-  ui/         Legacy Dear ImGui UI kept in the repo but excluded from active build.
 web/          Local vanilla HTML/CSS/JS frontend loaded by WebView2.
 docs/         Project documentation.
 ```

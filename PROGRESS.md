@@ -662,3 +662,65 @@ Generated executables:
 ## Suggested Next Stage
 
 Add an action history panel and richer process metadata so CPU Priority, End Process, Freeze/Resume, and GPU Preference outcomes are easier to audit from the UI.
+
+## Task 10 - Final Polish, Regression Testing, Cleanup, and Release Readiness
+
+Status: completed.
+
+Prepared the project as a release-candidate baseline. The active architecture is now cleanly Win32 + WebView2 + native C++ process modules, with old Dear ImGui/DX11 reference files removed from the repository.
+
+## Added Files
+
+- `docs/RELEASE_CHECKLIST.md`
+
+## Changed Files
+
+- `CMakeLists.txt`
+- `README.md`
+- `PROGRESS.md`
+- `src/platform/Win32Window.cpp`
+- `web/index.html`
+- `web/styles.css`
+- `web/app.js`
+
+## Removed Files
+
+- `src/platform/D3D11Renderer.cpp`
+- `src/platform/D3D11Renderer.h`
+- `src/ui/UiLayer.cpp`
+- `src/ui/UiLayer.h`
+- `src/ui/UiTheme.cpp`
+- `src/ui/UiTheme.h`
+
+## What Was Polished
+
+- Added best-effort DWM dark title bar support with safe fallback on unsupported Windows builds.
+- Removed stale ImGui/DX11 CMake references and legacy source files.
+- Tightened WebView2 UI copy for the release-candidate state.
+- Improved keyboard focus visibility, scrollbars, sidebar text truncation, badge polish, small-screen layout behavior, and details-panel safety messaging.
+- Removed a dead empty future-actions block from the frontend.
+
+## Regression Test Scope
+
+- App startup and WebView2 frontend loading.
+- Process snapshot loading, Refresh, search, selection, and details panel.
+- CPU Priority Normal -> High -> Normal and Realtime-without-checkbox blocking.
+- End Process on a test `notepad.exe` process.
+- Critical-process blocking for `explorer.exe`.
+- Freeze and Resume on a test `cmd.exe` process.
+- `Frozen by app` runtime badge.
+- GPU Preference set/reset for a user process with a valid executable path.
+- GPU Preference disabled for processes without a valid path.
+- Best-effort resume of processes frozen by WPCC on shutdown.
+- Debug and Release builds.
+
+## Known Limitations
+
+- GPU Preference may require restarting the target app and does not live-switch a running process.
+- Freeze/Resume state is only tracked in the current WPCC session.
+- Process tree operations, child-process termination, profiles, presets, and autostart are not implemented.
+- Dark title bar is best-effort and depends on OS support for DWM immersive dark mode.
+
+## Suggested Next Stage
+
+Add a lightweight action history/audit panel and table sorting so process actions are easier to review without increasing system-level risk.

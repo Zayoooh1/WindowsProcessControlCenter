@@ -45,15 +45,6 @@ endif()
 set(WEBVIEW2_INCLUDE_DIR "${WEBVIEW2_PACKAGE_DIR}/build/native/include")
 set(WEBVIEW2_LOADER_LIB "${WEBVIEW2_PACKAGE_DIR}/build/native/${WEBVIEW2_ARCH}/WebView2LoaderStatic.lib")
 
-set(LEGACY_IMGUI_SOURCES
-    src/platform/D3D11Renderer.cpp
-    src/platform/D3D11Renderer.h
-    src/ui/UiLayer.cpp
-    src/ui/UiLayer.h
-    src/ui/UiTheme.cpp
-    src/ui/UiTheme.h
-)
-
 add_executable(WindowsProcessControlCenter WIN32
     src/main.cpp
     src/app/Application.cpp
@@ -96,6 +87,7 @@ endif()
 target_link_libraries(WindowsProcessControlCenter PRIVATE
     ${WEBVIEW2_LOADER_LIB}
     advapi32
+    dwmapi
     ole32
     shell32
     shlwapi

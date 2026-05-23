@@ -189,6 +189,9 @@ function renderDetails() {
   elements.detailsContent.appendChild(section("Admin requirement", [
     valueLine(selected.adminNeeded ? "Likely required for some future process actions" : "Not detected for this read-only snapshot"),
   ]));
+  elements.detailsContent.appendChild(section("Safety model", [
+    safetyNote("Critical Windows processes are blocked. Destructive actions require confirmation and target only the selected process."),
+  ]));
   elements.detailsContent.appendChild(freezeResumeSection(selected));
   elements.detailsContent.appendChild(terminateSection(selected));
 
@@ -196,20 +199,6 @@ function renderDetails() {
     elements.detailsContent.appendChild(section("Access error", [
       valueLine(selected.accessError, selected.accessError),
     ]));
-  }
-
-  const actions = document.createElement("div");
-  actions.className = "future-actions";
-  for (const label of []) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.disabled = true;
-    button.textContent = label;
-    button.title = "Not implemented yet";
-    actions.appendChild(button);
-  }
-  if (actions.childElementCount > 0) {
-    elements.detailsContent.appendChild(section("Future actions", [actions]));
   }
 }
 
@@ -948,6 +937,13 @@ function valueLine(value, title) {
 function mutedLine(value) {
   const div = valueLine(value);
   div.style.color = "var(--muted)";
+  return div;
+}
+
+function safetyNote(value) {
+  const div = document.createElement("div");
+  div.className = "safety-note";
+  div.textContent = value;
   return div;
 }
 

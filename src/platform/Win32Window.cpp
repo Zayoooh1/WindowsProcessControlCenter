@@ -1,5 +1,7 @@
 #include "platform/Win32Window.h"
 
+#include <dwmapi.h>
+
 #include <string>
 
 namespace
@@ -11,6 +13,20 @@ namespace
     void EnableDpiAwareness()
     {
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
+
+    void TryEnableDarkTitleBar(HWND hwnd)
+    {
+        BOOL enabled = TRUE;
+        constexpr DWORD DwmWindowAttributeUseImmersiveDarkMode = 20;
+        if (SUCCEEDED(DwmSetWindowAttribute(hwnd, DwmWindowAttributeUseImmersiveDarkMode, &enabled, sizeof(enabled))))
+        {
+            return;
+        }
+
+        // Older Windows 10 builds used the same dark-mode flag at attribute 19.
+        constexpr DWORD DwmWindowAttributeUseImmersiveDarkModeBefore20H1 = 19;
+        DwmSetWindowAttribute(hwnd, DwmWindowAttributeUseImmersiveDarkModeBefore20H1, &enabled, sizeof(enabled));
     }
 }
 
@@ -58,7 +74,13 @@ namespace wpcc
             m_instance,
             this);
 
-        return m_hwnd != nullptr;
+        if (m_hwnd == nullptr)
+        {
+            return false;
+        }
+
+        TryEnableDarkTitleBar(m_hwnd);
+        return true;
     }
 
     void Win32Window::Show(int showCommand) const
