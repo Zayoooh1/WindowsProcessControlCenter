@@ -1436,7 +1436,12 @@ elements.showPathToggle.addEventListener("change", (event) => updateSetting("sho
 elements.showSafetyNotesToggle.addEventListener("change", (event) => updateSetting("showSafetyNotes", event.target.checked));
 elements.reduceEffectsToggle.addEventListener("change", (event) => updateSetting("reduceVisualEffects", event.target.checked));
 elements.confirmDestructiveToggle.addEventListener("change", () => renderSettings());
-elements.updatesChecksToggle.addEventListener("change", (event) => updateSetting("updateChecksEnabled", event.target.checked));
+elements.updatesChecksToggle.addEventListener("change", (event) => {
+  const enabled = event.target.checked;
+  state.settings.updateChecksEnabled = enabled;
+  elements.updateIntervalSelect.disabled = !enabled;
+  saveSettings();
+});
 elements.updateIntervalSelect.addEventListener("change", (event) => updateSetting("updateCheckInterval", event.target.value));
 elements.autoInstallToggle.addEventListener("change", () => renderSettings());
 elements.resetSettingsButton.addEventListener("click", () => {
