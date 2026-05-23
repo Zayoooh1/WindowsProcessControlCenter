@@ -66,6 +66,20 @@ This file is intentionally kept short for public-facing repository history. Deta
   - Double-click or single-click restores/focuses the main window.
   - Clean removal on app exit.
 
+## Update Checker Settings
+
+- Added a new Updates section to the Settings tab with frontend-only update checking preferences.
+- Settings stored in the existing `wpcc.settings` localStorage key.
+- Settings added:
+  - `updateChecksEnabled` (bool, default `true`): toggle to enable/disable automatic update checks.
+  - `updateCheckInterval` (string, default `"weekly"`): dropdown with options "Every 3 days", "Weekly", "Monthly". Disabled when auto checks are off.
+  - `autoInstallUpdates` (bool, default `false`): locked disabled toggle for planned auto-install feature.
+  - `ignoredUpdateVersion` (string|null, default `null`): read-only display of ignored release version.
+  - Disabled "Check for updates now" button as a placeholder for future implementation.
+- NormalizeSettings safely handles missing fields, invalid values, and localStorage unavailability.
+- Reset settings restores all update fields to defaults.
+- Actual GitHub release scanning is **not implemented** in this task.
+
 ## Windows 10 Compatibility and DPI/Responsive Audit
 
 - DPI awareness uses a safe fallback chain: per-monitor v2 -> per-monitor v1 -> system DPI aware (`SetProcessDPIAware`).

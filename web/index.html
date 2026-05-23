@@ -262,13 +262,71 @@
 
           <section class="settings-section">
             <div class="settings-section-heading">
+              <h2>Updates</h2>
+              <p>Configure automatic update checking preferences. Actual GitHub release scanning is planned.</p>
+            </div>
+            <div class="settings-grid">
+              <article class="panel setting-card">
+                <div class="setting-copy">
+                  <h3>Check for updates automatically</h3>
+                  <p>WPCC can periodically check GitHub Releases for a newer version.</p>
+                </div>
+                <label class="switch-control">
+                  <input id="updatesChecksToggle" type="checkbox">
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                </label>
+              </article>
+
+              <article class="panel setting-card">
+                <div class="setting-copy">
+                  <h3>Update check interval</h3>
+                  <p>How often WPCC checks for new releases when automatic checking is enabled.</p>
+                </div>
+                <select id="updateIntervalSelect" class="setting-select">
+                  <option value="3d">Every 3 days</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </article>
+
+              <article class="panel setting-card locked-setting">
+                <div class="setting-copy">
+                  <h3>Install updates automatically</h3>
+                  <p>Automatic installation is planned for a future version. Current version will only check and prompt.</p>
+                </div>
+                <label class="switch-control locked">
+                  <input id="autoInstallToggle" type="checkbox" disabled>
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                </label>
+              </article>
+
+              <article class="panel setting-card">
+                <div class="setting-copy">
+                  <h3>Ignored update version</h3>
+                  <p>A detected release version that the user chose to ignore. Currently none.</p>
+                </div>
+                <span id="ignoredUpdateVersionDisplay" class="setting-value-text">None</span>
+              </article>
+
+              <article class="panel setting-card">
+                <div class="setting-copy">
+                  <h3>Check for updates now</h3>
+                  <p>Manual update checking will be implemented in a future task.</p>
+                </div>
+                <button id="manualCheckButton" class="secondary-button" type="button" disabled>Check for updates now</button>
+              </article>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <div class="settings-section-heading">
               <h2>Reset</h2>
               <p>Return all local interface preferences to their defaults.</p>
             </div>
             <article class="panel setting-card reset-card">
               <div class="setting-copy">
                 <h3>Reset settings</h3>
-                <p>Clears the WPCC localStorage settings key and restores Dashboard, normal table spacing, visible path column, safety notes, and visual effects.</p>
+                <p>Clears the WPCC localStorage settings key and restores Dashboard, normal table spacing, visible path column, safety notes, visual effects, and update checking defaults.</p>
               </div>
               <button id="resetSettingsButton" class="secondary-button" type="button">Reset settings</button>
             </article>

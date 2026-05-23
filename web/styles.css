@@ -496,6 +496,42 @@ h2 {
   cursor: default;
 }
 
+.setting-select {
+  flex: 0 0 auto;
+  width: min(200px, 100%);
+  min-height: 38px;
+  border: 1px solid #3a4655;
+  border-radius: 9px;
+  color: var(--text);
+  background: #202833;
+  padding: 0 12px;
+  outline: 0;
+  cursor: pointer;
+}
+
+.setting-select:focus {
+  border-color: #587b98;
+}
+
+.setting-select:disabled {
+  color: #748195;
+  background: #1c232d;
+  cursor: default;
+}
+
+.setting-value-text {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  color: var(--muted);
+  background: #202833;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .reset-card {
   align-items: flex-start;
 }

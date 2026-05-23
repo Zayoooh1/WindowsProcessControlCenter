@@ -1,4 +1,6 @@
 const SETTINGS_STORAGE_KEY = "wpcc.settings";
+const VALID_UPDATE_INTERVALS = ["3d", "weekly", "monthly"];
+
 const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
   compactProcessTable: false,
@@ -6,6 +8,10 @@ const DEFAULT_SETTINGS = {
   showSafetyNotes: true,
   reduceVisualEffects: false,
   confirmDestructiveActions: true,
+  updateChecksEnabled: true,
+  updateCheckInterval: "weekly",
+  autoInstallUpdates: false,
+  ignoredUpdateVersion: null,
 };
 const initialSettingsState = loadSettings();
 
@@ -59,6 +65,11 @@ const elements = {
   confirmDestructiveToggle: document.getElementById("confirmDestructiveToggle"),
   reduceEffectsToggle: document.getElementById("reduceEffectsToggle"),
   resetSettingsButton: document.getElementById("resetSettingsButton"),
+  updatesChecksToggle: document.getElementById("updatesChecksToggle"),
+  updateIntervalSelect: document.getElementById("updateIntervalSelect"),
+  autoInstallToggle: document.getElementById("autoInstallToggle"),
+  ignoredUpdateVersionDisplay: document.getElementById("ignoredUpdateVersionDisplay"),
+  manualCheckButton: document.getElementById("manualCheckButton"),
   searchInput: document.getElementById("searchInput"),
   processRows: document.getElementById("processRows"),
   detailsContent: document.getElementById("detailsContent"),
@@ -115,6 +126,14 @@ function normalizeSettings(value) {
     showSafetyNotes: source.showSafetyNotes !== false,
     reduceVisualEffects: Boolean(source.reduceVisualEffects),
     confirmDestructiveActions: true,
+    updateChecksEnabled: source.updateChecksEnabled !== false,
+    updateCheckInterval: VALID_UPDATE_INTERVALS.includes(source.updateCheckInterval)
+      ? source.updateCheckInterval
+      : "weekly",
+    autoInstallUpdates: false,
+    ignoredUpdateVersion: source.ignoredUpdateVersion && typeof source.ignoredUpdateVersion === "string"
+      ? source.ignoredUpdateVersion
+      : null,
   };
 }
 
@@ -303,6 +322,13 @@ function renderSettings() {
   elements.reduceEffectsToggle.checked = state.settings.reduceVisualEffects;
   elements.confirmDestructiveToggle.checked = true;
   elements.confirmDestructiveToggle.disabled = true;
+  elements.updatesChecksToggle.checked = state.settings.updateChecksEnabled;
+  elements.updateIntervalSelect.value = state.settings.updateCheckInterval;
+  elements.updateIntervalSelect.disabled = !state.settings.updateChecksEnabled;
+  elements.autoInstallToggle.checked = false;
+  elements.autoInstallToggle.disabled = true;
+  elements.ignoredUpdateVersionDisplay.textContent = state.settings.ignoredUpdateVersion || "None";
+  elements.manualCheckButton.disabled = true;
 }
 
 function renderDashboard() {
@@ -997,7 +1023,7 @@ function renderResetSettingsModal() {
   modal.appendChild(title);
 
   const text = document.createElement("p");
-  text.textContent = "This clears local WPCC interface preferences and restores the default Dashboard start screen, normal process table spacing, visible executable path column, visible safety notes, and normal visual effects.";
+  text.textContent = "This clears local WPCC interface preferences and restores the default Dashboard start screen, normal process table spacing, visible executable path column, visible safety notes, normal visual effects, and update checking defaults.";
   modal.appendChild(text);
 
   const actions = document.createElement("div");
@@ -1410,6 +1436,9 @@ elements.showPathToggle.addEventListener("change", (event) => updateSetting("sho
 elements.showSafetyNotesToggle.addEventListener("change", (event) => updateSetting("showSafetyNotes", event.target.checked));
 elements.reduceEffectsToggle.addEventListener("change", (event) => updateSetting("reduceVisualEffects", event.target.checked));
 elements.confirmDestructiveToggle.addEventListener("change", () => renderSettings());
+elements.updatesChecksToggle.addEventListener("change", (event) => updateSetting("updateChecksEnabled", event.target.checked));
+elements.updateIntervalSelect.addEventListener("change", (event) => updateSetting("updateCheckInterval", event.target.value));
+elements.autoInstallToggle.addEventListener("change", () => renderSettings());
 elements.resetSettingsButton.addEventListener("click", () => {
   state.resetSettingsModalOpen = true;
   render();

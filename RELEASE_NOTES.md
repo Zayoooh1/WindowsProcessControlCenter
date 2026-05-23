@@ -2,7 +2,21 @@
 
 Release date: 2026-05-23
 
-**Update: Windows 10 compatibility and DPI/responsive audit.**
+**Update: Update checker settings.**
+
+- Added a new Updates section in the Settings tab with frontend-only update checking preferences.
+- Settings stored in existing `wpcc.settings` localStorage key.
+- New settings:
+  - "Check for updates automatically" toggle (default: enabled).
+  - "Update check interval" dropdown (3 days, Weekly, Monthly; default: Weekly). Disabled when auto checks are off.
+  - "Install updates automatically" locked/disabled toggle (planned for future).
+  - "Ignored update version" read-only display (default: None).
+  - "Check for updates now" disabled placeholder button.
+- NormalizeSettings safely handles missing/ invalid update fields.
+- Reset settings restores update fields to defaults.
+- Actual GitHub release scanning is not implemented in this task.
+
+**Earlier update: Windows 10 compatibility and DPI/responsive audit.**
 
 - DPI awareness now uses a safe fallback chain: per-monitor v2 -> per-monitor v1 -> system DPI aware, ensuring compatibility across Windows 10 1607+.
 - DWM dark title bar already had a safe fallback (attribute 20 -> 19) for older Windows 10 builds. Verified unchanged.

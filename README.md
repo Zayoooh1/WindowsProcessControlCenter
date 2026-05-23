@@ -220,11 +220,13 @@ Available UI preferences:
 - Show safety notes in details panel: show or hide the Safety model section.
 - Reduce visual effects: reduce UI transitions and motion-sensitive effects.
 - Always require confirmation for destructive actions: visible as enabled and locked. End Process and Freeze confirmations cannot be disabled.
+- Updates section: configure automatic update checking preferences — enable/disable auto checks, choose check interval (3 days, weekly, monthly), locked automatic installation setting (planned for future), ignored update version display, and a disabled manual check button.
 
 If `localStorage` is missing, blocked, or contains unreadable settings JSON, the app falls back to safe defaults and the Settings tab shows a notice.
 
 Not implemented yet:
 
+- Actual GitHub Releases scanning and update checking (settings UI exists, but backend scanning is planned for a future task).
 - Process tree termination or force-killing child processes.
 - Freeze/resume of process trees or child processes.
 - Live GPU switching for an already running process.
