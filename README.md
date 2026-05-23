@@ -2,7 +2,7 @@
 
 Windows Process Control Center is a C++20 Win32 desktop application for Windows process inspection and controlled process-management workflows. The current UI is rendered with Microsoft Edge WebView2 using local vanilla HTML, CSS, and JavaScript, while the backend remains native C++/WinAPI.
 
-The app can display real process snapshots, change the CPU priority class of accessible user processes, and safely terminate selected non-critical user processes after explicit confirmation. It does not freeze, resume, change GPU preference, or persist process settings yet.
+The app can display real process snapshots, change the CPU priority class of accessible user processes, safely terminate selected non-critical user processes after explicit confirmation, and freeze/resume selected user processes during the current app session. It does not change GPU preference or persist process settings yet.
 
 ## Requirements
 
@@ -88,6 +88,10 @@ Implemented so far:
 - Realtime priority safeguard requiring explicit frontend confirmation and backend validation.
 - Safe single-process termination for accessible non-critical user processes through `OpenProcess` and `TerminateProcess`.
 - End Process confirmation modal requiring the exact process name or PID when no name is available.
+- Safe Freeze action using documented thread APIs: `CreateToolhelp32Snapshot`, `Thread32First`, `Thread32Next`, `OpenThread`, and `SuspendThread`.
+- Safe Resume action that resumes only threads frozen by this app in the current session.
+- Runtime status badges: `Running` and `Frozen by app`.
+- Automatic best-effort resume of processes frozen by this app when Windows Process Control Center closes.
 - Backend guards that block protected, inaccessible, self, and critical Windows processes.
 - Process filtering by name, PID, or executable path.
 - Process details panel with executable path, CPU priority, access status, admin requirement hint, and access error details when available.
@@ -95,9 +99,9 @@ Implemented so far:
 
 Not implemented yet:
 
-- Freezing or resuming processes.
 - GPU preference changes.
 - Process tree termination or force-killing child processes.
+- Freeze/resume of process trees or child processes.
 - Settings persistence.
 - Profiles, rules, autostart, elevation, or admin workflows.
 

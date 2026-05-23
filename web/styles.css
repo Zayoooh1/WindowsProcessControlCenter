@@ -287,7 +287,7 @@ h2 {
 
 table {
   width: 100%;
-  min-width: 940px;
+  min-width: 1040px;
   border-collapse: collapse;
 }
 
@@ -440,6 +440,7 @@ tbody tr.selected {
 }
 
 .danger-action-button,
+.warning-action-button,
 .secondary-button {
   height: 38px;
   border-radius: 9px;
@@ -457,7 +458,17 @@ tbody tr.selected {
   background: rgba(139, 56, 64, 0.86);
 }
 
+.warning-action-button {
+  border: 1px solid rgba(221, 176, 106, 0.42);
+  background: rgba(114, 78, 34, 0.74);
+}
+
+.warning-action-button:hover:not(:disabled) {
+  background: rgba(135, 92, 40, 0.86);
+}
+
 .danger-action-button:disabled,
+.warning-action-button:disabled,
 .secondary-button:disabled {
   cursor: default;
   color: #7b8797;
@@ -472,6 +483,16 @@ tbody tr.selected {
 
 .secondary-button:hover:not(:disabled) {
   background: #263140;
+}
+
+.process-control-section {
+  gap: 10px;
+}
+
+.control-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 .priority-form {
@@ -531,6 +552,12 @@ tbody tr.selected {
   color: var(--warning);
   background: rgba(70, 53, 30, 0.58);
   border: 1px solid rgba(221, 176, 106, 0.28);
+}
+
+.priority-disabled-reason.neutral-reason {
+  color: var(--muted);
+  background: rgba(37, 46, 58, 0.62);
+  border-color: var(--border-soft);
 }
 
 .realtime-warning {

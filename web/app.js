@@ -5,7 +5,10 @@ const state = {
   query: "",
   pendingPriorityPid: null,
   pendingTerminatePid: null,
+  pendingFreezePid: null,
+  pendingResumePid: null,
   terminateModalProcess: null,
+  freezeModalProcess: null,
   actionResult: null,
 };
 
@@ -69,6 +72,17 @@ function handleHostMessage(event) {
     return;
   }
 
+  if (message.type === "actionResult" && (message.action === "freezeProcess" || message.action === "resumeProcess")) {
+    elements.refreshButton.disabled = false;
+    state.pendingFreezePid = null;
+    state.pendingResumePid = null;
+    state.freezeModalProcess = null;
+    state.actionResult = message;
+    showStatus(message.message || "Process runtime action completed.", Boolean(message.success));
+    render();
+    return;
+  }
+
   if (message.type === "error") {
     elements.refreshButton.disabled = false;
     showError(message.message || "Unknown backend error.");
@@ -86,6 +100,10 @@ function applyFilter() {
       })
     : [...state.processes];
 
+  if (!state.filtered.some((process) => process.pid === state.selectedPid)) {
+    state.selectedPid = state.filtered[0]?.pid ?? null;
+  }
+
   render();
 }
 
@@ -95,6 +113,7 @@ function render() {
   renderRows();
   renderDetails();
   renderTerminateModal();
+  renderFreezeModal();
 }
 
 function renderRows() {
@@ -103,7 +122,7 @@ function renderRows() {
   if (state.filtered.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 6;
+    cell.colSpan = 7;
     cell.className = "empty-cell";
     cell.textContent = state.processes.length === 0 ? "No process snapshot loaded." : "No processes match the current search.";
     row.appendChild(cell);
@@ -122,6 +141,7 @@ function renderRows() {
     row.appendChild(textCell(process.pid));
     row.appendChild(textCell(process.name || "Unknown"));
     row.appendChild(pathCell(process.path || "Unavailable"));
+    row.appendChild(badgeCell(runtimeLabel(process), runtimeTone(process)));
     row.appendChild(badgeCell(process.cpuPriority || "Unknown", priorityTone(process.cpuPriority)));
     row.appendChild(badgeCell(process.adminNeeded ? "Likely" : "No", process.adminNeeded ? "warning" : "neutral"));
     row.appendChild(badgeCell(process.accessStatus || "Unknown", accessTone(process.accessStatus)));
@@ -147,6 +167,9 @@ function renderDetails() {
   elements.detailsContent.appendChild(section("Executable path", [
     valueLine(selected.path || "Unavailable", selected.path || "Unavailable"),
   ]));
+  elements.detailsContent.appendChild(section("Runtime status", [
+    badge(runtimeLabel(selected), runtimeTone(selected)),
+  ]));
   elements.detailsContent.appendChild(cpuPrioritySection(selected));
   elements.detailsContent.appendChild(section("Access status", [
     badge(selected.accessStatus || "Unknown", accessTone(selected.accessStatus)),
@@ -154,6 +177,7 @@ function renderDetails() {
   elements.detailsContent.appendChild(section("Admin requirement", [
     valueLine(selected.adminNeeded ? "Likely required for some future process actions" : "Not detected for this read-only snapshot"),
   ]));
+  elements.detailsContent.appendChild(freezeResumeSection(selected));
   elements.detailsContent.appendChild(terminateSection(selected));
 
   if (selected.accessError) {
@@ -164,7 +188,7 @@ function renderDetails() {
 
   const actions = document.createElement("div");
   actions.className = "future-actions";
-  for (const label of ["Freeze", "Resume", "Set GPU Preference"]) {
+  for (const label of ["Set GPU Preference"]) {
     const button = document.createElement("button");
     button.type = "button";
     button.disabled = true;
@@ -301,6 +325,77 @@ function terminateSection(process) {
   return container;
 }
 
+function freezeResumeSection(process) {
+  const container = document.createElement("section");
+  container.className = "detail-section process-control-section";
+
+  const heading = document.createElement("div");
+  heading.className = "section-label";
+  heading.textContent = "Freeze / Resume";
+  container.appendChild(heading);
+
+  const note = document.createElement("div");
+  note.className = "terminate-note";
+  note.textContent = "Freeze suspends this process' current threads. Resume only restores threads frozen by this app.";
+  container.appendChild(note);
+
+  const freezeReason = getFreezeUnavailableReason(process);
+  if (freezeReason) {
+    const reason = document.createElement("div");
+    reason.className = "priority-disabled-reason";
+    reason.textContent = freezeReason;
+    container.appendChild(reason);
+  }
+
+  const resumeReason = getResumeUnavailableReason(process);
+  if (resumeReason) {
+    const reason = document.createElement("div");
+    reason.className = "priority-disabled-reason neutral-reason";
+    reason.textContent = resumeReason;
+    container.appendChild(reason);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "control-actions";
+
+  const freezeButton = document.createElement("button");
+  freezeButton.type = "button";
+  freezeButton.className = "warning-action-button";
+  freezeButton.textContent = state.pendingFreezePid === process.pid ? "Freezing..." : "Freeze";
+  freezeButton.disabled = Boolean(freezeReason) || state.pendingFreezePid === process.pid;
+  freezeButton.addEventListener("click", () => {
+    state.actionResult = null;
+    state.freezeModalProcess = process;
+    render();
+  });
+
+  const resumeButton = document.createElement("button");
+  resumeButton.type = "button";
+  resumeButton.className = "secondary-button";
+  resumeButton.textContent = state.pendingResumePid === process.pid ? "Resuming..." : "Resume";
+  resumeButton.disabled = Boolean(resumeReason) || state.pendingResumePid === process.pid;
+  resumeButton.addEventListener("click", () => {
+    state.pendingResumePid = process.pid;
+    state.actionResult = null;
+    render();
+    postToHost({
+      type: "resumeProcess",
+      pid: process.pid,
+      expectedName: process.name || "",
+    });
+  });
+
+  actions.appendChild(freezeButton);
+  actions.appendChild(resumeButton);
+  container.appendChild(actions);
+  if (state.actionResult?.action === "resumeProcess") {
+    renderActionResult(container, process.pid, "resumeProcess");
+  } else {
+    renderActionResult(container, process.pid, "freezeProcess");
+  }
+  return container;
+}
+
 function renderTerminateModal() {
   document.querySelector(".modal-backdrop")?.remove();
 
@@ -391,6 +486,96 @@ function renderTerminateModal() {
   input.focus();
 }
 
+function renderFreezeModal() {
+  document.querySelector(".freeze-modal-backdrop")?.remove();
+
+  const process = state.freezeModalProcess;
+  if (!process) {
+    return;
+  }
+
+  const expectedText = getProcessConfirmationText(process);
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop freeze-modal-backdrop";
+
+  const modal = document.createElement("div");
+  modal.className = "confirm-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-label", "Confirm freeze process");
+
+  const title = document.createElement("h2");
+  title.textContent = "Freeze process?";
+  modal.appendChild(title);
+
+  const warning = document.createElement("div");
+  warning.className = "modal-warning";
+  warning.textContent = "Freezing can stop this app's windows and work until you resume it. WPCC will also try to resume processes it froze when closing.";
+  modal.appendChild(warning);
+
+  modal.appendChild(modalInfoLine("Process", process.name || "Unknown"));
+  modal.appendChild(modalInfoLine("PID", String(process.pid)));
+  modal.appendChild(modalInfoLine("Executable path", process.path || "Unavailable", process.path || ""));
+
+  const label = document.createElement("label");
+  label.className = "confirmation-field";
+  const helper = document.createElement("span");
+  helper.textContent = `Type ${expectedText} to confirm`;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  label.appendChild(helper);
+  label.appendChild(input);
+  modal.appendChild(label);
+
+  const actions = document.createElement("div");
+  actions.className = "modal-actions";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "secondary-button";
+  cancelButton.textContent = "Cancel";
+  cancelButton.addEventListener("click", () => {
+    state.freezeModalProcess = null;
+    render();
+  });
+
+  const confirmButton = document.createElement("button");
+  confirmButton.type = "button";
+  confirmButton.className = "warning-action-button";
+  confirmButton.textContent = state.pendingFreezePid === process.pid ? "Freezing..." : "Confirm Freeze";
+  confirmButton.disabled = true;
+
+  const updateConfirmState = () => {
+    confirmButton.disabled = state.pendingFreezePid === process.pid || !processConfirmationMatches(process, input.value);
+  };
+
+  input.addEventListener("input", updateConfirmState);
+  confirmButton.addEventListener("click", () => {
+    if (!processConfirmationMatches(process, input.value)) {
+      return;
+    }
+
+    state.pendingFreezePid = process.pid;
+    state.actionResult = null;
+    renderFreezeModal();
+    postToHost({
+      type: "freezeProcess",
+      pid: process.pid,
+      expectedName: process.name || "",
+      confirmation: input.value.trim(),
+    });
+  });
+
+  actions.appendChild(cancelButton);
+  actions.appendChild(confirmButton);
+  modal.appendChild(actions);
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+  input.focus();
+}
+
 function modalInfoLine(label, value, title) {
   const row = document.createElement("div");
   row.className = "modal-info-line";
@@ -452,6 +637,7 @@ function getTerminateUnavailableReason(process) {
     "fontdrvhost.exe",
     "dwm.exe",
     "explorer.exe",
+    "audiodg.exe",
   ]);
 
   if (process.pid === 0 || process.pid === 4 || process.accessStatus === "Protected/System") {
@@ -477,13 +663,89 @@ function getTerminateUnavailableReason(process) {
   return "";
 }
 
+function getFreezeUnavailableReason(process) {
+  const baseReason = getRuntimeControlUnavailableReason(process, "frozen", "freeze");
+  if (baseReason) {
+    return baseReason;
+  }
+
+  if (process.isFrozenByApp) {
+    return "This process is already frozen by this app.";
+  }
+
+  return "";
+}
+
+function getResumeUnavailableReason(process) {
+  const baseReason = getRuntimeControlUnavailableReason(process, "resumed", "resume");
+  if (baseReason) {
+    return baseReason;
+  }
+
+  if (!process.isFrozenByApp) {
+    return "This process was not frozen by this app.";
+  }
+
+  return "";
+}
+
+function getRuntimeControlUnavailableReason(process, passiveVerb, activeVerb) {
+  const name = String(process.name || "");
+  const loweredName = name.toLowerCase();
+  const criticalNames = new Set([
+    "system",
+    "registry",
+    "smss.exe",
+    "csrss.exe",
+    "wininit.exe",
+    "winlogon.exe",
+    "services.exe",
+    "lsass.exe",
+    "svchost.exe",
+    "fontdrvhost.exe",
+    "dwm.exe",
+    "explorer.exe",
+    "audiodg.exe",
+  ]);
+
+  if (process.pid === 0 || process.pid === 4 || process.accessStatus === "Protected/System") {
+    return `Protected/system process cannot be ${passiveVerb}.`;
+  }
+
+  if (loweredName === "windowsprocesscontrolcenter.exe") {
+    return `Cannot ${activeVerb} this application from itself.`;
+  }
+
+  if (criticalNames.has(loweredName)) {
+    return "This is a critical Windows process.";
+  }
+
+  if (process.accessStatus === "Access denied") {
+    return "Access denied.";
+  }
+
+  if (process.accessStatus !== "Accessible") {
+    return "This process is not accessible.";
+  }
+
+  return "";
+}
+
 function getTerminateConfirmationText(process) {
+  return getProcessConfirmationText(process);
+}
+
+function getProcessConfirmationText(process) {
   const name = String(process.name || "").trim();
   return name && name.toLowerCase() !== "unknown" ? name : String(process.pid);
 }
 
 function terminateConfirmationMatches(process, value) {
-  return value.trim().toLowerCase() === getTerminateConfirmationText(process).toLowerCase();
+  return processConfirmationMatches(process, value);
+}
+
+function processConfirmationMatches(process, value) {
+  return value.trim().toLowerCase() === getProcessConfirmationText(process).toLowerCase();
 }
 
 function normalizePriority(priority) {
@@ -575,6 +837,14 @@ function accessTone(status) {
   return "neutral";
 }
 
+function runtimeLabel(process) {
+  return process.isFrozenByApp ? "Frozen by app" : "Running";
+}
+
+function runtimeTone(process) {
+  return process.isFrozenByApp ? "warning" : "success";
+}
+
 function showError(message) {
   elements.errorBanner.textContent = message;
   elements.errorBanner.className = "error-banner error";
@@ -592,8 +862,9 @@ function hideError() {
 }
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && state.terminateModalProcess) {
+  if (event.key === "Escape" && (state.terminateModalProcess || state.freezeModalProcess)) {
     state.terminateModalProcess = null;
+    state.freezeModalProcess = null;
     render();
   }
 });

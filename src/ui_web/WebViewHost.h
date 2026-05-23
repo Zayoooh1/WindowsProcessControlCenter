@@ -29,6 +29,8 @@ namespace wpcc
         void SendProcessSnapshot();
         void HandleSetCpuPriority(std::wstring_view messageJson);
         void HandleTerminateProcess(std::wstring_view messageJson);
+        void HandleFreezeProcess(std::wstring_view messageJson);
+        void HandleResumeProcess(std::wstring_view messageJson);
         void SendError(std::string_view message);
         void ShowInitializationError(std::wstring_view message) const;
 

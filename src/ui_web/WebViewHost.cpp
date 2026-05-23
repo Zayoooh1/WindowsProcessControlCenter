@@ -60,6 +60,8 @@ namespace wpcc
 
     void WebViewHost::Shutdown()
     {
+        m_processActions.ResumeAllFrozenProcesses();
+
         if (m_webView && m_messageHandlerRegistered)
         {
             m_webView->remove_WebMessageReceived(m_messageToken);
@@ -159,6 +161,12 @@ namespace wpcc
                     case WebMessageType::TerminateProcess:
                         HandleTerminateProcess(messageJson);
                         break;
+                    case WebMessageType::FreezeProcess:
+                        HandleFreezeProcess(messageJson);
+                        break;
+                    case WebMessageType::ResumeProcess:
+                        HandleResumeProcess(messageJson);
+                        break;
                     default:
                         SendError("Unsupported frontend message.");
                         break;
@@ -211,7 +219,11 @@ namespace wpcc
     {
         try
         {
-            const std::vector<ProcessInfo> processes = m_processProvider.LoadProcesses();
+            std::vector<ProcessInfo> processes = m_processProvider.LoadProcesses();
+            for (ProcessInfo& process : processes)
+            {
+                process.isFrozenByApp = m_processActions.IsFrozenByApp(process.pid);
+            }
             const std::wstring message = m_bridge.BuildProcessSnapshotMessage(processes);
             m_webView->PostWebMessageAsJson(message.c_str());
         }
@@ -246,6 +258,40 @@ namespace wpcc
         if (m_webView)
         {
             const std::wstring actionResult = m_bridge.BuildActionResultMessage("terminateProcess", result);
+            m_webView->PostWebMessageAsJson(actionResult.c_str());
+        }
+
+        if (result.success)
+        {
+            SendProcessSnapshot();
+        }
+    }
+
+    void WebViewHost::HandleFreezeProcess(std::wstring_view messageJson)
+    {
+        const FreezeProcessRequest request = m_bridge.ParseFreezeProcessRequest(messageJson);
+        ProcessActionResult result = m_processActions.FreezeProcessByPid(request.pid, request.expectedName, request.confirmation);
+
+        if (m_webView)
+        {
+            const std::wstring actionResult = m_bridge.BuildActionResultMessage("freezeProcess", result);
+            m_webView->PostWebMessageAsJson(actionResult.c_str());
+        }
+
+        if (result.success)
+        {
+            SendProcessSnapshot();
+        }
+    }
+
+    void WebViewHost::HandleResumeProcess(std::wstring_view messageJson)
+    {
+        const ResumeProcessRequest request = m_bridge.ParseResumeProcessRequest(messageJson);
+        ProcessActionResult result = m_processActions.ResumeProcessByPid(request.pid, request.expectedName);
+
+        if (m_webView)
+        {
+            const std::wstring actionResult = m_bridge.BuildActionResultMessage("resumeProcess", result);
             m_webView->PostWebMessageAsJson(actionResult.c_str());
         }
 

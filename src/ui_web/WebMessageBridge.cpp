@@ -27,6 +27,18 @@ namespace wpcc
             return WebMessageType::TerminateProcess;
         }
 
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"freezeProcess\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::FreezeProcess;
+        }
+
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"resumeProcess\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::ResumeProcess;
+        }
+
         return WebMessageType::Unknown;
     }
 
@@ -48,6 +60,23 @@ namespace wpcc
         return request;
     }
 
+    FreezeProcessRequest WebMessageBridge::ParseFreezeProcessRequest(std::wstring_view messageJson) const
+    {
+        FreezeProcessRequest request{};
+        request.pid = ExtractUnsignedLong(messageJson, L"pid");
+        request.expectedName = ExtractString(messageJson, L"expectedName");
+        request.confirmation = ExtractString(messageJson, L"confirmation");
+        return request;
+    }
+
+    ResumeProcessRequest WebMessageBridge::ParseResumeProcessRequest(std::wstring_view messageJson) const
+    {
+        ResumeProcessRequest request{};
+        request.pid = ExtractUnsignedLong(messageJson, L"pid");
+        request.expectedName = ExtractString(messageJson, L"expectedName");
+        return request;
+    }
+
     std::wstring WebMessageBridge::BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes) const
     {
         std::wostringstream json;
@@ -66,6 +95,7 @@ namespace wpcc
             json << L"\"name\":\"" << EscapeJson(process.name) << L"\",";
             json << L"\"path\":\"" << EscapeJson(process.executablePath) << L"\",";
             json << L"\"cpuPriority\":\"" << EscapeJson(process.cpuPriority) << L"\",";
+            json << L"\"isFrozenByApp\":" << (process.isFrozenByApp ? L"true" : L"false") << L",";
             json << L"\"adminNeeded\":" << (process.likelyRequiresAdmin ? L"true" : L"false") << L",";
             json << L"\"accessStatus\":\"" << EscapeJson(process.accessStatus) << L"\",";
             json << L"\"accessError\":\"" << EscapeJson(process.accessError) << L"\"";

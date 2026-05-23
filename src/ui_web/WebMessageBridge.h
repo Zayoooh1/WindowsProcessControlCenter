@@ -15,6 +15,8 @@ namespace wpcc
         RefreshProcesses,
         SetCpuPriority,
         TerminateProcess,
+        FreezeProcess,
+        ResumeProcess,
     };
 
     struct SetCpuPriorityRequest
@@ -31,12 +33,27 @@ namespace wpcc
         std::string confirmation;
     };
 
+    struct FreezeProcessRequest
+    {
+        unsigned long pid = 0;
+        std::string expectedName;
+        std::string confirmation;
+    };
+
+    struct ResumeProcessRequest
+    {
+        unsigned long pid = 0;
+        std::string expectedName;
+    };
+
     class WebMessageBridge
     {
     public:
         WebMessageType ParseMessageType(std::wstring_view messageJson) const;
         SetCpuPriorityRequest ParseSetCpuPriorityRequest(std::wstring_view messageJson) const;
         TerminateProcessRequest ParseTerminateProcessRequest(std::wstring_view messageJson) const;
+        FreezeProcessRequest ParseFreezeProcessRequest(std::wstring_view messageJson) const;
+        ResumeProcessRequest ParseResumeProcessRequest(std::wstring_view messageJson) const;
         std::wstring BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes) const;
         std::wstring BuildActionResultMessage(std::string_view action, const ProcessActionResult& result) const;
         std::wstring BuildErrorMessage(std::string_view message) const;

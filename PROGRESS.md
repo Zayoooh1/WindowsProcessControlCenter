@@ -493,3 +493,89 @@ Generated executables:
 ## Suggested Next Stage
 
 Add safer UX around destructive actions, such as action history and clearer post-action refresh state, or implement a non-destructive Freeze/Resume design review before adding more process controls.
+
+## Task 08 - Safe Freeze and Resume Process Actions Through WebView2 UI
+
+Status: completed.
+
+Added safe Freeze and Resume controls for single selected user processes in the current WindowsProcessControlCenter session. The implementation uses documented thread-level WinAPI calls and keeps session-local state so Resume only affects threads suspended by this application.
+
+## Added Files
+
+- None.
+
+## Changed Files
+
+- `README.md`
+- `PROGRESS.md`
+- `src/core/ProcessInfo.h`
+- `src/core/ProcessActions.h`
+- `src/core/ProcessActions.cpp`
+- `src/ui_web/WebMessageBridge.h`
+- `src/ui_web/WebMessageBridge.cpp`
+- `src/ui_web/WebViewHost.h`
+- `src/ui_web/WebViewHost.cpp`
+- `web/index.html`
+- `web/styles.css`
+- `web/app.js`
+
+## What Works
+
+- Process snapshots now include `isFrozenByApp`.
+- WebView2 process table shows runtime state as `Running` or `Frozen by app`.
+- Details panel shows runtime status.
+- Freeze button opens a custom confirmation modal requiring exact process name or PID.
+- Frontend sends `{ "type": "freezeProcess", "pid": ..., "expectedName": "...", "confirmation": "..." }`.
+- Backend suspends available threads through `CreateToolhelp32Snapshot`, `Thread32First`, `Thread32Next`, `OpenThread`, and `SuspendThread`.
+- Backend records the thread IDs and resume counts frozen by this app.
+- Resume button is active only for processes frozen by this app.
+- Frontend sends `{ "type": "resumeProcess", "pid": ..., "expectedName": "..." }`.
+- Backend resumes only the recorded threads through `ResumeThread`.
+- After Freeze or Resume, the UI receives a fresh process snapshot.
+- On shutdown, WebViewHost calls `ResumeAllFrozenProcesses()` to best-effort resume processes frozen by this app during the session.
+
+## Safety Guards
+
+- Blocks PID 0 and PID 4.
+- Blocks the WindowsProcessControlCenter process itself.
+- Blocks `Protected/System`, `Access denied`, and inaccessible processes.
+- Blocks critical Windows process names: `System`, `Registry`, `smss.exe`, `csrss.exe`, `wininit.exe`, `winlogon.exe`, `services.exe`, `lsass.exe`, `svchost.exe`, `fontdrvhost.exe`, `dwm.exe`, `explorer.exe`, and `audiodg.exe`.
+- Verifies the expected process name against the current snapshot before Freeze/Resume.
+- Detects processes that exited before action and reports `Process is no longer running.`
+- Does not use `NtSuspendProcess` or `NtResumeProcess`.
+- Does not run `ResumeThread` in a loop to zero; it only resumes counts created by this app.
+- Does not freeze or resume child processes or process trees.
+
+## Test Notes
+
+- Froze a test `cmd.exe` process through WebView2 UI; table and details showed `Frozen by app`.
+- Resumed the same `cmd.exe`; table and details returned to `Running`.
+- Closed WindowsProcessControlCenter after freezing a test process; shutdown path ran without crashing and the test process remained recoverable.
+- Verified Debug and Release builds after the implementation.
+
+## Still Not Implemented
+
+- Changing GPU preference.
+- Profiles and rules.
+- Autostart behavior.
+- Settings persistence.
+- Registry modifications.
+- Forced administrator elevation.
+- Freeze/resume of process trees.
+- Restart Explorer.
+- Persistent frozen-process state across app restarts.
+
+## Build Verification
+
+- `cmake -S . -B build -G "Visual Studio 17 2022" -A x64`
+- `cmake --build build --config Debug`
+- `cmake --build build --config Release`
+
+Generated executables:
+
+- `C:\Vibe\WinProcessManager\build\Debug\WindowsProcessControlCenter.exe`
+- `C:\Vibe\WinProcessManager\build\Release\WindowsProcessControlCenter.exe`
+
+## Suggested Next Stage
+
+Add GPU Preference design and capability research, or add an action history/log panel so users can review CPU priority, End Process, Freeze, and Resume outcomes in one place.

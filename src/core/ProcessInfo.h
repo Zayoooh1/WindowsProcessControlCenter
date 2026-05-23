@@ -13,5 +13,6 @@ namespace wpcc
         std::string accessStatus;
         std::string accessError;
         bool likelyRequiresAdmin = false;
+        bool isFrozenByApp = false;
     };
 }
