@@ -21,6 +21,12 @@ namespace wpcc
             return WebMessageType::SetCpuPriority;
         }
 
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"terminateProcess\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::TerminateProcess;
+        }
+
         return WebMessageType::Unknown;
     }
 
@@ -30,6 +36,15 @@ namespace wpcc
         request.pid = ExtractUnsignedLong(messageJson, L"pid");
         request.priority = ExtractString(messageJson, L"priority");
         request.confirmRealtime = ExtractBool(messageJson, L"confirmRealtime");
+        return request;
+    }
+
+    TerminateProcessRequest WebMessageBridge::ParseTerminateProcessRequest(std::wstring_view messageJson) const
+    {
+        TerminateProcessRequest request{};
+        request.pid = ExtractUnsignedLong(messageJson, L"pid");
+        request.expectedName = ExtractString(messageJson, L"expectedName");
+        request.confirmation = ExtractString(messageJson, L"confirmation");
         return request;
     }
 

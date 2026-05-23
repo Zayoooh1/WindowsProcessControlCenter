@@ -4,6 +4,8 @@ const state = {
   selectedPid: null,
   query: "",
   pendingPriorityPid: null,
+  pendingTerminatePid: null,
+  terminateModalProcess: null,
   actionResult: null,
 };
 
@@ -57,6 +59,16 @@ function handleHostMessage(event) {
     return;
   }
 
+  if (message.type === "actionResult" && message.action === "terminateProcess") {
+    elements.refreshButton.disabled = false;
+    state.pendingTerminatePid = null;
+    state.terminateModalProcess = null;
+    state.actionResult = message;
+    showStatus(message.message || "End process action completed.", Boolean(message.success));
+    render();
+    return;
+  }
+
   if (message.type === "error") {
     elements.refreshButton.disabled = false;
     showError(message.message || "Unknown backend error.");
@@ -82,6 +94,7 @@ function render() {
   elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
   renderRows();
   renderDetails();
+  renderTerminateModal();
 }
 
 function renderRows() {
@@ -106,7 +119,7 @@ function renderRows() {
       render();
     });
 
-  row.appendChild(textCell(process.pid));
+    row.appendChild(textCell(process.pid));
     row.appendChild(textCell(process.name || "Unknown"));
     row.appendChild(pathCell(process.path || "Unavailable"));
     row.appendChild(badgeCell(process.cpuPriority || "Unknown", priorityTone(process.cpuPriority)));
@@ -141,6 +154,7 @@ function renderDetails() {
   elements.detailsContent.appendChild(section("Admin requirement", [
     valueLine(selected.adminNeeded ? "Likely required for some future process actions" : "Not detected for this read-only snapshot"),
   ]));
+  elements.detailsContent.appendChild(terminateSection(selected));
 
   if (selected.accessError) {
     elements.detailsContent.appendChild(section("Access error", [
@@ -150,7 +164,7 @@ function renderDetails() {
 
   const actions = document.createElement("div");
   actions.className = "future-actions";
-  for (const label of ["End Process", "Freeze", "Resume", "Set GPU Preference"]) {
+  for (const label of ["Freeze", "Resume", "Set GPU Preference"]) {
     const button = document.createElement("button");
     button.type = "button";
     button.disabled = true;
@@ -250,17 +264,159 @@ function cpuPrioritySection(process) {
   return container;
 }
 
-function renderActionResult(container, pid) {
+function terminateSection(process) {
+  const unavailableReason = getTerminateUnavailableReason(process);
+  const container = document.createElement("section");
+  container.className = "detail-section terminate-section";
+
+  const heading = document.createElement("div");
+  heading.className = "section-label";
+  heading.textContent = "End process";
+  container.appendChild(heading);
+
+  const note = document.createElement("div");
+  note.className = "terminate-note";
+  note.textContent = "Terminates a single selected process after explicit confirmation.";
+  container.appendChild(note);
+
+  if (unavailableReason) {
+    const reason = document.createElement("div");
+    reason.className = "priority-disabled-reason";
+    reason.textContent = unavailableReason;
+    container.appendChild(reason);
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "danger-action-button";
+  button.textContent = state.pendingTerminatePid === process.pid ? "Ending..." : "End Process";
+  button.disabled = Boolean(unavailableReason) || state.pendingTerminatePid === process.pid;
+  button.addEventListener("click", () => {
+    state.actionResult = null;
+    state.terminateModalProcess = process;
+    render();
+  });
+  container.appendChild(button);
+  renderActionResult(container, process.pid, "terminateProcess");
+  return container;
+}
+
+function renderTerminateModal() {
+  document.querySelector(".modal-backdrop")?.remove();
+
+  const process = state.terminateModalProcess;
+  if (!process) {
+    return;
+  }
+
+  const expectedText = getTerminateConfirmationText(process);
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+
+  const modal = document.createElement("div");
+  modal.className = "confirm-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-label", "Confirm end process");
+
+  const title = document.createElement("h2");
+  title.textContent = "End process?";
+  modal.appendChild(title);
+
+  const warning = document.createElement("div");
+  warning.className = "modal-warning";
+  warning.textContent = "Unsaved data in this process may be lost. This action targets only the selected process, not its child processes.";
+  modal.appendChild(warning);
+
+  modal.appendChild(modalInfoLine("Process", process.name || "Unknown"));
+  modal.appendChild(modalInfoLine("PID", String(process.pid)));
+  modal.appendChild(modalInfoLine("Executable path", process.path || "Unavailable", process.path || ""));
+
+  const label = document.createElement("label");
+  label.className = "confirmation-field";
+  const helper = document.createElement("span");
+  helper.textContent = `Type ${expectedText} to confirm`;
+  const input = document.createElement("input");
+  input.type = "text";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  label.appendChild(helper);
+  label.appendChild(input);
+  modal.appendChild(label);
+
+  const actions = document.createElement("div");
+  actions.className = "modal-actions";
+
+  const cancelButton = document.createElement("button");
+  cancelButton.type = "button";
+  cancelButton.className = "secondary-button";
+  cancelButton.textContent = "Cancel";
+  cancelButton.addEventListener("click", () => {
+    state.terminateModalProcess = null;
+    render();
+  });
+
+  const confirmButton = document.createElement("button");
+  confirmButton.type = "button";
+  confirmButton.className = "danger-action-button";
+  confirmButton.textContent = state.pendingTerminatePid === process.pid ? "Ending..." : "Confirm End Process";
+  confirmButton.disabled = true;
+
+  const updateConfirmState = () => {
+    confirmButton.disabled = state.pendingTerminatePid === process.pid || !terminateConfirmationMatches(process, input.value);
+  };
+
+  input.addEventListener("input", updateConfirmState);
+  confirmButton.addEventListener("click", () => {
+    if (!terminateConfirmationMatches(process, input.value)) {
+      return;
+    }
+
+    state.pendingTerminatePid = process.pid;
+    state.actionResult = null;
+    renderTerminateModal();
+    postToHost({
+      type: "terminateProcess",
+      pid: process.pid,
+      expectedName: process.name || "",
+      confirmation: input.value.trim(),
+    });
+  });
+
+  actions.appendChild(cancelButton);
+  actions.appendChild(confirmButton);
+  modal.appendChild(actions);
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+  input.focus();
+}
+
+function modalInfoLine(label, value, title) {
+  const row = document.createElement("div");
+  row.className = "modal-info-line";
+  const labelElement = document.createElement("span");
+  labelElement.textContent = label;
+  const valueElement = document.createElement("strong");
+  valueElement.textContent = value;
+  if (title) {
+    valueElement.title = title;
+  }
+  row.appendChild(labelElement);
+  row.appendChild(valueElement);
+  return row;
+}
+
+function renderActionResult(container, pid, action = "setCpuPriority") {
   const existing = container.querySelector(".action-message");
   existing?.remove();
 
-  if (!state.actionResult || state.actionResult.pid !== pid) {
+  if (!state.actionResult || state.actionResult.pid !== pid || state.actionResult.action !== action) {
     return;
   }
 
   const message = document.createElement("div");
   message.className = `action-message ${state.actionResult.success ? "success" : "error"}`;
-  message.textContent = state.actionResult.message || (state.actionResult.success ? "Priority changed." : "Priority change failed.");
+  message.textContent = state.actionResult.message || (state.actionResult.success ? "Action completed." : "Action failed.");
   container.appendChild(message);
 }
 
@@ -278,6 +434,56 @@ function getPriorityUnavailableReason(process) {
   }
 
   return "";
+}
+
+function getTerminateUnavailableReason(process) {
+  const name = String(process.name || "");
+  const loweredName = name.toLowerCase();
+  const criticalNames = new Set([
+    "system",
+    "registry",
+    "smss.exe",
+    "csrss.exe",
+    "wininit.exe",
+    "winlogon.exe",
+    "services.exe",
+    "lsass.exe",
+    "svchost.exe",
+    "fontdrvhost.exe",
+    "dwm.exe",
+    "explorer.exe",
+  ]);
+
+  if (process.pid === 0 || process.pid === 4 || process.accessStatus === "Protected/System") {
+    return "Protected/system process cannot be ended.";
+  }
+
+  if (loweredName === "windowsprocesscontrolcenter.exe") {
+    return "Cannot end this application from itself.";
+  }
+
+  if (criticalNames.has(loweredName)) {
+    return "This is a critical Windows process.";
+  }
+
+  if (process.accessStatus === "Access denied") {
+    return "Access denied.";
+  }
+
+  if (process.accessStatus !== "Accessible") {
+    return "This process is not accessible.";
+  }
+
+  return "";
+}
+
+function getTerminateConfirmationText(process) {
+  const name = String(process.name || "").trim();
+  return name && name.toLowerCase() !== "unknown" ? name : String(process.pid);
+}
+
+function terminateConfirmationMatches(process, value) {
+  return value.trim().toLowerCase() === getTerminateConfirmationText(process).toLowerCase();
 }
 
 function normalizePriority(priority) {
@@ -371,13 +577,26 @@ function accessTone(status) {
 
 function showError(message) {
   elements.errorBanner.textContent = message;
-  elements.errorBanner.classList.remove("hidden");
+  elements.errorBanner.className = "error-banner error";
+}
+
+function showStatus(message, success) {
+  elements.errorBanner.textContent = message;
+  elements.errorBanner.className = `error-banner ${success ? "success" : "error"}`;
 }
 
 function hideError() {
   elements.errorBanner.classList.add("hidden");
+  elements.errorBanner.classList.remove("success", "error");
   elements.errorBanner.textContent = "";
 }
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.terminateModalProcess) {
+    state.terminateModalProcess = null;
+    render();
+  }
+});
 
 window.chrome?.webview?.addEventListener("message", handleHostMessage);
 elements.refreshButton.addEventListener("click", requestProcesses);

@@ -156,6 +156,9 @@ namespace wpcc
                     case WebMessageType::SetCpuPriority:
                         HandleSetCpuPriority(messageJson);
                         break;
+                    case WebMessageType::TerminateProcess:
+                        HandleTerminateProcess(messageJson);
+                        break;
                     default:
                         SendError("Unsupported frontend message.");
                         break;
@@ -226,6 +229,23 @@ namespace wpcc
         if (m_webView)
         {
             const std::wstring actionResult = m_bridge.BuildActionResultMessage("setCpuPriority", result);
+            m_webView->PostWebMessageAsJson(actionResult.c_str());
+        }
+
+        if (result.success)
+        {
+            SendProcessSnapshot();
+        }
+    }
+
+    void WebViewHost::HandleTerminateProcess(std::wstring_view messageJson)
+    {
+        const TerminateProcessRequest request = m_bridge.ParseTerminateProcessRequest(messageJson);
+        ProcessActionResult result = m_processActions.TerminateProcessByPid(request.pid, request.expectedName, request.confirmation);
+
+        if (m_webView)
+        {
+            const std::wstring actionResult = m_bridge.BuildActionResultMessage("terminateProcess", result);
             m_webView->PostWebMessageAsJson(actionResult.c_str());
         }
 

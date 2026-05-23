@@ -28,6 +28,7 @@ namespace wpcc
         void NavigateToFrontend();
         void SendProcessSnapshot();
         void HandleSetCpuPriority(std::wstring_view messageJson);
+        void HandleTerminateProcess(std::wstring_view messageJson);
         void SendError(std::string_view message);
         void ShowInitializationError(std::wstring_view message) const;
 

@@ -2,7 +2,7 @@
 
 Windows Process Control Center is a C++20 Win32 desktop application for Windows process inspection and controlled process-management workflows. The current UI is rendered with Microsoft Edge WebView2 using local vanilla HTML, CSS, and JavaScript, while the backend remains native C++/WinAPI.
 
-The app can display real process snapshots and change the CPU priority class of accessible user processes. It does not terminate, freeze, resume, change GPU preference, or persist process settings yet.
+The app can display real process snapshots, change the CPU priority class of accessible user processes, and safely terminate selected non-critical user processes after explicit confirmation. It does not freeze, resume, change GPU preference, or persist process settings yet.
 
 ## Requirements
 
@@ -82,18 +82,22 @@ Implemented so far:
 - C++ to JavaScript message bridge for process snapshots.
 - JavaScript to C++ message bridge for `refreshProcesses`.
 - JavaScript to C++ message bridge for `setCpuPriority`.
+- JavaScript to C++ message bridge for `terminateProcess`.
 - Read-only process enumeration using Windows APIs.
 - CPU priority changes for accessible processes through `OpenProcess` and `SetPriorityClass`.
 - Realtime priority safeguard requiring explicit frontend confirmation and backend validation.
+- Safe single-process termination for accessible non-critical user processes through `OpenProcess` and `TerminateProcess`.
+- End Process confirmation modal requiring the exact process name or PID when no name is available.
+- Backend guards that block protected, inaccessible, self, and critical Windows processes.
 - Process filtering by name, PID, or executable path.
 - Process details panel with executable path, CPU priority, access status, admin requirement hint, and access error details when available.
 - Disabled future action buttons for process-management functions.
 
 Not implemented yet:
 
-- Ending processes.
 - Freezing or resuming processes.
 - GPU preference changes.
+- Process tree termination or force-killing child processes.
 - Settings persistence.
 - Profiles, rules, autostart, elevation, or admin workflows.
 

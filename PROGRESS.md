@@ -421,3 +421,75 @@ Generated executables:
 ## Suggested Next Stage
 
 Add non-destructive UX polish around CPU priority changes, such as clearer permission explanations and table sorting, before implementing any destructive actions like End Process.
+
+## Task 07 - Safe End Process Action Through WebView2 UI
+
+Status: completed.
+
+Added the second real process-management action: safely ending a selected process. The action is implemented in `ProcessActions`, exposed through the WebView2 message bridge, and guarded by a custom confirmation modal in the frontend. Freeze, resume, GPU preference, profiles, and persistence remain out of scope.
+
+## Added Files
+
+- None.
+
+## Changed Files
+
+- `README.md`
+- `PROGRESS.md`
+- `src/core/ProcessActions.h`
+- `src/core/ProcessActions.cpp`
+- `src/ui_web/WebMessageBridge.h`
+- `src/ui_web/WebMessageBridge.cpp`
+- `src/ui_web/WebViewHost.h`
+- `src/ui_web/WebViewHost.cpp`
+- `web/index.html`
+- `web/styles.css`
+- `web/app.js`
+
+## What Works
+
+- Details panel now includes an active `End Process` action for eligible user processes.
+- Frontend opens a dark-theme confirmation modal instead of using browser `alert()` or `confirm()`.
+- Confirmation requires the exact process name, or PID when the process name is unavailable.
+- Frontend sends `{ "type": "terminateProcess", "pid": ..., "expectedName": "...", "confirmation": "..." }`.
+- Backend validates the request through `ProcessActions::TerminateProcessByPid`.
+- Backend responds with an `actionResult` message.
+- On success, the backend sends a fresh process snapshot so the terminated process disappears from the table/details.
+
+## Safety Guards
+
+- Blocks PID 0 and PID 4.
+- Blocks the WindowsProcessControlCenter process itself.
+- Blocks `Protected/System`, `Access denied`, and inaccessible processes.
+- Blocks critical Windows process names: `System`, `Registry`, `smss.exe`, `csrss.exe`, `wininit.exe`, `winlogon.exe`, `services.exe`, `lsass.exe`, `svchost.exe`, `fontdrvhost.exe`, `dwm.exe`, and `explorer.exe`.
+- Verifies the expected process name against the current snapshot to reduce stale-selection risk.
+- Detects processes that exited before the action and reports `Process is no longer running.`
+- Uses limited process rights: `PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE`, with `SYNCHRONIZE` used only to briefly wait for termination before refreshing the UI snapshot.
+- Does not terminate child processes or process trees.
+
+## Still Not Implemented
+
+- Freezing or resuming processes.
+- Changing GPU preference.
+- Process tree termination.
+- Force-killing child processes.
+- Settings persistence.
+- Profiles and rules.
+- Autostart behavior.
+- Registry modifications.
+- Forced administrator elevation.
+
+## Build Verification
+
+- `cmake -S . -B build -G "Visual Studio 17 2022" -A x64`
+- `cmake --build build --config Debug`
+- `cmake --build build --config Release`
+
+Generated executables:
+
+- `C:\Vibe\WinProcessManager\build\Debug\WindowsProcessControlCenter.exe`
+- `C:\Vibe\WinProcessManager\build\Release\WindowsProcessControlCenter.exe`
+
+## Suggested Next Stage
+
+Add safer UX around destructive actions, such as action history and clearer post-action refresh state, or implement a non-destructive Freeze/Resume design review before adding more process controls.

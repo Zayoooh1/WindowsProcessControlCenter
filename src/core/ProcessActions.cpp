@@ -5,6 +5,8 @@
 #include <Windows.h>
 
 #include <algorithm>
+#include <array>
+#include <cctype>
 #include <string_view>
 #include <vector>
 
@@ -130,6 +132,105 @@ namespace wpcc
         return result;
     }
 
+    ProcessActionResult ProcessActions::TerminateProcessByPid(unsigned long pid, const std::string& expectedName, const std::string& confirmation) const
+    {
+        ProcessActionResult result{};
+        result.pid = pid;
+
+        if (pid == 0)
+        {
+            result.message = "PID 0 cannot be ended.";
+            return result;
+        }
+
+        if (pid == 4)
+        {
+            result.message = "The System process cannot be ended.";
+            return result;
+        }
+
+        if (pid == GetCurrentProcessId())
+        {
+            result.message = "Cannot end this application from itself.";
+            return result;
+        }
+
+        const ProcessProvider provider;
+        const std::vector<ProcessInfo> processes = provider.LoadProcesses();
+        const auto processIt = std::find_if(processes.begin(), processes.end(), [pid](const ProcessInfo& process) {
+            return process.pid == pid;
+        });
+
+        if (processIt == processes.end())
+        {
+            result.message = "Process is no longer running.";
+            result.win32ErrorCode = ERROR_NOT_FOUND;
+            return result;
+        }
+
+        if (!expectedName.empty() && !EqualsIgnoreCase(processIt->name, expectedName))
+        {
+            result.message = "Process identity changed. Refresh the process list and try again.";
+            return result;
+        }
+
+        if (IsCriticalProcessName(processIt->name))
+        {
+            result.message = "This is a critical Windows process and cannot be ended here.";
+            return result;
+        }
+
+        if (processIt->accessStatus == "Protected/System")
+        {
+            result.message = "Protected/system process cannot be ended.";
+            return result;
+        }
+
+        if (processIt->accessStatus == "Access denied")
+        {
+            result.message = "Access denied or protected process.";
+            result.win32ErrorCode = ERROR_ACCESS_DENIED;
+            return result;
+        }
+
+        if (processIt->accessStatus != "Accessible")
+        {
+            result.message = "This process is not accessible.";
+            return result;
+        }
+
+        const bool hasProcessName = !processIt->name.empty() && !EqualsIgnoreCase(processIt->name, "Unknown");
+        const bool confirmationMatches = hasProcessName ? EqualsIgnoreCase(confirmation, processIt->name) : confirmation == std::to_string(pid);
+        if (!confirmationMatches)
+        {
+            result.message = hasProcessName ? "Confirmation does not match the process name." : "Confirmation does not match the process PID.";
+            return result;
+        }
+
+        UniqueHandle processHandle(OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, FALSE, pid));
+        if (!processHandle.IsValid())
+        {
+            const DWORD errorCode = GetLastError();
+            result.win32ErrorCode = errorCode;
+            result.message = errorCode == ERROR_ACCESS_DENIED ? "Access denied or protected process." : FormatWin32Error(errorCode);
+            return result;
+        }
+
+        if (!TerminateProcess(processHandle.Get(), 1))
+        {
+            const DWORD errorCode = GetLastError();
+            result.win32ErrorCode = errorCode;
+            result.message = errorCode == ERROR_ACCESS_DENIED ? "Access denied or protected process." : FormatWin32Error(errorCode);
+            return result;
+        }
+
+        WaitForSingleObject(processHandle.Get(), 1500);
+
+        result.success = true;
+        result.message = "Process terminated successfully.";
+        return result;
+    }
+
     unsigned long ProcessActions::PriorityTextToClass(const std::string& priority)
     {
         if (priority == "Realtime")
@@ -158,6 +259,40 @@ namespace wpcc
         }
 
         return 0;
+    }
+
+    bool ProcessActions::IsCriticalProcessName(const std::string& name)
+    {
+        constexpr std::array<std::string_view, 12> criticalNames = {
+            "System",
+            "Registry",
+            "smss.exe",
+            "csrss.exe",
+            "wininit.exe",
+            "winlogon.exe",
+            "services.exe",
+            "lsass.exe",
+            "svchost.exe",
+            "fontdrvhost.exe",
+            "dwm.exe",
+            "explorer.exe",
+        };
+
+        return std::any_of(criticalNames.begin(), criticalNames.end(), [&name](std::string_view criticalName) {
+            return EqualsIgnoreCase(name, criticalName);
+        });
+    }
+
+    bool ProcessActions::EqualsIgnoreCase(std::string_view left, std::string_view right)
+    {
+        if (left.size() != right.size())
+        {
+            return false;
+        }
+
+        return std::equal(left.begin(), left.end(), right.begin(), [](unsigned char lhs, unsigned char rhs) {
+            return std::tolower(lhs) == std::tolower(rhs);
+        });
     }
 
     std::string ProcessActions::FormatWin32Error(unsigned long errorCode)
