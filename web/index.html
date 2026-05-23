@@ -357,89 +357,69 @@
           <section class="panel rules-hero">
             <div>
               <h2>Rules / Profiles</h2>
-              <p>Manual app-specific presets for process priority and GPU preference.</p>
+              <p>Planned automation and app-specific presets for future releases.</p>
             </div>
-            <span class="badge success">Profiles v1</span>
+            <span class="badge warning">Planned</span>
           </section>
 
-          <div class="safety-note">
-            <strong>Safety note:</strong> Profiles are manual in this release. No background automation is active. Destructive actions such as End Process and Freeze are not supported in profiles.
-          </div>
+          <div class="rules-grid">
+            <section class="panel rules-card">
+              <div class="rules-card-header">
+                <h2>Status</h2>
+                <span class="badge neutral">Not Available</span>
+              </div>
+              <div class="rules-status-message">
+                <p>Current release focuses on manual per-process control. Autopilot-style rules and profiles are planned to automatically manage processes in future updates.</p>
+              </div>
+              <div class="rules-actions-section">
+                <button class="primary-button" type="button" disabled>Create profile</button>
+                <p class="rules-note">Profiles are planned for a future version. Current release focuses on manual per-process control.</p>
+              </div>
+            </section>
 
-          <div id="profilesStorageNotice" class="settings-storage-notice hidden"></div>
-          <div id="profilesActionResult" class="error-banner hidden"></div>
+            <section class="panel rules-card">
+              <div class="rules-card-header">
+                <h2>Planned features</h2>
+              </div>
+              <div class="rules-feature-list">
+                <article class="rules-feature-item">
+                  <h3>Auto-apply CPU Priority</h3>
+                  <p>Automatically adjust CPU priority class when matching processes are detected.</p>
+                </article>
+                <article class="rules-feature-item">
+                  <h3>Auto-apply GPU Preference</h3>
+                  <p>Set and verify GPU preference rules dynamically based on configuration profiles.</p>
+                </article>
+                <article class="rules-feature-item">
+                  <h3>App-specific presets</h3>
+                  <p>Quick settings configurations designed for games, productivity apps, or dev environments.</p>
+                </article>
+                <article class="rules-feature-item">
+                  <h3>Safe startup profiles</h3>
+                  <p>Apply settings profiles automatically during system startup or user logon.</p>
+                </article>
+                <article class="rules-feature-item">
+                  <h3>Import / Export profiles</h3>
+                  <p>Share rules and profiles between machines via standardized XML/JSON configurations.</p>
+                </article>
+                <article class="rules-feature-item">
+                  <h3>Rule conflict protection</h3>
+                  <p>Avoid overlapping rules or deadlocks by verifying priorities and path configurations before applying changes.</p>
+                </article>
+              </div>
+            </section>
 
-          <div class="rules-actions-bar">
-            <button id="createProfileButton" class="primary-button" type="button">Create Profile</button>
-          </div>
-
-          <div id="profilesList" class="rules-grid">
-            <!-- Stored profiles rendered dynamically -->
+            <section class="panel rules-card overview-card">
+              <div class="rules-card-header">
+                <h2>Safety model</h2>
+              </div>
+              <div class="safety-note">
+                Future rules must never automatically apply destructive actions like End Process or Freeze without explicit user confirmation.
+              </div>
+            </section>
           </div>
         </section>
       </main>
-    </div>
-  </div>
-
-  <div id="profileModal" class="modal-backdrop hidden">
-    <div class="confirm-modal profile-modal-content">
-      <h2 id="profileModalTitle">Create Profile</h2>
-      <form id="profileForm" autocomplete="off" novalidate>
-        <label class="form-field">
-          <span>Profile Name *</span>
-          <input type="text" id="profileNameInput" required placeholder="e.g. High Performance Game">
-        </label>
-        
-        <label class="form-field">
-          <span>Target App Hint (executable filename or path)</span>
-          <input type="text" id="profileTargetHintInput" placeholder="e.g. game.exe">
-          <span class="field-hint">Matching is informational in v1. Profiles are applied manually to the currently selected process.</span>
-        </label>
-
-        <label class="form-field">
-          <span>CPU Priority</span>
-          <select id="profileCpuPrioritySelect" class="priority-select">
-            <option value="Do not change">Do not change</option>
-            <option value="High">High</option>
-            <option value="Above Normal">Above Normal</option>
-            <option value="Normal">Normal</option>
-            <option value="Below Normal">Below Normal</option>
-            <option value="Idle">Idle</option>
-            <option value="Realtime">Realtime</option>
-          </select>
-        </label>
-
-        <div id="profileRealtimeWarning" class="realtime-warning hidden">
-          <p>Realtime priority can make Windows less responsive. Use it only when you understand the risk.</p>
-          <label class="confirm-realtime">
-            <input type="checkbox" id="profileConfirmRealtimeCheckbox">
-            <span>I understand the risk of Realtime priority in this profile</span>
-          </label>
-        </div>
-
-        <label class="form-field">
-          <span>GPU Preference</span>
-          <select id="profileGpuPreferenceSelect" class="priority-select">
-            <option value="Do not change">Do not change</option>
-            <option value="SystemDefault">System default</option>
-            <option value="PowerSaving">Power saving / iGPU</option>
-            <option value="HighPerformance">High performance / dGPU</option>
-          </select>
-        </label>
-
-        <label class="form-field">
-          <span>Notes</span>
-          <textarea id="profileNotesInput" placeholder="e.g. Apply before playing graphic-intensive games"></textarea>
-        </label>
-
-        <div id="profileFormError" class="action-message error hidden"></div>
-
-        <div class="modal-actions">
-          <button type="button" id="profileResetButton" class="secondary-button">Reset form</button>
-          <button type="button" id="profileCancelButton" class="secondary-button">Cancel</button>
-          <button type="submit" id="profileSaveButton" class="primary-button">Save profile</button>
-        </div>
-      </form>
     </div>
   </div>
 

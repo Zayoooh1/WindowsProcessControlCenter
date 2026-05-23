@@ -8,7 +8,6 @@ const DEFAULT_SETTINGS = {
   confirmDestructiveActions: true,
 };
 const initialSettingsState = loadSettings();
-const initialProfilesState = loadProfiles();
 
 const state = {
   activeView: initialSettingsState.settings.startScreen,
@@ -28,10 +27,6 @@ const state = {
   settingsStorageAvailable: initialSettingsState.storageAvailable,
   settingsStorageWarning: initialSettingsState.warning,
   resetSettingsModalOpen: false,
-  profiles: initialProfilesState.profiles,
-  profilesStorageAvailable: initialProfilesState.storageAvailable,
-  profilesStorageWarning: initialProfilesState.warning,
-  editingProfileId: null,
 };
 
 const elements = {
@@ -68,23 +63,6 @@ const elements = {
   processRows: document.getElementById("processRows"),
   detailsContent: document.getElementById("detailsContent"),
   errorBanner: document.getElementById("errorBanner"),
-  profilesStorageNotice: document.getElementById("profilesStorageNotice"),
-  profilesActionResult: document.getElementById("profilesActionResult"),
-  createProfileButton: document.getElementById("createProfileButton"),
-  profilesList: document.getElementById("profilesList"),
-  profileModal: document.getElementById("profileModal"),
-  profileModalTitle: document.getElementById("profileModalTitle"),
-  profileForm: document.getElementById("profileForm"),
-  profileNameInput: document.getElementById("profileNameInput"),
-  profileTargetHintInput: document.getElementById("profileTargetHintInput"),
-  profileCpuPrioritySelect: document.getElementById("profileCpuPrioritySelect"),
-  profileRealtimeWarning: document.getElementById("profileRealtimeWarning"),
-  profileConfirmRealtimeCheckbox: document.getElementById("profileConfirmRealtimeCheckbox"),
-  profileGpuPreferenceSelect: document.getElementById("profileGpuPreferenceSelect"),
-  profileNotesInput: document.getElementById("profileNotesInput"),
-  profileFormError: document.getElementById("profileFormError"),
-  profileResetButton: document.getElementById("profileResetButton"),
-  profileCancelButton: document.getElementById("profileCancelButton"),
 };
 
 function loadSettings() {
@@ -154,401 +132,6 @@ function saveSettings() {
   }
 }
 
-// Profiles v1 persistence & helpers
-function loadProfiles() {
-  const fallback = {
-    profiles: [],
-    storageAvailable: false,
-    warning: "",
-  };
-
-  try {
-    const storage = window.localStorage;
-    const testKey = `${PROFILES_STORAGE_KEY}.test`;
-    storage.setItem(testKey, "1");
-    storage.removeItem(testKey);
-
-    const raw = storage.getItem(PROFILES_STORAGE_KEY);
-    if (!raw) {
-      return { profiles: [], storageAvailable: true, warning: "" };
-    }
-
-    try {
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) {
-        return {
-          profiles: [],
-          storageAvailable: true,
-          warning: "Saved profiles format is invalid. Restored empty list.",
-        };
-      }
-
-      const normalized = parsed.map(p => normalizeProfile(p)).filter(Boolean);
-      return {
-        profiles: normalized,
-        storageAvailable: true,
-        warning: "",
-      };
-    } catch {
-      return {
-        profiles: [],
-        storageAvailable: true,
-        warning: "Saved profiles could not be read. Defaults are active.",
-      };
-    }
-  } catch {
-    return {
-      profiles: [],
-      storageAvailable: false,
-      warning: "Local profiles storage is unavailable. Profiles cannot be persisted.",
-    };
-  }
-}
-
-function normalizeProfile(p) {
-  if (!p || typeof p !== "object" || !p.name) {
-    return null;
-  }
-  return {
-    id: p.id || String(Date.now() + Math.random()),
-    name: String(p.name).trim(),
-    targetHint: String(p.targetHint || "").trim(),
-    cpuPriority: normalizeCpuPriority(p.cpuPriority),
-    gpuPreference: normalizeGpuPreferenceValue(p.gpuPreference),
-    notes: String(p.notes || "").trim(),
-    allowRealtime: Boolean(p.allowRealtime),
-    createdAt: p.createdAt || new Date().toISOString(),
-    updatedAt: p.updatedAt || new Date().toISOString(),
-  };
-}
-
-function normalizeCpuPriority(priority) {
-  const valid = ["Do not change", "High", "Above Normal", "Normal", "Below Normal", "Idle", "Realtime"];
-  return valid.includes(priority) ? priority : "Do not change";
-}
-
-function normalizeGpuPreferenceValue(preference) {
-  const valid = ["Do not change", "SystemDefault", "PowerSaving", "HighPerformance"];
-  return valid.includes(preference) ? preference : "Do not change";
-}
-
-function saveProfiles() {
-  if (!state.profilesStorageAvailable) {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(state.profiles));
-    state.profilesStorageWarning = "";
-  } catch {
-    state.profilesStorageAvailable = false;
-    state.profilesStorageWarning = "Local profiles storage is unavailable. Profiles cannot be persisted.";
-  }
-}
-
-function renderProfiles() {
-  elements.profilesStorageNotice.classList.toggle("hidden", !state.profilesStorageWarning);
-  elements.profilesStorageNotice.textContent = state.profilesStorageWarning;
-
-  elements.profilesList.replaceChildren();
-
-  if (state.profiles.length === 0) {
-    const emptyCard = document.createElement("section");
-    emptyCard.className = "panel rules-card overview-card";
-
-    const header = document.createElement("div");
-    header.className = "rules-card-header";
-    const h2 = document.createElement("h2");
-    h2.textContent = "No profiles yet";
-    header.appendChild(h2);
-
-    const body = document.createElement("div");
-    body.className = "rules-status-message";
-    body.textContent = "Create a profile to quickly apply CPU Priority and GPU Preference presets manually.";
-
-    emptyCard.appendChild(header);
-    emptyCard.appendChild(body);
-    elements.profilesList.appendChild(emptyCard);
-    return;
-  }
-
-  for (const profile of state.profiles) {
-    const card = document.createElement("section");
-    card.className = "panel rules-card";
-
-    const header = document.createElement("div");
-    header.className = "rules-card-header";
-
-    const title = document.createElement("h2");
-    title.textContent = profile.name;
-    header.appendChild(title);
-
-    if (profile.targetHint) {
-      const hintBadge = document.createElement("span");
-      hintBadge.className = "badge neutral";
-      hintBadge.textContent = profile.targetHint;
-      hintBadge.title = "Target Hint";
-      header.appendChild(hintBadge);
-    }
-
-    card.appendChild(header);
-
-    const details = document.createElement("div");
-    details.className = "profile-card-details";
-
-    const cpuRow = document.createElement("div");
-    cpuRow.className = "profile-detail-row";
-    const cpuLabel = document.createElement("span");
-    cpuLabel.textContent = "CPU Priority";
-    const cpuVal = document.createElement("span");
-    cpuVal.textContent = profile.cpuPriority;
-    cpuRow.appendChild(cpuLabel);
-    cpuRow.appendChild(cpuVal);
-    details.appendChild(cpuRow);
-
-    const gpuRow = document.createElement("div");
-    gpuRow.className = "profile-detail-row";
-    const gpuLabel = document.createElement("span");
-    gpuLabel.textContent = "GPU Preference";
-    const gpuVal = document.createElement("span");
-    gpuVal.textContent = translateGpuLabel(profile.gpuPreference);
-    gpuRow.appendChild(gpuLabel);
-    gpuRow.appendChild(gpuVal);
-    details.appendChild(gpuRow);
-
-    card.appendChild(details);
-
-    if (profile.notes) {
-      const notesBlock = document.createElement("div");
-      notesBlock.className = "profile-notes-block";
-      notesBlock.textContent = profile.notes;
-      card.appendChild(notesBlock);
-    }
-
-    const actions = document.createElement("div");
-    actions.className = "profile-card-actions";
-
-    const applyBtn = document.createElement("button");
-    applyBtn.className = "primary-button";
-    applyBtn.type = "button";
-    applyBtn.textContent = "Apply to selected process";
-    applyBtn.addEventListener("click", () => applyProfile(profile));
-
-    const editBtn = document.createElement("button");
-    editBtn.className = "secondary-button";
-    editBtn.type = "button";
-    editBtn.textContent = "Edit";
-    editBtn.addEventListener("click", () => openProfileForm(profile.id));
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "danger-action-button";
-    deleteBtn.type = "button";
-    deleteBtn.textContent = "Delete";
-    deleteBtn.addEventListener("click", () => deleteProfile(profile.id));
-
-    actions.appendChild(applyBtn);
-    actions.appendChild(editBtn);
-    actions.appendChild(deleteBtn);
-    card.appendChild(actions);
-
-    elements.profilesList.appendChild(card);
-  }
-}
-
-function translateGpuLabel(val) {
-  if (val === "SystemDefault") return "System default";
-  if (val === "PowerSaving") return "Power saving / iGPU";
-  if (val === "HighPerformance") return "High performance / dGPU";
-  return val;
-}
-
-function showProfileStatus(message, success) {
-  elements.profilesActionResult.textContent = message;
-  elements.profilesActionResult.className = `error-banner ${success ? "success" : "error"}`;
-  elements.profilesActionResult.classList.remove("hidden");
-}
-
-function hideProfileStatus() {
-  elements.profilesActionResult.classList.add("hidden");
-  elements.profilesActionResult.textContent = "";
-}
-
-function openProfileForm(profileId = null) {
-  hideProfileStatus();
-  state.editingProfileId = profileId;
-  resetProfileForm();
-
-  if (profileId) {
-    const profile = state.profiles.find(p => p.id === profileId);
-    if (profile) {
-      elements.profileModalTitle.textContent = "Edit Profile";
-      elements.profileNameInput.value = profile.name;
-      elements.profileTargetHintInput.value = profile.targetHint;
-      elements.profileCpuPrioritySelect.value = profile.cpuPriority;
-      elements.profileGpuPreferenceSelect.value = profile.gpuPreference;
-      elements.profileNotesInput.value = profile.notes;
-      elements.profileConfirmRealtimeCheckbox.checked = profile.allowRealtime;
-
-      toggleRealtimeWarning();
-    }
-  } else {
-    elements.profileModalTitle.textContent = "Create Profile";
-  }
-
-  elements.profileModal.classList.remove("hidden");
-  elements.profileNameInput.focus();
-}
-
-function closeProfileForm() {
-  elements.profileModal.classList.add("hidden");
-  state.editingProfileId = null;
-  resetProfileForm();
-}
-
-function resetProfileForm() {
-  elements.profileForm.reset();
-  elements.profileRealtimeWarning.classList.add("hidden");
-  elements.profileFormError.classList.add("hidden");
-  elements.profileFormError.textContent = "";
-}
-
-function toggleRealtimeWarning() {
-  const isRealtime = elements.profileCpuPrioritySelect.value === "Realtime";
-  elements.profileRealtimeWarning.classList.toggle("hidden", !isRealtime);
-  if (!isRealtime) {
-    elements.profileConfirmRealtimeCheckbox.checked = false;
-  }
-}
-
-function handleProfileFormSubmit(event) {
-  event.preventDefault();
-
-  const name = elements.profileNameInput.value.trim();
-  const targetHint = elements.profileTargetHintInput.value.trim();
-  const cpuPriority = elements.profileCpuPrioritySelect.value;
-  const gpuPreference = elements.profileGpuPreferenceSelect.value;
-  const notes = elements.profileNotesInput.value.trim();
-  const confirmRealtime = elements.profileConfirmRealtimeCheckbox.checked;
-
-  if (!name) {
-    showFormError("Profile name is required.");
-    return;
-  }
-
-  if (cpuPriority === "Realtime" && !confirmRealtime) {
-    showFormError("You must check the checkbox to understand the risk of Realtime priority.");
-    return;
-  }
-
-  const profileData = {
-    name,
-    targetHint,
-    cpuPriority,
-    gpuPreference,
-    notes,
-    allowRealtime: confirmRealtime,
-  };
-
-  if (state.editingProfileId) {
-    const index = state.profiles.findIndex(p => p.id === state.editingProfileId);
-    if (index !== -1) {
-      const existing = state.profiles[index];
-      state.profiles[index] = {
-        ...existing,
-        ...profileData,
-        updatedAt: new Date().toISOString(),
-      };
-      showProfileStatus(`Profile "${name}" updated successfully.`, true);
-    }
-  } else {
-    const newProfile = {
-      id: String(Date.now() + Math.random()),
-      ...profileData,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    state.profiles.push(newProfile);
-    showProfileStatus(`Profile "${name}" created successfully.`, true);
-  }
-
-  saveProfiles();
-  closeProfileForm();
-  render();
-}
-
-function showFormError(message) {
-  elements.profileFormError.textContent = message;
-  elements.profileFormError.classList.remove("hidden");
-}
-
-function deleteProfile(profileId) {
-  const profile = state.profiles.find(p => p.id === profileId);
-  if (!profile) return;
-
-  state.profiles = state.profiles.filter(p => p.id !== profileId);
-  saveProfiles();
-  showProfileStatus(`Profile "${profile.name}" deleted.`, true);
-  render();
-}
-
-function applyProfile(profile) {
-  hideProfileStatus();
-  const selectedProcess = state.processes.find(p => p.pid === state.selectedPid);
-  if (!selectedProcess) {
-    showProfileStatus("Please select a process in the Processes tab first.", false);
-    return;
-  }
-
-  if (profile.cpuPriority === "Do not change" && profile.gpuPreference === "Do not change") {
-    showProfileStatus("Profile has nothing to apply (both CPU priority and GPU preference are 'Do not change').", false);
-    return;
-  }
-
-  let priorityApplied = false;
-  let gpuApplied = false;
-  let gpuSkipped = false;
-
-  if (profile.cpuPriority !== "Do not change") {
-    postToHost({
-      type: "setCpuPriority",
-      pid: selectedProcess.pid,
-      priority: profile.cpuPriority,
-      confirmRealtime: profile.cpuPriority === "Realtime" && profile.allowRealtime,
-    });
-    priorityApplied = true;
-  }
-
-  if (profile.gpuPreference !== "Do not change") {
-    const path = String(selectedProcess.path || "").trim();
-    if (!path || path === "Unavailable" || !path.toLowerCase().endsWith(".exe")) {
-      gpuSkipped = true;
-    } else {
-      postToHost({
-        type: "setGpuPreference",
-        pid: selectedProcess.pid,
-        expectedName: selectedProcess.name || "",
-        exePath: selectedProcess.path || "",
-        preference: profile.gpuPreference,
-      });
-      gpuApplied = true;
-    }
-  }
-
-  if (gpuSkipped) {
-    if (priorityApplied) {
-      showProfileStatus(`CPU Priority (${profile.cpuPriority}) applied to process "${selectedProcess.name || selectedProcess.pid}". GPU Preference skipped: GPU Preference requires a valid executable path.`, false);
-    } else {
-      showProfileStatus("GPU Preference requires a valid executable path.", false);
-    }
-  } else {
-    let msg = `Applying Profile "${profile.name}" to process "${selectedProcess.name || selectedProcess.pid}"`;
-    const details = [];
-    if (priorityApplied) details.push(`Priority: ${profile.cpuPriority}`);
-    if (gpuApplied) details.push(`GPU: ${translateGpuLabel(profile.gpuPreference)}`);
-    showProfileStatus(`${msg} (${details.join(", ")})...`, true);
-  }
-}
-
 function postToHost(message) {
   if (!window.chrome?.webview) {
     showError("WebView2 bridge is not available.");
@@ -591,9 +174,6 @@ function handleHostMessage(event) {
     elements.quickRefreshButton.disabled = false;
     state.pendingPriorityPid = null;
     state.actionResult = message;
-    if (state.activeView === "rules") {
-      showProfileStatus(message.message || "CPU priority action completed.", Boolean(message.success));
-    }
     render();
     return;
   }
@@ -629,11 +209,7 @@ function handleHostMessage(event) {
     elements.quickRefreshButton.disabled = false;
     state.pendingGpuPid = null;
     state.actionResult = message;
-    if (state.activeView === "rules") {
-      showProfileStatus(message.message || "GPU preference action completed.", Boolean(message.success));
-    } else {
-      showStatus(message.message || "GPU preference action completed.", Boolean(message.success));
-    }
+    showStatus(message.message || "GPU preference action completed.", Boolean(message.success));
     render();
     return;
   }
@@ -650,11 +226,11 @@ function applyFilter() {
   const query = state.query.trim().toLowerCase();
   state.filtered = query
     ? state.processes.filter((process) => {
-      const pid = String(process.pid ?? "");
-      const name = String(process.name ?? "").toLowerCase();
-      const path = String(process.path ?? "").toLowerCase();
-      return pid.includes(query) || name.includes(query) || path.includes(query);
-    })
+        const pid = String(process.pid ?? "");
+        const name = String(process.name ?? "").toLowerCase();
+        const path = String(process.path ?? "").toLowerCase();
+        return pid.includes(query) || name.includes(query) || path.includes(query);
+      })
     : [...state.processes];
 
   if (!state.filtered.some((process) => process.pid === state.selectedPid)) {
@@ -676,7 +252,6 @@ function render() {
   renderTerminateModal();
   renderFreezeModal();
   renderResetSettingsModal();
-  renderProfiles();
 }
 
 function setActiveView(view) {
@@ -700,11 +275,6 @@ function renderActiveView() {
   elements.settingsNavButton.classList.toggle("active", settingsActive);
   elements.aboutNavButton.classList.toggle("active", aboutActive);
   elements.rulesNavButton.classList.toggle("active", rulesActive);
-
-  if (state.activeView !== "rules") {
-    closeProfileForm();
-    hideProfileStatus();
-  }
 }
 
 function applySettingsEffects() {
@@ -1814,15 +1384,11 @@ function hideError() {
 }
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    if (state.terminateModalProcess || state.freezeModalProcess || state.resetSettingsModalOpen) {
-      state.terminateModalProcess = null;
-      state.freezeModalProcess = null;
-      state.resetSettingsModalOpen = false;
-      render();
-    } else if (state.editingProfileId !== null || !elements.profileModal.classList.contains("hidden")) {
-      closeProfileForm();
-    }
+  if (event.key === "Escape" && (state.terminateModalProcess || state.freezeModalProcess || state.resetSettingsModalOpen)) {
+    state.terminateModalProcess = null;
+    state.freezeModalProcess = null;
+    state.resetSettingsModalOpen = false;
+    render();
   }
 });
 
@@ -1852,13 +1418,6 @@ elements.searchInput.addEventListener("input", (event) => {
   state.query = event.target.value;
   applyFilter();
 });
-
-// Profiles v1 button listeners
-elements.createProfileButton.addEventListener("click", () => openProfileForm());
-elements.profileCancelButton.addEventListener("click", closeProfileForm);
-elements.profileResetButton.addEventListener("click", resetProfileForm);
-elements.profileCpuPrioritySelect.addEventListener("change", toggleRealtimeWarning);
-elements.profileForm.addEventListener("submit", handleProfileFormSubmit);
 
 render();
 requestProcesses();
