@@ -6,6 +6,7 @@ Release date: 2026-05-23
 
 - Native Win32 desktop application with a WebView2 UI.
 - Local vanilla HTML/CSS/JavaScript frontend copied beside the executable.
+- Dashboard tab with snapshot statistics, safety status, quick actions, last action status, and available controls overview.
 - Real Windows process listing through C++/WinAPI.
 - Search by PID, process name, or executable path.
 - Details panel with path, CPU priority, runtime state, access status, admin hint, and GPU Preference.

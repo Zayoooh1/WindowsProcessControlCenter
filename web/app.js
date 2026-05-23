@@ -1,4 +1,5 @@
 const state = {
+  activeView: "dashboard",
   processes: [],
   filtered: [],
   selectedPid: null,
@@ -14,9 +15,20 @@ const state = {
 };
 
 const elements = {
+  dashboardNavButton: document.getElementById("dashboardNavButton"),
+  processesNavButton: document.getElementById("processesNavButton"),
+  dashboardView: document.getElementById("dashboardView"),
+  processesView: document.getElementById("processesView"),
   refreshButton: document.getElementById("refreshButton"),
+  dashboardRefreshButton: document.getElementById("dashboardRefreshButton"),
+  goToProcessesButton: document.getElementById("goToProcessesButton"),
+  quickRefreshButton: document.getElementById("quickRefreshButton"),
+  quickProcessesButton: document.getElementById("quickProcessesButton"),
   processCount: document.getElementById("processCount"),
   snapshotSummary: document.getElementById("snapshotSummary"),
+  dashboardSummary: document.getElementById("dashboardSummary"),
+  dashboardStats: document.getElementById("dashboardStats"),
+  lastActionContent: document.getElementById("lastActionContent"),
   searchInput: document.getElementById("searchInput"),
   processRows: document.getElementById("processRows"),
   detailsContent: document.getElementById("detailsContent"),
@@ -35,6 +47,8 @@ function postToHost(message) {
 function requestProcesses() {
   hideError();
   elements.refreshButton.disabled = true;
+  elements.dashboardRefreshButton.disabled = true;
+  elements.quickRefreshButton.disabled = true;
   postToHost({ type: "refreshProcesses" });
 }
 
@@ -47,6 +61,8 @@ function handleHostMessage(event) {
 
   if (message.type === "processSnapshot") {
     elements.refreshButton.disabled = false;
+    elements.dashboardRefreshButton.disabled = false;
+    elements.quickRefreshButton.disabled = false;
     state.processes = Array.isArray(message.processes) ? message.processes : [];
     if (!state.processes.some((process) => process.pid === state.selectedPid)) {
       state.selectedPid = state.processes[0]?.pid ?? null;
@@ -57,6 +73,8 @@ function handleHostMessage(event) {
 
   if (message.type === "actionResult" && message.action === "setCpuPriority") {
     elements.refreshButton.disabled = false;
+    elements.dashboardRefreshButton.disabled = false;
+    elements.quickRefreshButton.disabled = false;
     state.pendingPriorityPid = null;
     state.actionResult = message;
     render();
@@ -65,6 +83,8 @@ function handleHostMessage(event) {
 
   if (message.type === "actionResult" && message.action === "terminateProcess") {
     elements.refreshButton.disabled = false;
+    elements.dashboardRefreshButton.disabled = false;
+    elements.quickRefreshButton.disabled = false;
     state.pendingTerminatePid = null;
     state.terminateModalProcess = null;
     state.actionResult = message;
@@ -75,6 +95,8 @@ function handleHostMessage(event) {
 
   if (message.type === "actionResult" && (message.action === "freezeProcess" || message.action === "resumeProcess")) {
     elements.refreshButton.disabled = false;
+    elements.dashboardRefreshButton.disabled = false;
+    elements.quickRefreshButton.disabled = false;
     state.pendingFreezePid = null;
     state.pendingResumePid = null;
     state.freezeModalProcess = null;
@@ -86,6 +108,8 @@ function handleHostMessage(event) {
 
   if (message.type === "actionResult" && message.action === "setGpuPreference") {
     elements.refreshButton.disabled = false;
+    elements.dashboardRefreshButton.disabled = false;
+    elements.quickRefreshButton.disabled = false;
     state.pendingGpuPid = null;
     state.actionResult = message;
     showStatus(message.message || "GPU preference action completed.", Boolean(message.success));
@@ -95,6 +119,8 @@ function handleHostMessage(event) {
 
   if (message.type === "error") {
     elements.refreshButton.disabled = false;
+    elements.dashboardRefreshButton.disabled = false;
+    elements.quickRefreshButton.disabled = false;
     showError(message.message || "Unknown backend error.");
   }
 }
@@ -120,10 +146,143 @@ function applyFilter() {
 function render() {
   elements.processCount.textContent = `${state.processes.length} processes`;
   elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
+  renderActiveView();
+  renderDashboard();
   renderRows();
   renderDetails();
   renderTerminateModal();
   renderFreezeModal();
+}
+
+function setActiveView(view) {
+  state.activeView = view;
+  render();
+}
+
+function renderActiveView() {
+  const dashboardActive = state.activeView === "dashboard";
+  elements.dashboardView.classList.toggle("hidden-view", !dashboardActive);
+  elements.processesView.classList.toggle("hidden-view", dashboardActive);
+  elements.dashboardNavButton.classList.toggle("active", dashboardActive);
+  elements.processesNavButton.classList.toggle("active", !dashboardActive);
+}
+
+function renderDashboard() {
+  const stats = getDashboardStats();
+  elements.dashboardSummary.textContent = state.processes.length === 0
+    ? "Waiting for the first process snapshot."
+    : `${stats.total} processes in the current snapshot, ${stats.accessible} accessible for guarded controls.`;
+
+  elements.dashboardStats.replaceChildren(
+    statCard("Total processes", stats.total, "All processes in the latest snapshot"),
+    statCard("Accessible", stats.accessible, "Processes reporting accessible status", "success"),
+    statCard("Protected / denied", stats.protectedDenied, "Protected, denied, or otherwise unavailable", "warning"),
+    statCard("Frozen by app", stats.frozenByApp, "Processes suspended by this WPCC session", "warning"),
+    statCard("Non-normal priority", stats.nonNormalPriority, "Priority differs from Normal and is known", "neutral"),
+    statCard("GPU preferences", stats.gpuPreferences, "Per-app GPU preference differs from system default", "neutral"),
+  );
+
+  renderLastAction();
+}
+
+function getDashboardStats() {
+  return state.processes.reduce((stats, process) => {
+    const accessStatus = String(process.accessStatus || "Unknown");
+    const cpuPriority = String(process.cpuPriority || "Unknown");
+    const gpuPreference = String(process.gpuPreference || "Unknown");
+
+    stats.total += 1;
+    if (accessStatus === "Accessible") {
+      stats.accessible += 1;
+    } else {
+      stats.protectedDenied += 1;
+    }
+
+    if (process.isFrozenByApp === true) {
+      stats.frozenByApp += 1;
+    }
+
+    if (cpuPriority !== "Normal" && cpuPriority !== "Unknown") {
+      stats.nonNormalPriority += 1;
+    }
+
+    if (gpuPreference !== "SystemDefault" && gpuPreference !== "Unknown") {
+      stats.gpuPreferences += 1;
+    }
+
+    return stats;
+  }, {
+    total: 0,
+    accessible: 0,
+    protectedDenied: 0,
+    frozenByApp: 0,
+    nonNormalPriority: 0,
+    gpuPreferences: 0,
+  });
+}
+
+function statCard(label, value, hint, tone = "neutral") {
+  const card = document.createElement("article");
+  card.className = `panel stat-card ${tone}`;
+
+  const valueElement = document.createElement("strong");
+  valueElement.textContent = String(value);
+
+  const labelElement = document.createElement("span");
+  labelElement.textContent = label;
+
+  const hintElement = document.createElement("p");
+  hintElement.textContent = hint;
+
+  card.appendChild(valueElement);
+  card.appendChild(labelElement);
+  card.appendChild(hintElement);
+  return card;
+}
+
+function renderLastAction() {
+  elements.lastActionContent.replaceChildren();
+
+  if (!state.actionResult) {
+    const empty = document.createElement("div");
+    empty.className = "last-action-empty";
+    empty.textContent = "No process actions performed in this session.";
+    elements.lastActionContent.appendChild(empty);
+    return;
+  }
+
+  elements.lastActionContent.appendChild(lastActionLine("Action", actionLabel(state.actionResult.action)));
+  elements.lastActionContent.appendChild(lastActionLine("Status", state.actionResult.success ? "Succeeded" : "Failed", state.actionResult.success ? "success" : "danger"));
+  elements.lastActionContent.appendChild(lastActionLine("Message", state.actionResult.message || "No backend message."));
+}
+
+function lastActionLine(label, value, tone) {
+  const row = document.createElement("div");
+  row.className = "last-action-line";
+
+  const labelElement = document.createElement("span");
+  labelElement.textContent = label;
+
+  const valueElement = tone ? badge(value, tone) : document.createElement("strong");
+  valueElement.textContent = value;
+  if (!tone) {
+    valueElement.title = value;
+  }
+
+  row.appendChild(labelElement);
+  row.appendChild(valueElement);
+  return row;
+}
+
+function actionLabel(action) {
+  const labels = {
+    setCpuPriority: "CPU Priority",
+    terminateProcess: "End Process",
+    freezeProcess: "Freeze",
+    resumeProcess: "Resume",
+    setGpuPreference: "GPU Preference",
+  };
+  return labels[action] || action || "Unknown action";
 }
 
 function renderRows() {
@@ -1027,9 +1186,16 @@ document.addEventListener("keydown", (event) => {
 
 window.chrome?.webview?.addEventListener("message", handleHostMessage);
 elements.refreshButton.addEventListener("click", requestProcesses);
+elements.dashboardRefreshButton.addEventListener("click", requestProcesses);
+elements.quickRefreshButton.addEventListener("click", requestProcesses);
+elements.dashboardNavButton.addEventListener("click", () => setActiveView("dashboard"));
+elements.processesNavButton.addEventListener("click", () => setActiveView("processes"));
+elements.goToProcessesButton.addEventListener("click", () => setActiveView("processes"));
+elements.quickProcessesButton.addEventListener("click", () => setActiveView("processes"));
 elements.searchInput.addEventListener("input", (event) => {
   state.query = event.target.value;
   applyFilter();
 });
 
+render();
 requestProcesses();

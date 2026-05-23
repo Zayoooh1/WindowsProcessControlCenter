@@ -4,7 +4,7 @@ Version: `0.1.0`
 
 Windows Process Control Center is a C++20 Win32 desktop application for Windows process inspection and controlled process-management workflows. The current UI is rendered with Microsoft Edge WebView2 using local vanilla HTML, CSS, and JavaScript, while the backend remains native C++/WinAPI.
 
-The app can display real process snapshots, change the CPU priority class of accessible user processes, safely terminate selected non-critical user processes after explicit confirmation, freeze/resume selected user processes during the current app session, and set Windows GPU Preference per executable path. It blocks known critical Windows processes and does not persist custom profiles or app presets yet.
+The app can display real process snapshots, summarize the current snapshot on a Dashboard tab, change the CPU priority class of accessible user processes, safely terminate selected non-critical user processes after explicit confirmation, freeze/resume selected user processes during the current app session, and set Windows GPU Preference per executable path. It blocks known critical Windows processes and does not persist custom profiles or app presets yet.
 
 ## Requirements
 
@@ -156,6 +156,7 @@ Implemented so far:
 - JavaScript to C++ message bridge for `refreshProcesses`.
 - JavaScript to C++ message bridge for `setCpuPriority`.
 - JavaScript to C++ message bridge for `terminateProcess`.
+- Dashboard tab with snapshot statistics, safety status, quick actions, last action status, and available controls overview.
 - Read-only process enumeration using Windows APIs.
 - CPU priority changes for accessible processes through `OpenProcess` and `SetPriorityClass`.
 - Realtime priority safeguard requiring explicit frontend confirmation and backend validation.
@@ -175,7 +176,6 @@ Implemented so far:
   - Freeze state is session-local; WPCC tries to resume processes it froze when closing.
 - Process filtering by name, PID, or executable path.
 - Process details panel with executable path, CPU priority, access status, admin requirement hint, and access error details when available.
-- Disabled future action buttons for process-management functions.
 
 Not implemented yet:
 

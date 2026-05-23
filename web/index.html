@@ -25,62 +25,125 @@
     <div class="workspace">
       <nav class="sidebar" aria-label="Main navigation">
         <div class="nav-title">Navigation</div>
-        <button class="nav-item" type="button" title="Coming later">Dashboard</button>
-        <button class="nav-item active" type="button">Processes</button>
+        <button id="dashboardNavButton" class="nav-item active" type="button">Dashboard</button>
+        <button id="processesNavButton" class="nav-item" type="button">Processes</button>
         <button class="nav-item" type="button" title="Coming later">Rules / Profiles</button>
         <button class="nav-item" type="button" title="Coming later">Settings</button>
         <button class="nav-item" type="button" title="Coming later">About</button>
       </nav>
 
-      <main class="process-panel">
-        <section class="panel table-panel">
-          <div class="panel-header">
+      <main class="content-area">
+        <div id="errorBanner" class="error-banner hidden"></div>
+
+        <section id="dashboardView" class="dashboard-view">
+          <section class="panel dashboard-hero">
             <div>
-              <h2>Processes</h2>
-              <p id="snapshotSummary">Waiting for process snapshot...</p>
+              <h2>Dashboard</h2>
+              <p id="dashboardSummary">Waiting for process snapshot...</p>
             </div>
-          </div>
+            <div class="hero-actions">
+              <button id="dashboardRefreshButton" class="primary-button" type="button">Refresh snapshot</button>
+              <button id="goToProcessesButton" class="secondary-button" type="button">Go to Processes</button>
+            </div>
+          </section>
 
-          <label class="search-box" aria-label="Search processes">
-            <span>Search</span>
-            <input id="searchInput" type="search" placeholder="Process, PID, or executable path" autocomplete="off">
-          </label>
+          <section id="dashboardStats" class="stat-grid" aria-label="Process snapshot statistics"></section>
 
-          <div id="errorBanner" class="error-banner hidden"></div>
+          <section class="dashboard-grid">
+            <section class="panel dashboard-card">
+              <div class="dashboard-card-header">
+                <h2>Safety status</h2>
+                <span class="badge success">Active</span>
+              </div>
+              <div class="status-list">
+                <div class="status-row"><span class="status-dot success"></span><span>Critical Windows processes are protected.</span></div>
+                <div class="status-row"><span class="status-dot warning"></span><span>Destructive actions require confirmation.</span></div>
+                <div class="status-row"><span class="status-dot neutral"></span><span>Freeze/Resume only applies to the current WPCC session.</span></div>
+                <div class="status-row"><span class="status-dot neutral"></span><span>GPU Preference may require restarting the target app.</span></div>
+                <div class="status-row"><span class="status-dot warning"></span><span>Realtime priority requires explicit confirmation.</span></div>
+              </div>
+            </section>
 
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>PID</th>
-                  <th>Process</th>
-                  <th>Executable Path</th>
-                  <th>Runtime</th>
-                  <th>CPU Priority</th>
-                  <th>GPU Preference</th>
-                  <th>Admin</th>
-                  <th>Access</th>
-                </tr>
-              </thead>
-              <tbody id="processRows">
-                <tr>
-                  <td colspan="8" class="empty-cell">Loading processes...</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+            <section class="panel dashboard-card">
+              <div class="dashboard-card-header">
+                <h2>Quick actions</h2>
+              </div>
+              <div class="quick-actions">
+                <button id="quickRefreshButton" class="primary-button" type="button">Refresh snapshot</button>
+                <button id="quickProcessesButton" class="secondary-button" type="button">Go to Processes</button>
+              </div>
+            </section>
+
+            <section class="panel dashboard-card">
+              <div class="dashboard-card-header">
+                <h2>Last action</h2>
+              </div>
+              <div id="lastActionContent" class="last-action"></div>
+            </section>
+
+            <section class="panel dashboard-card overview-card">
+              <div class="dashboard-card-header">
+                <h2>Available controls</h2>
+              </div>
+              <div class="overview-grid">
+                <div class="overview-tile"><strong>CPU Priority</strong><span>Available</span></div>
+                <div class="overview-tile"><strong>End Process</strong><span>Confirmation required</span></div>
+                <div class="overview-tile"><strong>Freeze / Resume</strong><span>Session-only</span></div>
+                <div class="overview-tile"><strong>GPU Preference</strong><span>May require app restart</span></div>
+                <div class="overview-tile"><strong>Critical process protection</strong><span>Enabled</span></div>
+              </div>
+            </section>
+          </section>
         </section>
 
-        <aside class="panel details-panel">
-          <div class="details-title">
-            <h2>Process details</h2>
-            <p>Read-only inspection</p>
-          </div>
+        <section id="processesView" class="process-panel hidden-view">
+          <section class="panel table-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Processes</h2>
+                <p id="snapshotSummary">Waiting for process snapshot...</p>
+              </div>
+            </div>
 
-          <div id="detailsContent" class="details-content empty-details">
-            Select a process to inspect its details.
-          </div>
-        </aside>
+            <label class="search-box" aria-label="Search processes">
+              <span>Search</span>
+              <input id="searchInput" type="search" placeholder="Process, PID, or executable path" autocomplete="off">
+            </label>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>PID</th>
+                    <th>Process</th>
+                    <th>Executable Path</th>
+                    <th>Runtime</th>
+                    <th>CPU Priority</th>
+                    <th>GPU Preference</th>
+                    <th>Admin</th>
+                    <th>Access</th>
+                  </tr>
+                </thead>
+                <tbody id="processRows">
+                  <tr>
+                    <td colspan="8" class="empty-cell">Loading processes...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <aside class="panel details-panel">
+            <div class="details-title">
+              <h2>Process details</h2>
+              <p>Read-only inspection</p>
+            </div>
+
+            <div id="detailsContent" class="details-content empty-details">
+              Select a process to inspect its details.
+            </div>
+          </aside>
+        </section>
       </main>
     </div>
   </div>
