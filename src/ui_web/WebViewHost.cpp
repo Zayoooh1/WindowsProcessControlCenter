@@ -4,7 +4,6 @@
 
 #include <ShlObj.h>
 #include <commdlg.h>
-#include <shobjidl.h>
 
 #include <algorithm>
 #include <array>
@@ -600,7 +599,6 @@ namespace wpcc
         const std::wstring response = m_bridge.BuildExecutableChosenMessage(success, cancelled, path, fileName, iconDataUrl);
         m_webView->PostWebMessageAsJson(response.c_str());
     }
-
     void WebViewHost::SendError(std::string_view message)
     {
         if (!m_webView)
