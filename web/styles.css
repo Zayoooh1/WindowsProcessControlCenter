@@ -167,7 +167,7 @@ h2 {
   min-height: 0;
   min-width: 0;
   display: grid;
-  grid-template-columns: clamp(188px, 18vw, 232px) minmax(0, 1fr);
+  grid-template-columns: clamp(170px, 16vw, 210px) minmax(0, 1fr);
   gap: var(--gap);
 }
 
@@ -242,8 +242,18 @@ h2 {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) 280px;
   gap: var(--gap);
+  position: relative;
+  overflow: hidden;
+}
+
+.process-panel.details-collapsed {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.process-panel.details-collapsed .details-panel {
+  display: none !important;
 }
 
 .panel {
@@ -845,12 +855,8 @@ h2 {
 
 table {
   width: 100%;
-  min-width: 1180px;
+  table-layout: fixed;
   border-collapse: collapse;
-}
-
-body.hide-executable-path table {
-  min-width: 920px;
 }
 
 body.hide-executable-path .path-column,
@@ -869,22 +875,43 @@ th,
 td {
   height: 44px;
   border-bottom: 1px solid #252d38;
-  padding: 0 16px;
+  padding: 0 10px;
   text-align: left;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 body.compact-process-table th,
 body.compact-process-table td {
   height: 34px;
-  padding-left: 12px;
-  padding-right: 12px;
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
-body.compact-process-table .badge {
+/* Set explicit column widths */
+.col-pid { width: 70px; }
+.col-process { width: 140px; }
+.col-path { width: auto; }
+.col-runtime { width: 105px; }
+.col-priority { width: 110px; }
+.col-gpu { width: 125px; }
+.col-admin { width: 65px; }
+.col-access { width: 115px; }
+
+/* Table badges compaction */
+.table-wrap .badge {
   min-height: 22px;
   padding: 2px 8px;
   font-size: 12px;
+  border-radius: 6px;
+}
+
+body.compact-process-table .table-wrap .badge {
+  min-height: 20px;
+  padding: 1px 6px;
+  font-size: 11px;
+  border-radius: 4px;
 }
 
 th {
@@ -897,10 +924,9 @@ td {
   color: #dce3ec;
 }
 
-th:first-child,
-td:first-child {
-  width: 92px;
-  padding-left: 22px;
+.table-wrap th:first-child,
+.table-wrap td:first-child {
+  padding-left: 12px;
 }
 
 tbody tr {
@@ -916,10 +942,7 @@ tbody tr.selected {
 }
 
 .path-cell {
-  max-width: 420px;
-  overflow: hidden;
   color: var(--muted);
-  text-overflow: ellipsis;
 }
 
 .badge {
@@ -1350,21 +1373,39 @@ body.reduced-motion *::after {
 
 @media (max-width: 1320px) {
   .process-panel {
-    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-columns: minmax(0, 1fr) 260px;
   }
 
   .workspace {
-    grid-template-columns: 212px minmax(0, 1fr);
+    grid-template-columns: 190px minmax(0, 1fr);
   }
 }
 
 @media (max-width: 1180px) {
   .process-panel {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 
   .details-panel {
-    display: none;
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 10;
+    width: 290px;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.45);
+    background: rgba(23, 29, 38, 0.88) !important;
+    backdrop-filter: blur(12px);
+    border-left: 1px solid var(--border);
+    transform: translateX(0);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    display: block !important;
+  }
+
+  .process-panel.details-collapsed .details-panel {
+    transform: translateX(105%);
+    display: block !important;
+    box-shadow: none;
   }
 }
 
@@ -2142,6 +2183,47 @@ body.reduced-motion *::after {
   .rules-layout {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* Process details slide-over close button and title styling */
+.details-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.close-details-btn {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+  height: 28px;
+  width: 28px;
+  margin-top: -4px;
+}
+
+.close-details-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.compact-header-btn {
+  min-height: 30px !important;
+  min-width: unset !important;
+  padding: 0 10px !important;
+  font-size: 13px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 

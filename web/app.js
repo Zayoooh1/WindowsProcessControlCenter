@@ -40,6 +40,7 @@ const state = {
   settingsStorageAvailable: initialSettingsState.storageAvailable,
   settingsStorageWarning: initialSettingsState.warning,
   resetSettingsModalOpen: false,
+  detailsPanelOpen: true,
   // Profiles State
   profilesState: {
     profiles: initialProfilesState.profiles,
@@ -91,6 +92,9 @@ const elements = {
   searchInput: document.getElementById("searchInput"),
   processRows: document.getElementById("processRows"),
   detailsContent: document.getElementById("detailsContent"),
+  detailsPanel: document.getElementById("detailsPanel"),
+  toggleDetailsBtn: document.getElementById("toggleDetailsBtn"),
+  closeDetailsButton: document.getElementById("closeDetailsButton"),
   errorBanner: document.getElementById("errorBanner"),
   // Profiles Elements
   rulesStorageNotice: document.getElementById("rulesStorageNotice"),
@@ -922,6 +926,7 @@ function applyFilter() {
 function render() {
   elements.processCount.textContent = `${state.processes.length} processes`;
   elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
+  elements.processesView.classList.toggle("details-collapsed", !state.detailsPanelOpen);
   applySettingsEffects();
   renderActiveView();
   renderDashboard();
@@ -1521,17 +1526,20 @@ function renderRows() {
     row.className = process.pid === state.selectedPid ? "selected" : "";
     row.addEventListener("click", () => {
       state.selectedPid = process.pid;
+      if (!state.detailsPanelOpen) {
+        state.detailsPanelOpen = true;
+      }
       render();
     });
 
-    row.appendChild(textCell(process.pid));
-    row.appendChild(textCell(process.name || "Unknown"));
+    row.appendChild(textCell(process.pid, "col-pid"));
+    row.appendChild(textCell(process.name || "Unknown", "col-process"));
     row.appendChild(pathCell(process.path || "Unavailable"));
-    row.appendChild(badgeCell(runtimeLabel(process), runtimeTone(process)));
-    row.appendChild(badgeCell(process.cpuPriority || "Unknown", priorityTone(process.cpuPriority)));
-    row.appendChild(badgeCell(gpuPreferenceLabel(process.gpuPreference), gpuPreferenceTone(process.gpuPreference)));
-    row.appendChild(badgeCell(process.adminNeeded ? "Likely" : "No", process.adminNeeded ? "warning" : "neutral"));
-    row.appendChild(badgeCell(process.accessStatus || "Unknown", accessTone(process.accessStatus)));
+    row.appendChild(badgeCell(runtimeLabel(process), runtimeTone(process), "col-runtime"));
+    row.appendChild(badgeCell(process.cpuPriority || "Unknown", priorityTone(process.cpuPriority), "col-priority"));
+    row.appendChild(badgeCell(gpuPreferenceLabel(process.gpuPreference), gpuPreferenceTone(process.gpuPreference), "col-gpu"));
+    row.appendChild(badgeCell(process.adminNeeded ? "Likely" : "No", process.adminNeeded ? "warning" : "neutral", "col-admin"));
+    row.appendChild(badgeCell(process.accessStatus || "Unknown", accessTone(process.accessStatus), "col-access"));
     elements.processRows.appendChild(row);
   }
 }
@@ -2330,22 +2338,28 @@ function normalizeGpuPreference(preference) {
   return "SystemDefault";
 }
 
-function textCell(value) {
+function textCell(value, className) {
   const cell = document.createElement("td");
   cell.textContent = value ?? "";
+  if (className) {
+    cell.className = className;
+  }
   return cell;
 }
 
 function pathCell(value) {
   const cell = document.createElement("td");
-  cell.className = "path-cell";
+  cell.className = "path-cell col-path path-column";
   cell.textContent = value;
   cell.title = value;
   return cell;
 }
 
-function badgeCell(label, tone) {
+function badgeCell(label, tone, className) {
   const cell = document.createElement("td");
+  if (className) {
+    cell.className = className;
+  }
   cell.appendChild(badge(label, tone));
   return cell;
 }
@@ -2527,6 +2541,14 @@ bindUi(elements.searchInput, "input", (event) => {
   state.query = event.target.value;
   applyFilter();
 }, "searchInput");
+bindUi(elements.toggleDetailsBtn, "click", () => {
+  state.detailsPanelOpen = !state.detailsPanelOpen;
+  render();
+}, "toggleDetailsBtn");
+bindUi(elements.closeDetailsButton, "click", () => {
+  state.detailsPanelOpen = false;
+  render();
+}, "closeDetailsButton");
 
 function ensureProfileModalDom() {
   if (document.getElementById("profileModal")) return;

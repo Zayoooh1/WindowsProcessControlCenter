@@ -103,6 +103,9 @@
                 <h2>Processes</h2>
                 <p id="snapshotSummary">Waiting for process snapshot...</p>
               </div>
+              <button id="toggleDetailsBtn" class="secondary-button compact-header-btn" type="button">
+                <span>📋 Details</span>
+              </button>
             </div>
 
             <label class="search-box" aria-label="Search processes">
@@ -114,14 +117,14 @@
               <table>
                 <thead>
                   <tr>
-                    <th>PID</th>
-                    <th>Process</th>
-                    <th class="path-column">Executable Path</th>
-                    <th>Runtime</th>
-                    <th>CPU Priority</th>
-                    <th>GPU Preference</th>
-                    <th>Admin</th>
-                    <th>Access</th>
+                    <th class="col-pid">PID</th>
+                    <th class="col-process">Process</th>
+                    <th class="col-path path-column">Executable Path</th>
+                    <th class="col-runtime">Runtime</th>
+                    <th class="col-priority">CPU Priority</th>
+                    <th class="col-gpu">GPU Preference</th>
+                    <th class="col-admin">Admin</th>
+                    <th class="col-access">Access</th>
                   </tr>
                 </thead>
                 <tbody id="processRows">
@@ -133,10 +136,13 @@
             </div>
           </section>
 
-          <aside class="panel details-panel">
+          <aside class="panel details-panel" id="detailsPanel">
             <div class="details-title">
-              <h2>Process details</h2>
-              <p>Read-only inspection</p>
+              <div class="details-title-row">
+                <h2>Process details</h2>
+                <button id="closeDetailsButton" class="close-details-btn" type="button" aria-label="Close details">×</button>
+              </div>
+              <p>Process actions & inspection</p>
             </div>
 
             <div id="detailsContent" class="details-content empty-details">
