@@ -63,12 +63,6 @@ namespace wpcc
             return WebMessageType::ExportProfilesToFile;
         }
 
-        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
-            messageJson.find(L"\"chooseExecutable\"") != std::wstring_view::npos)
-        {
-            return WebMessageType::ChooseExecutable;
-        }
-
         return WebMessageType::Unknown;
     }
 
@@ -200,28 +194,6 @@ namespace wpcc
         if (!warning.empty())
         {
             json << L",\"warning\":\"" << EscapeJson(WideToUtf8(warning)) << L"\"";
-        }
-
-        json << L"}";
-        return json.str();
-    }
-
-    std::wstring WebMessageBridge::BuildExecutableChosenMessage(bool success, bool cancelled, std::wstring_view path, std::wstring_view fileName, std::string_view iconDataUrl) const
-    {
-        std::wostringstream json;
-        json << L"{";
-        json << L"\"type\":\"executableChosen\",";
-        json << L"\"success\":" << (success ? L"true" : L"false") << L",";
-        json << L"\"cancelled\":" << (cancelled ? L"true" : L"false");
-
-        if (success && !path.empty())
-        {
-            json << L",\"path\":\"" << EscapeJson(WideToUtf8(path)) << L"\"";
-            json << L",\"fileName\":\"" << EscapeJson(WideToUtf8(fileName)) << L"\"";
-            if (!iconDataUrl.empty())
-            {
-                json << L",\"iconDataUrl\":\"" << EscapeJson(iconDataUrl) << L"\"";
-            }
         }
 
         json << L"}";
