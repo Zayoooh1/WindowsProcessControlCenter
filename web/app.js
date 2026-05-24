@@ -295,20 +295,26 @@ function normalizeProfiles(parsed) {
 }
 
 function saveProfiles() {
-  if (!state.profilesState.storageAvailable) {
-    return;
+  const data = {
+    schemaVersion: 1,
+    profiles: state.profilesState.profiles,
+  };
+
+  if (state.profilesState.storageAvailable) {
+    try {
+      window.localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(data));
+      state.profilesState.warning = "";
+    } catch {
+      state.profilesState.storageAvailable = false;
+      state.profilesState.warning = "Local storage is unavailable. Profiles cannot be persisted.";
+    }
   }
 
-  try {
-    const data = {
-      schemaVersion: 1,
-      profiles: state.profilesState.profiles,
-    };
-    window.localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(data));
-    state.profilesState.warning = "";
-  } catch {
-    state.profilesState.storageAvailable = false;
-    state.profilesState.warning = "Local storage is unavailable. Profiles cannot be persisted.";
+  if (window.chrome?.webview) {
+    window.chrome.webview.postMessage({
+      type: "saveProfiles",
+      profiles: JSON.stringify(data),
+    });
   }
 }
 
@@ -588,6 +594,11 @@ function postToHost(message) {
   window.chrome.webview.postMessage(message);
 }
 
+function requestNativeProfiles() {
+  if (!window.chrome?.webview) return;
+  window.chrome.webview.postMessage({ type: "loadProfiles" });
+}
+
 function requestProcesses() {
   hideError();
   elements.refreshButton.disabled = true;
@@ -658,6 +669,31 @@ function handleHostMessage(event) {
     state.actionResult = message;
     showStatus(message.message || "GPU preference action completed.", Boolean(message.success));
     render();
+    return;
+  }
+
+  if (message.type === "profilesLoaded") {
+    if (message.success && message.profiles && typeof message.profiles === "object") {
+      const validated = normalizeProfiles(message.profiles);
+      state.profilesState.profiles = validated.profiles;
+      if (state.profilesState.storageAvailable) {
+        try {
+          window.localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify({ schemaVersion: 1, profiles: validated.profiles }));
+        } catch {}
+      }
+      state.profilesState.warning = "";
+    } else if (message.warning) {
+      state.profilesState.warning = message.warning;
+    }
+    render();
+    return;
+  }
+
+  if (message.type === "profilesSaved") {
+    if (!message.success && message.warning) {
+      state.profilesState.warning = message.warning;
+      render();
+    }
     return;
   }
 
@@ -2442,4 +2478,5 @@ bindUi(elements.deleteProfileConfirmButton, "click", confirmDeleteProfile, "dele
 
 render();
 requestProcesses();
+requestNativeProfiles();
 runAutoUpdateCheckIfNeeded();
