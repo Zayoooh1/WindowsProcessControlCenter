@@ -1931,8 +1931,13 @@ body.reduced-motion *::after {
   color: var(--subtle);
   border-top: 1px solid var(--border-soft);
   padding-top: 8px;
+}
+.profile-card-match-list {
   display: grid;
   gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+  margin-top: 6px;
 }
 
 .profile-card-match-header {
@@ -1946,7 +1951,7 @@ body.reduced-motion *::after {
 
 .profile-card-match-item {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 8px;
   align-items: center;
   font-size: 11px;
@@ -2125,6 +2130,25 @@ body.reduced-motion *::after {
 .profile-card-auto-value {
   color: var(--warning);
 }
+.profile-card-match-cpu-btn {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.profile-card-match-cpu-btn:hover:not(:disabled) {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.profile-card-match-cpu-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 /* Muted detail line */
 .value-line-muted {
   color: var(--muted);
@@ -2142,6 +2166,20 @@ body.reduced-motion *::after {
   .rules-layout {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.profile-card-match-cpu-select {
+  font-size: 10px;
+  padding: 0 2px;
+  background: rgba(32, 40, 51, 0.8);
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  color: var(--text);
+  cursor: pointer;
+  max-width: 110px;
+}
+.profile-card-match-cpu-select:hover {
+  border-color: var(--accent);
 }
 
 
