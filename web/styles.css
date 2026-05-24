@@ -1907,6 +1907,25 @@ body.reduced-motion *::after {
   color: var(--danger);
 }
 
+.profile-card-btn.primary {
+  color: var(--accent);
+}
+
+.profile-card-btn.primary:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.profile-card-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.profile-card-btn:disabled:hover {
+  background: transparent;
+  color: var(--muted);
+}
+
 .profile-card-matches {
   font-size: 12px;
   color: var(--subtle);
