@@ -19,10 +19,13 @@ namespace wpcc
     class WebViewHost
     {
     public:
+        static constexpr UINT ChooseExecutableWindowMessage = WM_APP + 101;
+
         bool Initialize(HWND hwnd);
         void Resize();
         void Shutdown();
         void RefreshProcesses();
+        void ChooseExecutable();
 
     private:
         void OnEnvironmentCreated(HRESULT result, ICoreWebView2Environment* environment);

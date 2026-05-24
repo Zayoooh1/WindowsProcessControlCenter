@@ -21,6 +21,32 @@ const VALID_AUTO_REFRESH_INTERVALS = ["off", "5s", "15s", "30s", "60s"];
 const initialSettingsState = loadSettings();
 const initialProfilesState = loadProfiles();
 let autoRefreshTimer = null;
+const _cpuAutoAppliedKeys = new Set();
+const _profileInstanceCpuSelections = {};
+
+function _makeCpuAutoApplyKey(profileId, pid, cpuPriority) {
+  return `${profileId}|${pid}|${cpuPriority}`;
+}
+
+function clearCpuAutoApplyTracking(profileId) {
+  for (const key of _cpuAutoAppliedKeys) {
+    if (key.startsWith(profileId + "|")) {
+      _cpuAutoAppliedKeys.delete(key);
+    }
+  }
+}
+
+function normalizeText(value) {
+  return (value || "").trim();
+}
+
+function normalizeProcessName(value) {
+  return normalizeText(value).toLowerCase();
+}
+
+function normalizePath(value) {
+  return normalizeText(value).replace(/\\/g, "/").toLowerCase();
+}
 
 const state = {
   activeView: initialSettingsState.settings.startScreen,
@@ -126,6 +152,15 @@ const elements = {
   deleteProfileTargetDisplay: document.getElementById("deleteProfileTargetDisplay"),
   deleteProfileCancelButton: document.getElementById("deleteProfileCancelButton"),
   deleteProfileConfirmButton: document.getElementById("deleteProfileConfirmButton"),
+  safetyNoteButton: document.getElementById("safetyNoteButton"),
+  storageInfoButton: document.getElementById("storageInfoButton"),
+  safetyModal: document.getElementById("safetyModal"),
+  safetyModalCloseButton: document.getElementById("safetyModalCloseButton"),
+  storageModal: document.getElementById("storageModal"),
+  storageModalCloseButton: document.getElementById("storageModalCloseButton"),
+  exeBrowseRow: document.getElementById("exeBrowseRow"),
+  browseExeButton: document.getElementById("browseExeButton"),
+  exeIconPreview: document.getElementById("exeIconPreview"),
 };
 
 function loadSettings() {
@@ -277,7 +312,7 @@ function normalizeProfiles(parsed) {
     const cpuPriority = VALID_PRIORITIES.includes(p.cpuPriority) ? p.cpuPriority : "DoNotChange";
     const gpuPreference = VALID_GPU_PREFERENCES.includes(p.gpuPreference) ? p.gpuPreference : "DoNotChange";
     const applyToFamily = Boolean(p.applyToFamily);
-    const autoApply = false;
+    const autoApply = Boolean(p.autoApply);
     const allowRealtime = Boolean(p.allowRealtime);
     const notes = typeof p.notes === "string" ? p.notes.trim() : "";
     const createdAt = typeof p.createdAt === "string" ? p.createdAt : new Date().toISOString();
@@ -322,8 +357,8 @@ function saveProfiles() {
     }
   }
 
-  if (window.chrome?.webview) {
-    window.chrome.webview.postMessage({
+  if (webviewBridgeInitialized || window.chrome?.webview) {
+    postToHost({
       type: "saveProfiles",
       profiles: JSON.stringify(data),
     });
@@ -336,8 +371,8 @@ function exportProfiles() {
     profiles: state.profilesState.profiles,
   };
 
-  if (window.chrome?.webview) {
-    window.chrome.webview.postMessage({
+  if (webviewBridgeInitialized || window.chrome?.webview) {
+    postToHost({
       type: "exportProfilesToFile",
       profiles: JSON.stringify(data),
     });
@@ -406,6 +441,10 @@ function openProfileModal(profileId = null) {
   elements.profileNotes.value = prof ? prof.notes : "";
   elements.profileRealtimeCheckbox.checked = prof ? prof.allowRealtime : false;
 
+  if (!prof) {
+    elements.exeIconPreview.innerHTML = "<span class=\"exe-icon-fallback\">&#x1F4C1;</span>";
+  }
+
   updateMatchModeUi();
   updateCpuRealtimeUi();
 
@@ -437,6 +476,7 @@ function resetProfileForm() {
     elements.profileAutoApply.checked = false;
     elements.profileNotes.value = "";
     elements.profileRealtimeCheckbox.checked = false;
+    elements.exeIconPreview.innerHTML = "<span class=\"exe-icon-fallback\">&#x1F4C1;</span>";
 
     updateMatchModeUi();
     updateCpuRealtimeUi();
@@ -469,7 +509,7 @@ function saveProfileForm(event) {
     cpuPriority: priority,
     gpuPreference: elements.profileGpuPreference.value,
     applyToFamily: elements.profileApplyToFamily.checked,
-    autoApply: false,
+    autoApply: elements.profileAutoApply.checked,
     allowRealtime: isRealtime && elements.profileRealtimeCheckbox.checked,
     notes: elements.profileNotes.value.trim(),
     createdAt: prof ? prof.createdAt : now,
@@ -478,6 +518,7 @@ function saveProfileForm(event) {
 
   if (state.editingProfileId) {
     state.profilesState.profiles = state.profilesState.profiles.map(p => p.id === state.editingProfileId ? profileData : p);
+    clearCpuAutoApplyTracking(state.editingProfileId);
   } else {
     state.profilesState.profiles.push(profileData);
   }
@@ -485,6 +526,33 @@ function saveProfileForm(event) {
   saveProfiles();
   closeProfileModal();
   render();
+}
+
+function openSafetyModal() {
+  elements.safetyModal.classList.remove("hidden-view");
+  elements.safetyModalCloseButton.focus();
+}
+
+function closeSafetyModal() {
+  elements.safetyModal.classList.add("hidden-view");
+}
+
+function openStorageModal() {
+  elements.storageModal.classList.remove("hidden-view");
+  elements.storageModalCloseButton.focus();
+}
+
+function closeStorageModal() {
+  elements.storageModal.classList.add("hidden-view");
+}
+
+function openExecutablePicker() {
+  if (!webviewBridgeInitialized && !window.chrome?.webview) {
+    state.profilesState.warning = "Executable picker requires the native app (WebView2).";
+    render();
+    return;
+  }
+  postToHost({ type: "chooseExecutable" });
 }
 
 function openDeleteProfileModal(profile) {
@@ -505,6 +573,7 @@ function closeDeleteProfileModal() {
 function confirmDeleteProfile() {
   if (!state.deleteModalProfile) return;
   state.profilesState.profiles = state.profilesState.profiles.filter(p => p.id !== state.deleteModalProfile.id);
+  clearCpuAutoApplyTracking(state.deleteModalProfile.id);
   saveProfiles();
   closeDeleteProfileModal();
   render();
@@ -527,13 +596,40 @@ function updateCpuRealtimeUi() {
 function getMatchingProcesses(profile) {
   return state.processes.filter(function (process) {
     if (profile.matchMode === "path" && profile.targetExePath) {
-      return process.path && process.path.toLowerCase() === profile.targetExePath.toLowerCase();
+      const procPath = normalizePath(process.path);
+      const targetPath = normalizePath(profile.targetExePath);
+      return procPath && targetPath && procPath === targetPath;
     }
     if (profile.matchMode === "name" && profile.targetProcessName) {
-      return process.name && process.name.toLowerCase() === profile.targetProcessName.toLowerCase();
+      const procName = normalizeProcessName(process.name);
+      const targetName = normalizeProcessName(profile.targetProcessName);
+      if (!procName) return false;
+      if (procName === targetName) return true;
+      if (!targetName.endsWith(".exe") && procName === targetName + ".exe") return true;
+      return false;
     }
     return false;
   });
+}
+
+function applyProfileCpuToProcess(profile, process, priorityOverride) {
+  const priority = priorityOverride || profile.cpuPriority;
+  const isRealtime = priority === "Realtime";
+  if (isRealtime && !profile.allowRealtime) {
+    state.profilesState.warning = "Cannot apply: Realtime priority requires confirmation in the profile settings.";
+    render();
+    return;
+  }
+
+  postToHost({
+    type: "setCpuPriority",
+    pid: process.pid,
+    priority: priority,
+    confirmRealtime: isRealtime && profile.allowRealtime,
+  });
+
+  showStatus(`Applied CPU priority (${priority}) to ${process.name || "process"} (PID ${process.pid}).`, true);
+  requestProcesses();
 }
 
 function applyProfile(profileId) {
@@ -588,6 +684,48 @@ function applyProfile(profileId) {
 
   requestProcesses();
   render();
+}
+
+function runAutoApply() {
+  const activePids = new Set();
+  for (const proc of state.processes) {
+    activePids.add(proc.pid);
+  }
+  for (const key of _cpuAutoAppliedKeys) {
+    const pid = parseInt(key.split("|")[1], 10);
+    if (!activePids.has(pid)) {
+      _cpuAutoAppliedKeys.delete(key);
+    }
+  }
+
+  for (const profile of state.profilesState.profiles) {
+    if (!profile.autoApply) continue;
+    if (profile.cpuPriority === "DoNotChange") continue;
+
+    if (profile.cpuPriority === "Realtime" && !profile.allowRealtime) {
+      if (!state.profilesState.warning) {
+        state.profilesState.warning = `Auto-apply skipped for "${profile.name}": Realtime priority requires confirmation in the profile settings. Edit the profile and confirm the Realtime risk to enable it.`;
+      }
+      continue;
+    }
+
+    const processes = getMatchingProcesses(profile);
+    if (processes.length === 0) continue;
+
+    for (const proc of processes) {
+      const key = _makeCpuAutoApplyKey(profile.id, proc.pid, profile.cpuPriority);
+      if (_cpuAutoAppliedKeys.has(key)) continue;
+
+      postToHost({
+        type: "setCpuPriority",
+        pid: proc.pid,
+        priority: profile.cpuPriority,
+        confirmRealtime: profile.cpuPriority === "Realtime" && profile.allowRealtime,
+      });
+
+      _cpuAutoAppliedKeys.add(key);
+    }
+  }
 }
 
 function renderProfiles() {
@@ -676,8 +814,7 @@ function renderProfiles() {
     autoLbl.textContent = "Auto apply";
     const autoVal = document.createElement("span");
     autoVal.className = "profile-card-meta-value";
-    autoVal.classList.add("profile-card-auto-value");
-    autoVal.textContent = "Planned / Inactive";
+    autoVal.textContent = prof.autoApply ? "On" : "Off";
     autoRow.appendChild(autoLbl);
     autoRow.appendChild(autoVal);
     meta.appendChild(autoRow);
@@ -705,6 +842,9 @@ function renderProfiles() {
       header.textContent = `Matched processes (${matches.length})`;
       matchSection.appendChild(header);
 
+      const listContainer = document.createElement("div");
+      listContainer.className = "profile-card-match-list";
+
       for (const procMatch of matches) {
         const item = document.createElement("div");
         item.className = "profile-card-match-item";
@@ -712,6 +852,9 @@ function renderProfiles() {
         const nameSpan = document.createElement("span");
         nameSpan.className = "profile-card-match-name";
         nameSpan.textContent = procMatch.name || "Unknown";
+        if (procMatch.path) {
+          nameSpan.title = procMatch.path;
+        }
         item.appendChild(nameSpan);
 
         const pidSpan = document.createElement("span");
@@ -719,15 +862,50 @@ function renderProfiles() {
         pidSpan.textContent = `PID ${procMatch.pid}`;
         item.appendChild(pidSpan);
 
-        if (procMatch.cpuPriority) {
-          const cpuSpan = document.createElement("span");
-          cpuSpan.className = "profile-card-match-cpu";
-          cpuSpan.textContent = procMatch.cpuPriority;
-          item.appendChild(cpuSpan);
+        const cpuSelect = document.createElement("select");
+        cpuSelect.className = "profile-card-match-cpu-select";
+
+        const cpuOptions = ["High", "AboveNormal", "Normal", "BelowNormal", "Idle", "Realtime"];
+        const instanceKey = `${prof.id}|${procMatch.pid}`;
+        const savedSel = _profileInstanceCpuSelections[instanceKey];
+        let defaultCpu;
+        if (savedSel) {
+          defaultCpu = savedSel;
+        } else if (prof.cpuPriority !== "DoNotChange") {
+          defaultCpu = prof.cpuPriority;
+        } else {
+          defaultCpu = procMatch.cpuPriority || "Normal";
         }
 
-        matchSection.appendChild(item);
+        for (const opt of cpuOptions) {
+          const option = document.createElement("option");
+          option.value = opt;
+          option.textContent = opt;
+          if (opt === defaultCpu) {
+            option.selected = true;
+          }
+          cpuSelect.appendChild(option);
+        }
+
+        cpuSelect.addEventListener("change", function () {
+          _profileInstanceCpuSelections[instanceKey] = cpuSelect.value;
+        });
+
+        item.appendChild(cpuSelect);
+
+        const applyBtn = document.createElement("button");
+        applyBtn.type = "button";
+        applyBtn.className = "profile-card-match-cpu-btn";
+        applyBtn.textContent = "Apply CPU";
+        applyBtn.addEventListener("click", function () {
+          applyProfileCpuToProcess(prof, procMatch, cpuSelect.value);
+        });
+        item.appendChild(applyBtn);
+
+        listContainer.appendChild(item);
       }
+
+      matchSection.appendChild(listContainer);
     } else {
       const empty = document.createElement("div");
       empty.className = "profile-card-match-empty";
@@ -774,18 +952,55 @@ function renderProfiles() {
   }
 }
 
-function postToHost(message) {
-  if (!window.chrome?.webview) {
-    showError("WebView2 bridge is not available.");
-    return;
-  }
+const pendingHostMessages = [];
+let webviewBridgeInitialized = false;
 
-  window.chrome.webview.postMessage(message);
+function ensureWebviewBridge() {
+  if (webviewBridgeInitialized) return;
+  
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener("message", handleHostMessage);
+    webviewBridgeInitialized = true;
+    while (pendingHostMessages.length > 0) {
+      const msg = pendingHostMessages.shift();
+      window.chrome.webview.postMessage(msg);
+    }
+  } else {
+    if (!window._webviewReadyChecking) {
+      window._webviewReadyChecking = true;
+      let checkCount = 0;
+      const interval = setInterval(() => {
+        checkCount++;
+        if (window.chrome && window.chrome.webview) {
+          clearInterval(interval);
+          window._webviewReadyChecking = false;
+          window.chrome.webview.addEventListener("message", handleHostMessage);
+          webviewBridgeInitialized = true;
+          while (pendingHostMessages.length > 0) {
+            const msg = pendingHostMessages.shift();
+            window.chrome.webview.postMessage(msg);
+          }
+        } else if (checkCount >= 40) { // 2 seconds limit
+          clearInterval(interval);
+          window._webviewReadyChecking = false;
+          showError("WebView2 bridge is not available.");
+        }
+      }, 50);
+    }
+  }
+}
+
+function postToHost(message) {
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.postMessage(message);
+  } else {
+    pendingHostMessages.push(message);
+    ensureWebviewBridge();
+  }
 }
 
 function requestNativeProfiles() {
-  if (!window.chrome?.webview) return;
-  window.chrome.webview.postMessage({ type: "loadProfiles" });
+  postToHost({ type: "loadProfiles" });
 }
 
 function requestProcesses() {
@@ -835,6 +1050,7 @@ function handleHostMessage(event) {
     if (!state.processes.some((process) => process.pid === state.selectedPid)) {
       state.selectedPid = state.processes[0]?.pid ?? null;
     }
+    runAutoApply();
     applyFilter();
     return;
   }
@@ -895,6 +1111,7 @@ function handleHostMessage(event) {
         } catch {}
       }
       state.profilesState.warning = "";
+      runAutoApply();
     } else if (message.warning) {
       state.profilesState.warning = message.warning;
     }
@@ -916,6 +1133,21 @@ function handleHostMessage(event) {
     } else if (!message.cancelled && message.warning) {
       state.profilesState.warning = message.warning;
       render();
+    }
+    return;
+  }
+
+  if (message.type === "executableChosen") {
+    if (message.success && message.path) {
+      elements.profileExePath.value = message.path;
+      elements.profileProcessName.value = message.fileName || "";
+      elements.profileMatchMode.value = "path";
+      updateMatchModeUi();
+      if (message.iconDataUrl) {
+        elements.exeIconPreview.innerHTML = "<img src=\"" + message.iconDataUrl.replace(/"/g, "&quot;") + "\" class=\"exe-icon-img\" alt=\"\">";
+      } else {
+        elements.exeIconPreview.innerHTML = "<span class=\"exe-icon-fallback\">&#x1F4C1;</span>";
+      }
     }
     return;
   }
@@ -2689,6 +2921,9 @@ function ensureProfileModalDom() {
   elements.profileResetButton = document.getElementById("profileResetButton");
   elements.profileCancelButton = document.getElementById("profileCancelButton");
   elements.profileSaveButton = document.getElementById("profileSaveButton");
+  elements.exeBrowseRow = document.getElementById("exeBrowseRow");
+  elements.browseExeButton = document.getElementById("browseExeButton");
+  elements.exeIconPreview = document.getElementById("exeIconPreview");
 }
 
 // Bind Profile v1 UI Events
@@ -2706,6 +2941,18 @@ bindUi(elements.deleteProfileConfirmButton, "click", confirmDeleteProfile, "dele
 bindUi(elements.exportProfilesButton, "click", exportProfiles, "exportProfilesButton");
 bindUi(elements.importProfilesButton, "click", importProfiles, "importProfilesButton");
 bindUi(elements.importFileInput, "change", handleImportFile, "importFileInput");
+bindUi(elements.safetyNoteButton, "click", openSafetyModal, "safetyNoteButton");
+bindUi(elements.storageInfoButton, "click", openStorageModal, "storageInfoButton");
+bindUi(elements.safetyModalCloseButton, "click", closeSafetyModal, "safetyModalCloseButton");
+bindUi(elements.storageModalCloseButton, "click", closeStorageModal, "storageModalCloseButton");
+bindUi(elements.browseExeButton, "click", openExecutablePicker, "browseExeButton");
+
+elements.safetyModal.addEventListener("click", function (event) {
+  if (event.target === elements.safetyModal) closeSafetyModal();
+});
+elements.storageModal.addEventListener("click", function (event) {
+  if (event.target === elements.storageModal) closeStorageModal();
+});
 
 render();
 requestProcesses();
