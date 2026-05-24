@@ -1,6 +1,6 @@
 # Windows Process Control Center
 
-Version: `0.1.0`
+Version: `0.1.1`
 
 Windows Process Control Center is a C++20 Win32 desktop application for Windows process inspection and controlled process-management workflows. The current UI is rendered with Microsoft Edge WebView2 using local vanilla HTML, CSS, and JavaScript, while the backend remains native C++/WinAPI.
 
@@ -101,8 +101,8 @@ Create a portable Release package from the repository root:
 The script configures/builds Release by default, creates a clean portable folder, copies the executable, copies the local `web/` frontend, copies release documentation, and creates a ZIP:
 
 ```text
-dist/WindowsProcessControlCenter-0.1.0-portable/
-dist/WindowsProcessControlCenter-0.1.0-portable.zip
+dist/WindowsProcessControlCenter-0.1.1-portable/
+dist/WindowsProcessControlCenter-0.1.1-portable.zip
 ```
 
 The portable folder contains:
@@ -138,7 +138,7 @@ Build the installer from the repository root:
 The generated installer is written to:
 
 ```text
-dist/installer/WindowsProcessControlCenter-0.1.0-setup.exe
+dist/installer/WindowsProcessControlCenter-0.1.1-setup.exe
 ```
 
 The installer is per-user by default and does not require administrator rights for the default location:
@@ -171,7 +171,7 @@ After a Release build:
 After creating the portable package:
 
 ```powershell
-.\dist\WindowsProcessControlCenter-0.1.0-portable\WindowsProcessControlCenter.exe
+.\dist\WindowsProcessControlCenter-0.1.1-portable\WindowsProcessControlCenter.exe
 ```
 
 ## Current Scope

@@ -1,10 +1,10 @@
 #define MyAppName "Windows Process Control Center"
 #define MyAppExeName "WindowsProcessControlCenter.exe"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.1.1"
 #define MyAppPublisher "Windows Process Control Center"
 #define MyAppId "{{6FDC4703-94B6-4E3D-98B1-B22588940D1E}"
 #define MyAppIcon "..\assets\icon.ico"
-#define PortableDir "..\dist\WindowsProcessControlCenter-0.1.0-portable"
+#define PortableDir "..\dist\WindowsProcessControlCenter-0.1.1-portable"
 
 [Setup]
 AppId={#MyAppId}
@@ -18,7 +18,7 @@ DefaultDirName={localappdata}\Programs\WindowsProcessControlCenter
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=no
 OutputDir=..\dist\installer
-OutputBaseFilename=WindowsProcessControlCenter-0.1.0-setup
+OutputBaseFilename=WindowsProcessControlCenter-0.1.1-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

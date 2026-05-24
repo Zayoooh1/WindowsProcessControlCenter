@@ -1,7 +1,7 @@
 const SETTINGS_STORAGE_KEY = "wpcc.settings";
 const VALID_UPDATE_INTERVALS = ["3d", "weekly", "monthly"];
 const UPDATE_STATE_KEY = "wpcc.updateState";
-const CURRENT_VERSION = "0.1.0";
+const CURRENT_VERSION = "0.1.1";
 
 const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
