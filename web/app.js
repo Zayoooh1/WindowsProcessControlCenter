@@ -90,6 +90,9 @@ const elements = {
   rulesStorageNotice: document.getElementById("rulesStorageNotice"),
   rulesActionsBar: document.getElementById("rulesActionsBar"),
   createProfileButton: document.getElementById("createProfileButton"),
+  exportProfilesButton: document.getElementById("exportProfilesButton"),
+  importProfilesButton: document.getElementById("importProfilesButton"),
+  importFileInput: document.getElementById("importFileInput"),
   rulesEmptyState: document.getElementById("rulesEmptyState"),
   emptyCreateProfileButton: document.getElementById("emptyCreateProfileButton"),
   profilesList: document.getElementById("profilesList"),
@@ -316,6 +319,65 @@ function saveProfiles() {
       profiles: JSON.stringify(data),
     });
   }
+}
+
+function exportProfiles() {
+  const data = {
+    schemaVersion: 1,
+    profiles: state.profilesState.profiles,
+  };
+
+  if (window.chrome?.webview) {
+    window.chrome.webview.postMessage({
+      type: "exportProfilesToFile",
+      profiles: JSON.stringify(data),
+    });
+    return;
+  }
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "wpcc-profiles.json";
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
+
+function importProfiles() {
+  elements.importFileInput.value = "";
+  elements.importFileInput.click();
+}
+
+function handleImportFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!parsed || typeof parsed !== "object") {
+        state.profilesState.warning = "Import failed: file does not contain a valid JSON object.";
+        render();
+        return;
+      }
+      const validated = normalizeProfiles(parsed);
+      if (parsed.schemaVersion !== 1) {
+        state.profilesState.warning = `Import failed: unsupported schema version "${parsed.schemaVersion}". Only version 1 is supported.`;
+        render();
+        return;
+      }
+      state.profilesState.profiles = validated.profiles;
+      saveProfiles();
+    } catch {
+      state.profilesState.warning = "Import failed: file does not contain valid JSON.";
+    }
+    render();
+  };
+  reader.readAsText(file);
 }
 
 function openProfileModal(profileId = null) {
@@ -691,6 +753,16 @@ function handleHostMessage(event) {
 
   if (message.type === "profilesSaved") {
     if (!message.success && message.warning) {
+      state.profilesState.warning = message.warning;
+      render();
+    }
+    return;
+  }
+
+  if (message.type === "profilesExported") {
+    if (message.success) {
+      state.profilesState.warning = "";
+    } else if (!message.cancelled && message.warning) {
       state.profilesState.warning = message.warning;
       render();
     }
@@ -2475,6 +2547,9 @@ bindUi(elements.profileRealtimeCheckbox, "change", updateCpuRealtimeUi, "profile
 bindUi(elements.profileForm, "submit", saveProfileForm, "profileForm");
 bindUi(elements.deleteProfileCancelButton, "click", closeDeleteProfileModal, "deleteProfileCancelButton");
 bindUi(elements.deleteProfileConfirmButton, "click", confirmDeleteProfile, "deleteProfileConfirmButton");
+bindUi(elements.exportProfilesButton, "click", exportProfiles, "exportProfilesButton");
+bindUi(elements.importProfilesButton, "click", importProfiles, "importProfilesButton");
+bindUi(elements.importFileInput, "change", handleImportFile, "importFileInput");
 
 render();
 requestProcesses();

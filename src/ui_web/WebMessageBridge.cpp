@@ -57,6 +57,12 @@ namespace wpcc
             return WebMessageType::SaveProfiles;
         }
 
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"exportProfilesToFile\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::ExportProfilesToFile;
+        }
+
         return WebMessageType::Unknown;
     }
 
@@ -167,6 +173,23 @@ namespace wpcc
         json << L"{";
         json << L"\"type\":\"profilesSaved\",";
         json << L"\"success\":" << (success ? L"true" : L"false");
+
+        if (!warning.empty())
+        {
+            json << L",\"warning\":\"" << EscapeJson(WideToUtf8(warning)) << L"\"";
+        }
+
+        json << L"}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildProfilesExportedMessage(bool success, bool cancelled, std::wstring_view warning) const
+    {
+        std::wostringstream json;
+        json << L"{";
+        json << L"\"type\":\"profilesExported\",";
+        json << L"\"success\":" << (success ? L"true" : L"false") << L",";
+        json << L"\"cancelled\":" << (cancelled ? L"true" : L"false");
 
         if (!warning.empty())
         {

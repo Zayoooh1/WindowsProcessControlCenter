@@ -1763,6 +1763,7 @@ body.reduced-motion *::after {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 8px;
 }
 
 .empty-profiles-card {

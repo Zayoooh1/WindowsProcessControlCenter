@@ -3,6 +3,7 @@
 #include <wrl/event.h>
 
 #include <ShlObj.h>
+#include <commdlg.h>
 
 #include <algorithm>
 #include <array>
@@ -175,6 +176,9 @@ namespace wpcc
                         break;
                     case WebMessageType::SaveProfiles:
                         HandleSaveProfiles(messageJson);
+                        break;
+                    case WebMessageType::ExportProfilesToFile:
+                        HandleExportProfilesToFile(messageJson);
                         break;
                     default:
                         SendError("Unsupported frontend message.");
@@ -362,6 +366,52 @@ namespace wpcc
 
         const ProfileSaveResult result = ProfileStore::SaveProfiles(profilesJson);
         const std::wstring response = m_bridge.BuildProfilesSavedMessage(result.success, result.warning);
+        m_webView->PostWebMessageAsJson(response.c_str());
+    }
+
+    void WebViewHost::HandleExportProfilesToFile(std::wstring_view messageJson)
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        const std::string profilesJson = m_bridge.ParseSaveProfilesRequest(messageJson);
+
+        bool cancelled = false;
+        bool success = false;
+        std::wstring warning;
+
+        wchar_t filePath[MAX_PATH] = L"wpcc-profiles.json";
+        OPENFILENAMEW ofn = {};
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = m_hwnd;
+        ofn.lpstrFile = filePath;
+        ofn.nMaxFile = MAX_PATH;
+        ofn.lpstrFilter = L"JSON Files\0*.json\0All Files\0*.*\0";
+        ofn.lpstrDefExt = L"json";
+        ofn.Flags = OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+
+        if (GetSaveFileNameW(&ofn))
+        {
+            std::ofstream file(ofn.lpstrFile);
+            if (file.is_open())
+            {
+                file << profilesJson;
+                file.close();
+                success = true;
+            }
+            else
+            {
+                warning = L"Could not write to the selected file.";
+            }
+        }
+        else
+        {
+            cancelled = true;
+        }
+
+        const std::wstring response = m_bridge.BuildProfilesExportedMessage(success, cancelled, warning);
         m_webView->PostWebMessageAsJson(response.c_str());
     }
 

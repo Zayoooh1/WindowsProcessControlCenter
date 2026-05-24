@@ -20,6 +20,7 @@ namespace wpcc
         SetGpuPreference,
         LoadProfiles,
         SaveProfiles,
+        ExportProfilesToFile,
     };
 
     struct SetCpuPriorityRequest
@@ -71,6 +72,7 @@ namespace wpcc
         std::wstring BuildActionResultMessage(std::string_view action, const ProcessActionResult& result) const;
         std::wstring BuildProfilesLoadedMessage(bool success, const std::string& profilesJson, std::wstring_view warning) const;
         std::wstring BuildProfilesSavedMessage(bool success, std::wstring_view warning) const;
+        std::wstring BuildProfilesExportedMessage(bool success, bool cancelled, std::wstring_view warning) const;
         std::wstring BuildErrorMessage(std::string_view message) const;
 
     private:

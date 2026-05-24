@@ -455,6 +455,8 @@
             <div class="rules-main-content">
               <div id="rulesActionsBar" class="rules-actions-bar hidden-view">
                 <button id="createProfileButton" class="primary-button" type="button">Create profile</button>
+                <button id="exportProfilesButton" class="secondary-button" type="button">Export profiles</button>
+                <button id="importProfilesButton" class="secondary-button" type="button">Import profiles</button>
               </div>
 
               <!-- Empty state -->
@@ -600,6 +602,7 @@
       </main>
     </div>
   </div>
+  <input type="file" id="importFileInput" accept=".json,application/json" class="hidden">
   <script src="app.js"></script>
 </body>
 </html>
