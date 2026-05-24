@@ -14,9 +14,13 @@ const DEFAULT_SETTINGS = {
   updateCheckInterval: "weekly",
   autoInstallUpdates: false,
   ignoredUpdateVersion: null,
+  autoRefreshInterval: "off",
 };
+
+const VALID_AUTO_REFRESH_INTERVALS = ["off", "5s", "15s", "30s", "60s"];
 const initialSettingsState = loadSettings();
 const initialProfilesState = loadProfiles();
+let autoRefreshTimer = null;
 
 const state = {
   activeView: initialSettingsState.settings.startScreen,
@@ -79,6 +83,7 @@ const elements = {
   resetSettingsButton: document.getElementById("resetSettingsButton"),
   updatesChecksToggle: document.getElementById("updatesChecksToggle"),
   updateIntervalSelect: document.getElementById("updateIntervalSelect"),
+  autoRefreshSelect: document.getElementById("autoRefreshSelect"),
   autoInstallToggle: document.getElementById("autoInstallToggle"),
   ignoredUpdateVersionDisplay: document.getElementById("ignoredUpdateVersionDisplay"),
   manualCheckButton: document.getElementById("manualCheckButton"),
@@ -181,6 +186,9 @@ function normalizeSettings(value) {
     ignoredUpdateVersion: source.ignoredUpdateVersion && typeof source.ignoredUpdateVersion === "string"
       ? source.ignoredUpdateVersion
       : null,
+    autoRefreshInterval: VALID_AUTO_REFRESH_INTERVALS.includes(source.autoRefreshInterval)
+      ? source.autoRefreshInterval
+      : "off",
   };
 }
 
@@ -788,6 +796,30 @@ function requestProcesses() {
   postToHost({ type: "refreshProcesses" });
 }
 
+function startAutoRefresh() {
+  stopAutoRefresh();
+  const value = state.settings.autoRefreshInterval;
+  const intervalMap = { "5s": 5000, "15s": 15000, "30s": 30000, "60s": 60000 };
+  const ms = intervalMap[value];
+  if (!ms) return;
+  autoRefreshTimer = setInterval(requestProcesses, ms);
+}
+
+function stopAutoRefresh() {
+  if (autoRefreshTimer !== null) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+}
+
+function restartAutoRefresh() {
+  if (state.settings.autoRefreshInterval !== "off") {
+    startAutoRefresh();
+  } else {
+    stopAutoRefresh();
+  }
+}
+
 function handleHostMessage(event) {
   const message = event.data;
   if (!message || typeof message.type !== "string") {
@@ -981,6 +1013,7 @@ function renderSettings() {
   elements.updatesChecksToggle.checked = state.settings.updateChecksEnabled;
   elements.updateIntervalSelect.value = state.settings.updateCheckInterval;
   elements.updateIntervalSelect.disabled = !state.settings.updateChecksEnabled;
+  elements.autoRefreshSelect.value = state.settings.autoRefreshInterval;
   elements.autoInstallToggle.checked = false;
   elements.autoInstallToggle.disabled = true;
   elements.ignoredUpdateVersionDisplay.textContent = state.settings.ignoredUpdateVersion || "None";
@@ -2505,6 +2538,10 @@ bindUi(elements.updatesChecksToggle, "change", (event) => {
   saveSettings();
 }, "updatesChecksToggle");
 bindUi(elements.updateIntervalSelect, "change", (event) => updateSetting("updateCheckInterval", event.target.value), "updateIntervalSelect");
+bindUi(elements.autoRefreshSelect, "change", (event) => {
+  updateSetting("autoRefreshInterval", event.target.value);
+  restartAutoRefresh();
+}, "autoRefreshSelect");
 bindUi(elements.autoInstallToggle, "change", () => renderSettings(), "autoInstallToggle");
 bindUi(elements.resetSettingsButton, "click", () => {
   state.resetSettingsModalOpen = true;
@@ -2673,4 +2710,5 @@ bindUi(elements.importFileInput, "change", handleImportFile, "importFileInput");
 render();
 requestProcesses();
 requestNativeProfiles();
+restartAutoRefresh();
 runAutoUpdateCheckIfNeeded();
