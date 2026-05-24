@@ -247,12 +247,7 @@ namespace wpcc
         } while (Process32NextW(snapshot.Get(), &entry));
 
         std::sort(processes.begin(), processes.end(), [](const ProcessInfo& left, const ProcessInfo& right) {
-            const int cmp = _stricmp(left.name.c_str(), right.name.c_str());
-            if (cmp != 0)
-            {
-                return cmp < 0;
-            }
-            return left.pid < right.pid;
+            return left.name < right.name;
         });
 
         return processes;

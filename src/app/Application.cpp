@@ -87,13 +87,6 @@ namespace wpcc
 
         switch (message)
         {
-        case WebViewHost::ChooseExecutableWindowMessage:
-            if (m_webViewHost)
-            {
-                m_webViewHost->ChooseExecutable();
-            }
-            handled = true;
-            return 0;
         case WM_SIZE:
             if (m_webViewHost && wParam != SIZE_MINIMIZED)
             {

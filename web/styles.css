@@ -1736,8 +1736,27 @@ body.reduced-motion *::after {
 }
 
 /* Profiles v1 CSS layout */
-.rules-main-content {
+.rules-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
+  gap: var(--gap);
+  min-height: 0;
+  min-width: 0;
   margin-top: 4px;
+}
+
+.rules-info-sidebar {
+  display: grid;
+  grid-auto-rows: min-content;
+  gap: var(--gap);
+}
+
+.rules-main-content {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--gap);
+  min-height: 0;
+  min-width: 0;
 }
 
 .rules-actions-bar {
@@ -1745,27 +1764,6 @@ body.reduced-motion *::after {
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-}
-
-.actions-bar-spacer {
-  flex: 1;
-}
-
-.text-button {
-  background: none;
-  border: none;
-  color: var(--accent);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 3px;
-  transition: background 120ms ease;
-}
-
-.text-button:hover {
-  background: rgba(99, 165, 230, 0.08);
-  text-decoration: underline;
 }
 
 .empty-profiles-card {
@@ -1791,8 +1789,7 @@ body.reduced-motion *::after {
 .profile-card {
   display: grid;
   align-content: start;
-  align-items: start;
-  gap: 10px;
+  gap: 12px;
   padding: var(--panel-padding);
   background: rgba(27, 34, 44, 0.94);
   border: 1px solid var(--border);
@@ -1801,7 +1798,6 @@ body.reduced-motion *::after {
   transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
   position: relative;
   overflow: hidden;
-  min-height: 280px;
 }
 
 .profile-card:hover {
@@ -1818,7 +1814,7 @@ body.reduced-motion *::after {
 }
 
 .profile-card-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text);
   word-break: break-word;
@@ -1831,9 +1827,9 @@ body.reduced-motion *::after {
   background: rgba(32, 40, 51, 0.5);
   border: 1px solid var(--border-soft);
   border-radius: 6px;
-  padding: 5px 8px;
+  padding: 6px 8px;
   display: grid;
-  gap: 3px;
+  gap: 4px;
 }
 
 .profile-card-target-label {
@@ -1846,16 +1842,16 @@ body.reduced-motion *::after {
 .profile-card-presets {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 8px;
 }
 
 .profile-card-meta {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   font-size: 12px;
   color: var(--subtle);
   border-top: 1px solid var(--border-soft);
-  padding-top: 6px;
+  padding-top: 8px;
 }
 
 .profile-card-meta-row {
@@ -1884,17 +1880,17 @@ body.reduced-motion *::after {
 .profile-card-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 12px;
   border-top: 1px solid var(--border-soft);
-  padding-top: 6px;
-  margin-top: 2px;
+  padding-top: 8px;
+  margin-top: 4px;
 }
 
 .profile-card-btn {
   background: transparent;
   border: 0;
-  padding: 3px 7px;
-  font-size: 11px;
+  padding: 4px 8px;
+  font-size: 12px;
   color: var(--muted);
   cursor: pointer;
   border-radius: 4px;
@@ -1934,14 +1930,9 @@ body.reduced-motion *::after {
   font-size: 12px;
   color: var(--subtle);
   border-top: 1px solid var(--border-soft);
-  padding-top: 6px;
-}
-.profile-card-match-list {
+  padding-top: 8px;
   display: grid;
-  gap: 3px;
-  max-height: 135px;
-  overflow-y: auto;
-  margin-top: 4px;
+  gap: 4px;
 }
 
 .profile-card-match-header {
@@ -1955,14 +1946,14 @@ body.reduced-motion *::after {
 
 .profile-card-match-item {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
-  gap: 6px;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
   align-items: center;
   font-size: 11px;
   color: var(--text);
   background: rgba(32, 40, 51, 0.4);
   border-radius: 4px;
-  padding: 2px 5px;
+  padding: 3px 6px;
 }
 
 .profile-card-match-name {
@@ -2134,25 +2125,6 @@ body.reduced-motion *::after {
 .profile-card-auto-value {
   color: var(--warning);
 }
-.profile-card-match-cpu-btn {
-  font-size: 10px;
-  padding: 1px 5px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border-soft);
-  border-radius: 3px;
-  color: var(--muted);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.profile-card-match-cpu-btn:hover:not(:disabled) {
-  background: var(--accent-bg);
-  color: var(--accent);
-  border-color: var(--accent);
-}
-.profile-card-match-cpu-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
 /* Muted detail line */
 .value-line-muted {
   color: var(--muted);
@@ -2165,61 +2137,11 @@ body.reduced-motion *::after {
   overflow-y: auto;
 }
 
-.profile-info-modal {
-  width: min(440px, 100%) !important;
-}
-
-.exe-path-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.exe-browse-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.exe-icon-preview {
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.exe-icon-img {
-  max-width: 32px;
-  max-height: 32px;
-}
-
-.exe-icon-fallback {
-  font-size: 24px;
-  line-height: 1;
-}
-
-.exe-path-input {
-  flex: 1;
-  min-width: 0;
-}
-
 /* Responsiveness overrides for Rules/Profiles */
-
-.profile-card-match-cpu-select {
-  font-size: 10px;
-  padding: 0 2px;
-  background: rgba(32, 40, 51, 0.8);
-  border: 1px solid var(--border-soft);
-  border-radius: 3px;
-  color: var(--text);
-  cursor: pointer;
-  max-width: 95px;
-}
-.profile-card-match-cpu-select:hover {
-  border-color: var(--accent);
+@media (max-width: 1100px) {
+  .rules-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 
