@@ -22,6 +22,7 @@ namespace wpcc
         SaveProfiles,
         ExportProfilesToFile,
         ChooseExecutable,
+        ApplyProfile,
     };
 
     struct SetCpuPriorityRequest
@@ -69,12 +70,14 @@ namespace wpcc
         ResumeProcessRequest ParseResumeProcessRequest(std::wstring_view messageJson) const;
         SetGpuPreferenceRequest ParseSetGpuPreferenceRequest(std::wstring_view messageJson) const;
         std::string ParseSaveProfilesRequest(std::wstring_view messageJson) const;
+        std::string ParseApplyProfileRequest(std::wstring_view messageJson) const;
         std::wstring BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes) const;
         std::wstring BuildActionResultMessage(std::string_view action, const ProcessActionResult& result) const;
         std::wstring BuildProfilesLoadedMessage(bool success, const std::string& profilesJson, std::wstring_view warning) const;
         std::wstring BuildProfilesSavedMessage(bool success, std::wstring_view warning) const;
         std::wstring BuildProfilesExportedMessage(bool success, bool cancelled, std::wstring_view warning) const;
         std::wstring BuildExecutableChosenMessage(bool success, bool cancelled, std::wstring_view path, std::wstring_view fileName, std::string_view iconDataUrl) const;
+        std::wstring BuildProfileAppliedMessage(const std::string& profileId, bool success, int matched, int updated, int failed, std::string_view message) const;
         std::wstring BuildErrorMessage(std::string_view message) const;
 
     private:

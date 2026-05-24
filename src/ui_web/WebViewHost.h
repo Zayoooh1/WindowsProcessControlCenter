@@ -41,6 +41,7 @@ namespace wpcc
         void HandleLoadProfiles();
         void HandleSaveProfiles(std::wstring_view messageJson);
         void HandleExportProfilesToFile(std::wstring_view messageJson);
+        void HandleApplyProfile(std::wstring_view messageJson);
         void SendError(std::string_view message);
         void ShowInitializationError(std::wstring_view message) const;
 

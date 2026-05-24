@@ -233,4 +233,197 @@ namespace wpcc
             return { false, L"An unexpected error occurred while saving native profiles." };
         }
     }
+
+    namespace
+    {
+        std::string ParseJsonString(const std::string& json, size_t& index)
+        {
+            std::string result;
+            if (index >= json.size() || json[index] != '"') return result;
+            index++; // skip opening quote
+            while (index < json.size())
+            {
+                char c = json[index];
+                if (c == '"')
+                {
+                    index++; // skip closing quote
+                    break;
+                }
+                else if (c == '\\' && index + 1 < json.size())
+                {
+                    index++;
+                    char escaped = json[index];
+                    switch (escaped)
+                    {
+                    case '"':  result.push_back('"'); break;
+                    case '\\': result.push_back('\\'); break;
+                    case '/':  result.push_back('/'); break;
+                    case 'b':  result.push_back('\b'); break;
+                    case 'f':  result.push_back('\f'); break;
+                    case 'n':  result.push_back('\n'); break;
+                    case 'r':  result.push_back('\r'); break;
+                    case 't':  result.push_back('\t'); break;
+                    default:   result.push_back(escaped); break;
+                    }
+                }
+                else
+                {
+                    result.push_back(c);
+                }
+                index++;
+            }
+            return result;
+        }
+
+        void SkipWhitespace(const std::string& json, size_t& index)
+        {
+            while (index < json.size() && (json[index] == ' ' || json[index] == '\t' || json[index] == '\r' || json[index] == '\n'))
+            {
+                index++;
+            }
+        }
+    }
+
+    std::vector<Profile> ProfileStore::ParseProfilesJson(const std::string& json)
+    {
+        std::vector<Profile> profiles;
+        size_t index = 0;
+
+        size_t profilesKeyPos = json.find("\"profiles\"");
+        if (profilesKeyPos == std::string::npos)
+        {
+            return profiles;
+        }
+
+        index = profilesKeyPos + 10;
+        SkipWhitespace(json, index);
+        if (index >= json.size() || json[index] != ':')
+        {
+            return profiles;
+        }
+        index++;
+        SkipWhitespace(json, index);
+        if (index >= json.size() || json[index] != '[')
+        {
+            return profiles;
+        }
+        index++;
+
+        while (index < json.size())
+        {
+            SkipWhitespace(json, index);
+            if (index >= json.size()) break;
+            if (json[index] == ']')
+            {
+                index++;
+                break;
+            }
+            if (json[index] == ',')
+            {
+                index++;
+                continue;
+            }
+            if (json[index] == '{')
+            {
+                index++;
+                Profile profile;
+
+                while (index < json.size())
+                {
+                    SkipWhitespace(json, index);
+                    if (index >= json.size()) break;
+                    if (json[index] == '}')
+                    {
+                        index++;
+                        break;
+                    }
+                    if (json[index] == ',')
+                    {
+                        index++;
+                        continue;
+                    }
+
+                    if (json[index] == '"')
+                    {
+                        std::string key = ParseJsonString(json, index);
+                        SkipWhitespace(json, index);
+                        if (index < json.size() && json[index] == ':')
+                        {
+                            index++;
+                            SkipWhitespace(json, index);
+
+                            if (index < json.size() && json[index] == '"')
+                            {
+                                std::string val = ParseJsonString(json, index);
+                                if (key == "id") profile.id = val;
+                                else if (key == "name") profile.name = val;
+                                else if (key == "targetExePath") profile.targetExePath = val;
+                                else if (key == "targetProcessName") profile.targetProcessName = val;
+                                else if (key == "matchMode") profile.matchMode = val;
+                                else if (key == "cpuPriority") profile.cpuPriority = val;
+                            }
+                            else if (index < json.size() && (json[index] == 't' || json[index] == 'f'))
+                            {
+                                bool val = (json[index] == 't');
+                                while (index < json.size() && std::isalpha(static_cast<unsigned char>(json[index])))
+                                {
+                                    index++;
+                                }
+                                if (key == "allowRealtime") profile.allowRealtime = val;
+                            }
+                            else
+                            {
+                                int braceCount = 0;
+                                int bracketCount = 0;
+                                bool inStr = false;
+                                bool esc = false;
+                                while (index < json.size())
+                                {
+                                    char c = json[index];
+                                    if (inStr)
+                                    {
+                                        if (esc) esc = false;
+                                        else if (c == '\\') esc = true;
+                                        else if (c == '"') inStr = false;
+                                    }
+                                    else
+                                    {
+                                        if (c == '"') inStr = true;
+                                        else if (c == '{') braceCount++;
+                                        else if (c == '}')
+                                        {
+                                            if (braceCount == 0) break;
+                                            braceCount--;
+                                        }
+                                        else if (c == '[') bracketCount++;
+                                        else if (c == ']')
+                                        {
+                                            if (bracketCount == 0) break;
+                                            bracketCount--;
+                                        }
+                                        else if (c == ',' && braceCount == 0 && bracketCount == 0)
+                                        {
+                                            break;
+                                        }
+                                    }
+                                    index++;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        index++;
+                    }
+                }
+                profiles.push_back(profile);
+            }
+            else
+            {
+                index++;
+            }
+        }
+
+        return profiles;
+    }
 }

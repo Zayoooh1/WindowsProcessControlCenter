@@ -192,6 +192,9 @@ namespace wpcc
                         AppLog(L"Browse clicked");
                         PostMessageW(m_hwnd, ChooseExecutableWindowMessage, 0, 0);
                         break;
+                    case WebMessageType::ApplyProfile:
+                        HandleApplyProfile(messageJson);
+                        break;
                     default:
                         SendError("Unsupported frontend message.");
                         break;
@@ -425,6 +428,56 @@ namespace wpcc
 
         const std::wstring response = m_bridge.BuildProfilesExportedMessage(success, cancelled, warning);
         m_webView->PostWebMessageAsJson(response.c_str());
+    }
+
+    void WebViewHost::HandleApplyProfile(std::wstring_view messageJson)
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        const std::string profileId = m_bridge.ParseApplyProfileRequest(messageJson);
+        if (profileId.empty())
+        {
+            const std::wstring response = m_bridge.BuildProfileAppliedMessage("", false, 0, 0, 0, "No profile ID received.");
+            m_webView->PostWebMessageAsJson(response.c_str());
+            return;
+        }
+
+        const ProfileLoadResult loadResult = ProfileStore::LoadProfiles();
+        if (!loadResult.success)
+        {
+            const std::wstring response = m_bridge.BuildProfileAppliedMessage(profileId, false, 0, 0, 0, "Failed to load profiles storage.");
+            m_webView->PostWebMessageAsJson(response.c_str());
+            return;
+        }
+
+        const std::vector<Profile> profiles = ProfileStore::ParseProfilesJson(loadResult.jsonContent);
+        const auto profileIt = std::find_if(profiles.begin(), profiles.end(), [&profileId](const Profile& p) {
+            return p.id == profileId;
+        });
+
+        if (profileIt == profiles.end())
+        {
+            const std::wstring response = m_bridge.BuildProfileAppliedMessage(profileId, false, 0, 0, 0, "Profile not found.");
+            m_webView->PostWebMessageAsJson(response.c_str());
+            return;
+        }
+
+        const ApplyProfileResult result = m_processActions.ApplyProfile(*profileIt);
+
+        const std::wstring response = m_bridge.BuildProfileAppliedMessage(
+            profileId,
+            result.success,
+            result.matched,
+            result.updated,
+            result.failed,
+            result.message
+        );
+        m_webView->PostWebMessageAsJson(response.c_str());
+
+        SendProcessSnapshot();
     }
 
     void WebViewHost::ChooseExecutable()

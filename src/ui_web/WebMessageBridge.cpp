@@ -69,6 +69,12 @@ namespace wpcc
             return WebMessageType::ChooseExecutable;
         }
 
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"applyProfile\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::ApplyProfile;
+        }
+
         return WebMessageType::Unknown;
     }
 
@@ -110,6 +116,11 @@ namespace wpcc
     std::string WebMessageBridge::ParseSaveProfilesRequest(std::wstring_view messageJson) const
     {
         return ExtractString(messageJson, L"profiles");
+    }
+
+    std::string WebMessageBridge::ParseApplyProfileRequest(std::wstring_view messageJson) const
+    {
+        return ExtractString(messageJson, L"profileId");
     }
 
     SetGpuPreferenceRequest WebMessageBridge::ParseSetGpuPreferenceRequest(std::wstring_view messageJson) const
@@ -224,6 +235,21 @@ namespace wpcc
             }
         }
 
+        json << L"}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildProfileAppliedMessage(const std::string& profileId, bool success, int matched, int updated, int failed, std::string_view message) const
+    {
+        std::wostringstream json;
+        json << L"{";
+        json << L"\"type\":\"profileApplied\",";
+        json << L"\"profileId\":\"" << EscapeJson(profileId) << L"\",";
+        json << L"\"success\":" << (success ? L"true" : L"false") << L",";
+        json << L"\"matched\":" << matched << L",";
+        json << L"\"updated\":" << updated << L",";
+        json << L"\"failed\":" << failed << L",";
+        json << L"\"message\":\"" << EscapeJson(message) << L"\"";
         json << L"}";
         return json.str();
     }

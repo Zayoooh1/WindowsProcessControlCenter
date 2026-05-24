@@ -636,9 +636,6 @@ function applyProfile(profileId) {
   const profile = state.profilesState.profiles.find(p => p.id === profileId);
   if (!profile) return;
 
-  const processes = getMatchingProcesses(profile);
-  if (processes.length === 0) return;
-
   if (profile.cpuPriority === "Realtime" && !profile.allowRealtime) {
     state.profilesState.warning = "Cannot apply: Realtime priority requires confirmation in the profile settings. Edit the profile and confirm the Realtime risk to enable it.";
     render();
@@ -648,42 +645,10 @@ function applyProfile(profileId) {
   state.profilesState.applyingProfileId = profileId;
   render();
 
-  let cpuCount = 0;
-  let gpuCount = 0;
-
-  for (const proc of processes) {
-    if (profile.cpuPriority !== "DoNotChange") {
-      postToHost({
-        type: "setCpuPriority",
-        pid: proc.pid,
-        priority: profile.cpuPriority,
-        confirmRealtime: profile.cpuPriority === "Realtime" && profile.allowRealtime,
-      });
-      cpuCount++;
-    }
-
-    if (profile.gpuPreference !== "DoNotChange") {
-      postToHost({
-        type: "setGpuPreference",
-        pid: proc.pid,
-        expectedName: proc.name || "",
-        exePath: proc.path || "",
-        preference: profile.gpuPreference,
-      });
-      gpuCount++;
-    }
-  }
-
-  state.profilesState.applyingProfileId = null;
-  state.profilesState.warning = "";
-
-  const parts = [];
-  if (cpuCount > 0) parts.push("CPU priority");
-  if (gpuCount > 0) parts.push("GPU preference");
-  showStatus(`Applied ${parts.join(" and ")} to ${processes.length} process(es).`, true);
-
-  requestProcesses();
-  render();
+  postToHost({
+    type: "applyProfile",
+    profileId: profileId,
+  });
 }
 
 function runAutoApply() {
@@ -922,7 +887,7 @@ function renderProfiles() {
     applyBtn.type = "button";
     applyBtn.className = "profile-card-btn primary";
     applyBtn.textContent = state.profilesState.applyingProfileId === prof.id ? "Applying..." : "Apply profile";
-    applyBtn.disabled = matches.length === 0 || state.profilesState.applyingProfileId === prof.id;
+    applyBtn.disabled = state.profilesState.applyingProfileId === prof.id;
     applyBtn.addEventListener("click", () => {
       applyProfile(prof.id);
     });
@@ -1115,6 +1080,14 @@ function handleHostMessage(event) {
     } else if (message.warning) {
       state.profilesState.warning = message.warning;
     }
+    render();
+    return;
+  }
+
+  if (message.type === "profileApplied") {
+    state.profilesState.applyingProfileId = null;
+    showStatus(message.message || "Profile applied.", Boolean(message.success));
+    requestProcesses();
     render();
     return;
   }

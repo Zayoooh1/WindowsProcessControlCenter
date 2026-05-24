@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/ProfileStore.h"
+
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -16,6 +18,15 @@ namespace wpcc
         std::string currentPreference;
     };
 
+    struct ApplyProfileResult
+    {
+        bool success = false;
+        int matched = 0;
+        int updated = 0;
+        int failed = 0;
+        std::string message;
+    };
+
     struct FrozenThreadRecord
     {
         unsigned long threadId = 0;
@@ -26,6 +37,7 @@ namespace wpcc
     {
     public:
         ProcessActionResult SetCpuPriority(unsigned long pid, const std::string& priority, bool confirmRealtime) const;
+        ApplyProfileResult ApplyProfile(const Profile& profile) const;
         ProcessActionResult TerminateProcessByPid(unsigned long pid, const std::string& expectedName, const std::string& confirmation) const;
         ProcessActionResult FreezeProcessByPid(unsigned long pid, const std::string& expectedName, const std::string& confirmation);
         ProcessActionResult ResumeProcessByPid(unsigned long pid, const std::string& expectedName);
