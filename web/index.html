@@ -446,34 +446,12 @@
           <!-- Storage Warning Banner -->
           <div id="rulesStorageNotice" class="settings-storage-notice hidden"></div>
 
-          <div class="rules-layout">
-            <!-- Sidebar with safety and storage info -->
-            <div class="rules-info-sidebar">
-              <section class="panel rules-card">
-                <div class="rules-card-header">
-                  <h2>Safety note</h2>
-                </div>
-                <div class="rules-status-message">
-                  <p>Profiles are saved locally in this browser/WebView storage. They do not perform automatic actions yet.</p>
-                  <p class="rules-safety-warning">End Process, Freeze and Resume are not supported in profiles.</p>
-                </div>
-              </section>
-
-              <section class="panel rules-card">
-                <div class="rules-card-header">
-                  <h2>Storage information</h2>
-                </div>
-                <div class="about-info-list rules-storage-info">
-                  <div class="about-info-row"><strong>storage type</strong><span>localStorage</span></div>
-                  <div class="about-info-row"><strong>storage key</strong><span>wpcc.profiles</span></div>
-                </div>
-                <p class="rules-note rules-storage-note">Native profiles.json storage is planned for a future version.</p>
-              </section>
-            </div>
-
-            <!-- Main area: Actions, empty state, and grid of cards -->
-            <div class="rules-main-content">
+          <!-- Main area: Actions, empty state, and grid of cards -->
+          <div class="rules-main-content">
               <div id="rulesActionsBar" class="rules-actions-bar hidden-view">
+                <button id="safetyNoteButton" class="text-button" type="button">Safety note</button>
+                <button id="storageInfoButton" class="text-button" type="button">Storage info</button>
+                <span class="actions-bar-spacer"></span>
                 <button id="createProfileButton" class="primary-button" type="button">Create profile</button>
                 <button id="exportProfilesButton" class="secondary-button" type="button">Export profiles</button>
                 <button id="importProfilesButton" class="secondary-button" type="button">Import profiles</button>
@@ -513,7 +491,12 @@
 
                     <div class="form-group" id="exePathGroup">
                       <label for="profileExePath">Target executable path (preferred)</label>
-                      <input type="text" id="profileExePath" placeholder="e.g. C:\Games\HeavyGame.exe">
+                      <input type="text" id="profileExePath" placeholder="e.g. C:\Games\HeavyGame.exe" class="exe-path-input">
+                    </div>
+
+                    <div id="exeBrowseRow" class="form-group exe-browse-row">
+                      <div id="exeIconPreview" class="exe-icon-preview"><span class="exe-icon-fallback">&#x1F4C1;</span></div>
+                      <button id="browseExeButton" class="secondary-button" type="button">Browse...</button>
                     </div>
 
                     <div class="form-group" id="processNameGroup">
@@ -567,13 +550,13 @@
                         </label>
                       </div>
 
-                      <div class="switch-item locked-item">
+                      <div class="switch-item">
                         <div class="switch-label-group">
                           <strong>Auto apply</strong>
-                          <span>Planned / Inactive — Not available yet</span>
+                          <span>Automatically apply this profile to matching processes when the process list refreshes.</span>
                         </div>
-                        <label class="switch-control locked">
-                          <input id="profileAutoApply" type="checkbox" disabled>
+                        <label class="switch-control">
+                          <input id="profileAutoApply" type="checkbox">
                           <span class="switch-track"><span class="switch-thumb"></span></span>
                         </label>
                       </div>
@@ -616,8 +599,34 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Safety Note Modal -->
+              <div id="safetyModal" class="modal-backdrop hidden-view">
+                <div class="confirm-modal profile-info-modal">
+                  <h2>Safety note</h2>
+                  <p>Profiles are saved locally in this browser/WebView storage. They do not perform automatic actions yet.</p>
+                  <p class="rules-safety-warning" style="margin-top:10px">End Process, Freeze and Resume are not supported in profiles.</p>
+                  <div class="modal-actions" style="margin-top:16px">
+                    <button id="safetyModalCloseButton" class="secondary-button" type="button">Close</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Storage Info Modal -->
+              <div id="storageModal" class="modal-backdrop hidden-view">
+                <div class="confirm-modal profile-info-modal">
+                  <h2>Storage information</h2>
+                  <div class="about-info-list rules-storage-info" style="margin-top:12px">
+                    <div class="about-info-row"><strong>storage type</strong><span>localStorage + native profiles.json</span></div>
+                    <div class="about-info-row"><strong>storage key</strong><span>wpcc.profiles</span></div>
+                  </div>
+                  <p class="rules-note" style="margin-top:12px;color:var(--subtle);font-size:13px">Native profiles.json storage is active. Profiles are stored at %APPDATA%\WindowsProcessControlCenter\profiles.json.</p>
+                  <div class="modal-actions" style="margin-top:16px">
+                    <button id="storageModalCloseButton" class="secondary-button" type="button">Close</button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
         </section>
       </main>
     </div>
