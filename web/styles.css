@@ -1907,6 +1907,60 @@ body.reduced-motion *::after {
   color: var(--danger);
 }
 
+.profile-card-matches {
+  font-size: 12px;
+  color: var(--subtle);
+  border-top: 1px solid var(--border-soft);
+  padding-top: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.profile-card-match-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  margin-bottom: 2px;
+}
+
+.profile-card-match-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text);
+  background: rgba(32, 40, 51, 0.4);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+
+.profile-card-match-name {
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.profile-card-match-pid {
+  color: var(--subtle);
+  font-family: monospace;
+}
+
+.profile-card-match-cpu {
+  color: var(--muted);
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+.profile-card-match-empty {
+  font-style: italic;
+  color: var(--subtle);
+  font-size: 11px;
+}
+
 /* Profile form layout – replacing inline style attributes */
 #profileForm {
   margin-top: 16px;

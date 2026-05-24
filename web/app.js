@@ -515,6 +515,18 @@ function updateCpuRealtimeUi() {
   elements.profileSaveButton.disabled = !canSave;
 }
 
+function getMatchingProcesses(profile) {
+  return state.processes.filter(function (process) {
+    if (profile.matchMode === "path" && profile.targetExePath) {
+      return process.path && process.path.toLowerCase() === profile.targetExePath.toLowerCase();
+    }
+    if (profile.matchMode === "name" && profile.targetProcessName) {
+      return process.name && process.name.toLowerCase() === profile.targetProcessName.toLowerCase();
+    }
+    return false;
+  });
+}
+
 function renderProfiles() {
   const hasWarning = Boolean(state.profilesState.warning);
   elements.rulesStorageNotice.classList.toggle("hidden", !hasWarning);
@@ -619,6 +631,48 @@ function renderProfiles() {
     meta.appendChild(dateRow);
 
     card.appendChild(meta);
+
+    const matches = getMatchingProcesses(prof);
+    const matchSection = document.createElement("div");
+    matchSection.className = "profile-card-matches";
+
+    if (matches.length > 0) {
+      const header = document.createElement("div");
+      header.className = "profile-card-match-header";
+      header.textContent = `Matched processes (${matches.length})`;
+      matchSection.appendChild(header);
+
+      for (const procMatch of matches) {
+        const item = document.createElement("div");
+        item.className = "profile-card-match-item";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "profile-card-match-name";
+        nameSpan.textContent = procMatch.name || "Unknown";
+        item.appendChild(nameSpan);
+
+        const pidSpan = document.createElement("span");
+        pidSpan.className = "profile-card-match-pid";
+        pidSpan.textContent = `PID ${procMatch.pid}`;
+        item.appendChild(pidSpan);
+
+        if (procMatch.cpuPriority) {
+          const cpuSpan = document.createElement("span");
+          cpuSpan.className = "profile-card-match-cpu";
+          cpuSpan.textContent = procMatch.cpuPriority;
+          item.appendChild(cpuSpan);
+        }
+
+        matchSection.appendChild(item);
+      }
+    } else {
+      const empty = document.createElement("div");
+      empty.className = "profile-card-match-empty";
+      empty.textContent = "No running matches";
+      matchSection.appendChild(empty);
+    }
+
+    card.appendChild(matchSection);
 
     const actions = document.createElement("div");
     actions.className = "profile-card-actions";
