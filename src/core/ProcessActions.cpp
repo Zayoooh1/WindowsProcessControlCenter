@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <iostream>
 #include <string_view>
 #include <sstream>
 #include <vector>
@@ -516,7 +517,7 @@ namespace wpcc
         {
             return HIGH_PRIORITY_CLASS;
         }
-        if (priority == "Above Normal" || priority == "Above normal")
+        if (priority == "Above Normal" || priority == "Above normal" || priority == "AboveNormal")
         {
             return ABOVE_NORMAL_PRIORITY_CLASS;
         }
@@ -524,7 +525,7 @@ namespace wpcc
         {
             return NORMAL_PRIORITY_CLASS;
         }
-        if (priority == "Below Normal" || priority == "Below normal")
+        if (priority == "Below Normal" || priority == "Below normal" || priority == "BelowNormal")
         {
             return BELOW_NORMAL_PRIORITY_CLASS;
         }
@@ -604,5 +605,226 @@ namespace wpcc
         std::string message(static_cast<size_t>(requiredSize), '\0');
         WideCharToMultiByte(CP_UTF8, 0, wideMessage.c_str(), static_cast<int>(wideMessage.size()), message.data(), requiredSize, nullptr, nullptr);
         return message + " (" + std::to_string(errorCode) + ")";
+    }
+
+    namespace
+    {
+        std::wstring Utf8ToWide(std::string_view value)
+        {
+            if (value.empty()) return {};
+            const int requiredSize = MultiByteToWideChar(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), nullptr, 0);
+            if (requiredSize <= 0) return {};
+            std::wstring result(static_cast<size_t>(requiredSize), L'\0');
+            MultiByteToWideChar(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), result.data(), requiredSize);
+            return result;
+        }
+
+        std::string NormalizePath(std::string_view path)
+        {
+            std::string result(path);
+            result.erase(0, result.find_first_not_of(" \t\r\n"));
+            result.erase(result.find_last_not_of(" \t\r\n") + 1);
+            for (char& c : result)
+            {
+                if (c == '\\') c = '/';
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
+            return result;
+        }
+
+        std::string NormalizeProcessName(std::string_view name)
+        {
+            std::string result(name);
+            result.erase(0, result.find_first_not_of(" \t\r\n"));
+            result.erase(result.find_last_not_of(" \t\r\n") + 1);
+            for (char& c : result)
+            {
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            }
+            return result;
+        }
+
+        bool MatchProcessPath(std::string_view processPath, std::string_view targetPath)
+        {
+            std::string normProc = NormalizePath(processPath);
+            std::string normTarget = NormalizePath(targetPath);
+            return !normProc.empty() && !normTarget.empty() && normProc == normTarget;
+        }
+
+        bool MatchProcessName(std::string_view processName, std::string_view targetName)
+        {
+            std::string normProc = NormalizeProcessName(processName);
+            std::string normTarget = NormalizeProcessName(targetName);
+            if (normProc.empty() || normTarget.empty()) return false;
+            if (normProc == normTarget) return true;
+            if (normTarget.size() < 4 || normTarget.substr(normTarget.size() - 4) != ".exe")
+            {
+                if (normProc == normTarget + ".exe")
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        std::string PriorityClassToFriendlyString(DWORD priorityClass)
+        {
+            switch (priorityClass)
+            {
+            case IDLE_PRIORITY_CLASS:          return "Idle";
+            case BELOW_NORMAL_PRIORITY_CLASS:  return "Below Normal";
+            case NORMAL_PRIORITY_CLASS:        return "Normal";
+            case ABOVE_NORMAL_PRIORITY_CLASS:  return "Above Normal";
+            case HIGH_PRIORITY_CLASS:          return "High";
+            case REALTIME_PRIORITY_CLASS:      return "Realtime";
+            default:                           return "Unknown";
+            }
+        }
+    }
+
+    ApplyProfileResult ProcessActions::ApplyProfile(const Profile& profile) const
+    {
+        ApplyProfileResult result{};
+
+        std::wstring wideProfileName = Utf8ToWide(profile.name);
+
+        // 1. Log: Apply profile requested: <profile name>
+        std::wcout << L"[WPCC LOG] Apply profile requested: " << wideProfileName << std::endl;
+        OutputDebugStringW((L"[WPCC LOG] Apply profile requested: " + wideProfileName + L"\n").c_str());
+
+        // 2. Log: Profile match mode: <mode>
+        std::wstring matchModeStr = (profile.matchMode == "path" ? L"executable path" : L"process name");
+        std::wcout << L"[WPCC LOG] Profile match mode: " << matchModeStr << std::endl;
+        OutputDebugStringW((L"[WPCC LOG] Profile match mode: " + matchModeStr + L"\n").c_str());
+
+        const ProcessProvider provider;
+        const std::vector<ProcessInfo> processes = provider.LoadProcesses();
+
+        DWORD priorityClass = 0;
+        if (profile.cpuPriority != "DoNotChange")
+        {
+            priorityClass = PriorityTextToClass(profile.cpuPriority);
+            if (priorityClass == 0)
+            {
+                result.success = false;
+                result.message = "Unsupported CPU priority: " + profile.cpuPriority;
+                return result;
+            }
+        }
+
+        std::vector<ProcessInfo> matchedProcesses;
+        for (const auto& process : processes)
+        {
+            bool isMatch = false;
+            if (profile.matchMode == "path")
+            {
+                if (process.executablePath.empty())
+                {
+                    // Log warning for missing paths
+                    if (process.pid != 0 && process.pid != 4)
+                    {
+                        std::wcout << L"[WPCC LOG] Warning: Cannot read executable path for PID " << process.pid 
+                                   << L" (" << Utf8ToWide(process.name) << L")" << std::endl;
+                        OutputDebugStringW((L"[WPCC LOG] Warning: Cannot read executable path for PID " + std::to_wstring(process.pid) 
+                                           + L" (" + Utf8ToWide(process.name) + L")\n").c_str());
+                    }
+                }
+                else
+                {
+                    isMatch = MatchProcessPath(process.executablePath, profile.targetExePath);
+                }
+            }
+            else if (profile.matchMode == "name")
+            {
+                isMatch = MatchProcessName(process.name, profile.targetProcessName);
+            }
+
+            if (isMatch)
+            {
+                matchedProcesses.push_back(process);
+            }
+        }
+
+        result.matched = static_cast<int>(matchedProcesses.size());
+
+        if (matchedProcesses.empty())
+        {
+            // Log Apply profile finished
+            std::wcout << L"[WPCC LOG] Apply profile finished: matched=0, updated=0, failed=0" << std::endl;
+            OutputDebugStringW(L"[WPCC LOG] Apply profile finished: matched=0, updated=0, failed=0\n");
+
+            result.success = true;
+            result.message = "No running processes matched this profile.";
+            return result;
+        }
+
+        for (const auto& process : matchedProcesses)
+        {
+            // Log: Matched PID <pid> <process name>
+            std::wstring wideProcName = Utf8ToWide(process.name);
+            std::wcout << L"[WPCC LOG] Matched PID " << process.pid << L" " << wideProcName << std::endl;
+            OutputDebugStringW((L"[WPCC LOG] Matched PID " + std::to_wstring(process.pid) + L" " + wideProcName + L"\n").c_str());
+
+            if (profile.cpuPriority == "DoNotChange")
+            {
+                result.updated++;
+                continue;
+            }
+
+            HANDLE hProcess = OpenProcess(PROCESS_SET_INFORMATION, FALSE, process.pid);
+            if (hProcess == nullptr)
+            {
+                DWORD err = GetLastError();
+                // Log: OpenProcess failed: PID <pid>, error <GetLastError>
+                std::wcout << L"[WPCC LOG] OpenProcess failed: PID " << process.pid << L", error " << err << std::endl;
+                OutputDebugStringW((L"[WPCC LOG] OpenProcess failed: PID " + std::to_wstring(process.pid) + L", error " + std::to_wstring(err) + L"\n").c_str());
+                result.failed++;
+                continue;
+            }
+
+            if (!SetPriorityClass(hProcess, priorityClass))
+            {
+                DWORD err = GetLastError();
+                // Log: SetPriorityClass failed: PID <pid>, error <GetLastError>
+                std::wcout << L"[WPCC LOG] SetPriorityClass failed: PID " << process.pid << L", error " << err << std::endl;
+                OutputDebugStringW((L"[WPCC LOG] SetPriorityClass failed: PID " + std::to_wstring(process.pid) + L", error " + std::to_wstring(err) + L"\n").c_str());
+                result.failed++;
+                CloseHandle(hProcess);
+                continue;
+            }
+
+            CloseHandle(hProcess);
+
+            // Log: Set priority success: PID <pid> -> <FriendlyName>
+            std::string priorityStr = PriorityClassToFriendlyString(priorityClass);
+            std::wstring widePriority = Utf8ToWide(priorityStr);
+            std::wcout << L"[WPCC LOG] Set priority success: PID " << process.pid << L" -> " << widePriority << std::endl;
+            OutputDebugStringW((L"[WPCC LOG] Set priority success: PID " + std::to_wstring(process.pid) + L" -> " + widePriority + L"\n").c_str());
+
+            result.updated++;
+        }
+
+        // Log: Apply profile finished: matched=<n>, updated=<n>, failed=<n>
+        std::wcout << L"[WPCC LOG] Apply profile finished: matched=" << result.matched 
+                   << L", updated=" << result.updated 
+                   << L", failed=" << result.failed << std::endl;
+        OutputDebugStringW((L"[WPCC LOG] Apply profile finished: matched=" + std::to_wstring(result.matched)
+                           + L", updated=" + std::to_wstring(result.updated)
+                           + L", failed=" + std::to_wstring(result.failed) + L"\n").c_str());
+
+        result.success = (result.failed == 0);
+
+        std::ostringstream msg;
+        msg << "Applied profile \"" << profile.name << "\": " 
+            << result.matched << " matched, " 
+            << result.updated << " updated, " 
+            << result.failed << " failed.";
+        if (result.failed > 0)
+        {
+            msg << " Check log for details.";
+        }
+        result.message = msg.str();
+
+        return result;
     }
 }

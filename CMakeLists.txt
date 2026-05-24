@@ -5,7 +5,7 @@ if(POLICY CMP0091)
 endif()
 
 project(WindowsProcessControlCenter
-    VERSION 0.1.0
+    VERSION 0.1.1
     DESCRIPTION "Modern Windows desktop shell for process control workflows"
     LANGUAGES CXX
 )

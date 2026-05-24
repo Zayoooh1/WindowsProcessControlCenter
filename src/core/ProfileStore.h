@@ -2,6 +2,7 @@
 
 #include <string>
 #include <filesystem>
+#include <vector>
 
 namespace wpcc
 {
@@ -18,11 +19,23 @@ namespace wpcc
         std::wstring warning;
     };
 
+    struct Profile
+    {
+        std::string id;
+        std::string name;
+        std::string targetExePath;
+        std::string targetProcessName;
+        std::string matchMode;
+        std::string cpuPriority;
+        bool allowRealtime = false;
+    };
+
     class ProfileStore
     {
     public:
         static ProfileLoadResult LoadProfiles();
         static ProfileSaveResult SaveProfiles(const std::string& profilesJson);
+        static std::vector<Profile> ParseProfilesJson(const std::string& json);
 
     private:
         static std::filesystem::path GetProfilesFilePath();

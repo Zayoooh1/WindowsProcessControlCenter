@@ -1,6 +1,6 @@
 # Project Status
 
-Windows Process Control Center is currently at version `0.1.0`.
+Windows Process Control Center is currently at version `0.1.1`.
 
 This file is intentionally kept short for public-facing repository history. Detailed internal task prompts and implementation logs are not part of the maintained documentation.
 

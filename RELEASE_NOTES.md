@@ -1,3 +1,45 @@
+# Windows Process Control Center 0.1.1
+
+Release date: 2026-05-24
+
+**Update: Profiles Apply v1 and Bug Fixes.**
+
+- **Profiles Apply v1**: Added manual profile application. Clicking "Apply profile" now parses profiles on the native C++ backend, searches running processes by executable path or process name, normalizes paths/names case-insensitively, and sets CPU priority class via WinAPI.
+- **Diagnostics Logging**: Added comprehensive diagnostic logging for profile application actions and Win32 success/error messages.
+- **Fixed Browse Button**: Fixed the Browse button in profile creation. It now opens the native Windows Open File Dialog correctly to select executable paths.
+- **Fixed Startup Loading**: Fixed startup process loading. The process list now loads automatically after launching the app.
+- **Fixed Default Sorting**: Fixed default process ordering. Processes are now sorted alphabetically, case-insensitive.
+- **Kept Refresh**: Kept manual Refresh behavior intact.
+- **Improved Startup**: Improved WebView2 bridge startup handling.
+
+## Portable Package (0.1.1)
+
+The portable package is named:
+
+```text
+WindowsProcessControlCenter-0.1.1-portable.zip
+```
+
+Unzip it and run:
+
+```text
+WindowsProcessControlCenter.exe
+```
+
+The `web/` folder must remain beside the executable.
+
+## Installer Package (0.1.1)
+
+An optional Windows installer is also available:
+
+```text
+WindowsProcessControlCenter-0.1.1-setup.exe
+```
+
+The installer installs per user by default, supports custom install locations, and configures shortcuts.
+
+---
+
 # Windows Process Control Center 0.1.0
 
 Release date: 2026-05-23

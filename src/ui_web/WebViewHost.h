@@ -19,10 +19,13 @@ namespace wpcc
     class WebViewHost
     {
     public:
+        static constexpr UINT ChooseExecutableWindowMessage = WM_APP + 101;
+
         bool Initialize(HWND hwnd);
         void Resize();
         void Shutdown();
         void RefreshProcesses();
+        void ChooseExecutable();
 
     private:
         void OnEnvironmentCreated(HRESULT result, ICoreWebView2Environment* environment);
@@ -38,6 +41,7 @@ namespace wpcc
         void HandleLoadProfiles();
         void HandleSaveProfiles(std::wstring_view messageJson);
         void HandleExportProfilesToFile(std::wstring_view messageJson);
+        void HandleApplyProfile(std::wstring_view messageJson);
         void SendError(std::string_view message);
         void ShowInitializationError(std::wstring_view message) const;
 
