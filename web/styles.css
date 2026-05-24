@@ -1906,6 +1906,156 @@ body.reduced-motion *::after {
   color: var(--danger);
 }
 
+/* Profile form layout – replacing inline style attributes */
+#profileForm {
+  margin-top: 16px;
+  display: grid;
+  gap: 14px;
+}
+#profileForm .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+#profileForm input[type="text"],
+#profileForm textarea,
+#profileForm select {
+  outline: none;
+}
+#profileForm input[type="text"] {
+  width: 100%;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0 12px;
+  background: #202833;
+  color: var(--text);
+}
+#profileForm textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 8px 12px;
+  background: #202833;
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  resize: vertical;
+}
+#profileForm select.setting-select {
+  width: 100%;
+}
+#profileForm .form-row-flex {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+#profileForm .form-row-double {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+#profileRealtimeWarningBlock {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  display: grid;
+  gap: 8px;
+}
+#profileRealtimeWarningBlock p {
+  margin: 0;
+  font-weight: 500;
+}
+.profile-form-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.profile-form-checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+.profile-form-warning-span {
+  font-size: 13px;
+  color: var(--text);
+}
+#profileForm .form-switches {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+#profileForm .switch-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  padding: 10px 12px;
+  background: rgba(27, 34, 44, 0.5);
+}
+#profileForm .switch-item.locked-item {
+  border-color: rgba(221, 176, 106, 0.28);
+}
+#profileForm .switch-label-group {
+  display: grid;
+  gap: 3px;
+}
+#profileForm .switch-label-group strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+#profileForm .switch-label-group span {
+  font-size: 12px;
+  color: var(--muted);
+}
+#profileForm .locked-item .switch-label-group span {
+  color: var(--warning);
+}
+#profileForm .modal-actions {
+  margin-top: 6px;
+}
+#profileForm #profileResetButton {
+  margin-right: auto;
+}
+/* Rules safety warning */
+.rules-safety-warning {
+  margin-top: 10px;
+  color: var(--danger);
+  font-weight: 500;
+}
+.rules-storage-info {
+  margin-top: 8px;
+}
+.rules-storage-note {
+  margin-top: 12px;
+  color: var(--subtle);
+}
+/* Rules empty state */
+.rules-empty-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+.rules-empty-text {
+  color: var(--muted);
+  margin: 6px 0 16px 0;
+  max-width: 320px;
+  line-height: 1.4;
+}
+/* Profile card inline-style replacements */
+.profile-card-target-value {
+  word-break: break-all;
+}
+.profile-card-auto-value {
+  color: var(--warning);
+}
+/* Muted detail line */
+.value-line-muted {
+  color: var(--muted);
+}
+
 /* Profile Form styling inside Modal */
 .profile-form-modal {
   width: min(560px, 100%) !important;

@@ -435,8 +435,8 @@ function confirmDeleteProfile() {
 
 function updateMatchModeUi() {
   const isPath = elements.profileMatchMode.value === "path";
-  elements.exePathGroup.style.display = isPath ? "block" : "none";
-  elements.processNameGroup.style.display = isPath ? "none" : "block";
+  elements.exePathGroup.classList.toggle("hidden", !isPath);
+  elements.processNameGroup.classList.toggle("hidden", isPath);
 }
 
 function updateCpuRealtimeUi() {
@@ -485,7 +485,7 @@ function renderProfiles() {
     targetLabel.className = "profile-card-target-label";
     targetLabel.textContent = prof.matchMode === "path" ? "Match Path" : "Match Name";
     const targetVal = document.createElement("span");
-    targetVal.style.wordBreak = "break-all";
+    targetVal.className = "profile-card-target-value";
     targetVal.textContent = prof.matchMode === "path" ? (prof.targetExePath || "Any Executable") : (prof.targetProcessName || "Any Process");
     target.appendChild(targetLabel);
     target.appendChild(targetVal);
@@ -533,7 +533,7 @@ function renderProfiles() {
     autoLbl.textContent = "Auto apply";
     const autoVal = document.createElement("span");
     autoVal.className = "profile-card-meta-value";
-    autoVal.style.color = "var(--warning)";
+    autoVal.classList.add("profile-card-auto-value");
     autoVal.textContent = "Planned / Inactive";
     autoRow.appendChild(autoLbl);
     autoRow.appendChild(autoVal);
@@ -1643,7 +1643,7 @@ function freezeResumeSection(process) {
 }
 
 function renderTerminateModal() {
-  document.querySelector(".modal-backdrop")?.remove();
+  document.getElementById("terminateBackdrop")?.remove();
 
   const process = state.terminateModalProcess;
   if (!process) {
@@ -1652,6 +1652,7 @@ function renderTerminateModal() {
 
   const expectedText = getTerminateConfirmationText(process);
   const backdrop = document.createElement("div");
+  backdrop.id = "terminateBackdrop";
   backdrop.className = "modal-backdrop";
 
   const modal = document.createElement("div");
@@ -2148,7 +2149,7 @@ function valueLine(value, title) {
 
 function mutedLine(value) {
   const div = valueLine(value);
-  div.style.color = "var(--muted)";
+  div.classList.add("value-line-muted");
   return div;
 }
 
@@ -2244,55 +2245,200 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+function bindUi(element, eventName, handler, debugName) {
+  if (!element) {
+    console.error("Missing UI element:", debugName);
+    return;
+  }
+  element.addEventListener(eventName, handler);
+}
+
 window.chrome?.webview?.addEventListener("message", handleHostMessage);
-elements.refreshButton.addEventListener("click", requestProcesses);
-elements.dashboardRefreshButton.addEventListener("click", requestProcesses);
-elements.quickRefreshButton.addEventListener("click", requestProcesses);
-elements.dashboardNavButton.addEventListener("click", () => setActiveView("dashboard"));
-elements.processesNavButton.addEventListener("click", () => setActiveView("processes"));
-elements.settingsNavButton.addEventListener("click", () => setActiveView("settings"));
-elements.aboutNavButton.addEventListener("click", () => setActiveView("about"));
-elements.rulesNavButton.addEventListener("click", () => setActiveView("rules"));
-elements.goToProcessesButton.addEventListener("click", () => setActiveView("processes"));
-elements.quickProcessesButton.addEventListener("click", () => setActiveView("processes"));
-elements.startScreenDashboard.addEventListener("change", () => updateSetting("startScreen", "dashboard"));
-elements.startScreenProcesses.addEventListener("change", () => updateSetting("startScreen", "processes"));
-elements.compactTableToggle.addEventListener("change", (event) => updateSetting("compactProcessTable", event.target.checked));
-elements.showPathToggle.addEventListener("change", (event) => updateSetting("showExecutablePathColumn", event.target.checked));
-elements.showSafetyNotesToggle.addEventListener("change", (event) => updateSetting("showSafetyNotes", event.target.checked));
-elements.reduceEffectsToggle.addEventListener("change", (event) => updateSetting("reduceVisualEffects", event.target.checked));
-elements.confirmDestructiveToggle.addEventListener("change", () => renderSettings());
-elements.updatesChecksToggle.addEventListener("change", (event) => {
+bindUi(elements.refreshButton, "click", requestProcesses, "refreshButton");
+bindUi(elements.dashboardRefreshButton, "click", requestProcesses, "dashboardRefreshButton");
+bindUi(elements.quickRefreshButton, "click", requestProcesses, "quickRefreshButton");
+bindUi(elements.dashboardNavButton, "click", () => setActiveView("dashboard"), "dashboardNavButton");
+bindUi(elements.processesNavButton, "click", () => setActiveView("processes"), "processesNavButton");
+bindUi(elements.settingsNavButton, "click", () => setActiveView("settings"), "settingsNavButton");
+bindUi(elements.aboutNavButton, "click", () => setActiveView("about"), "aboutNavButton");
+bindUi(elements.rulesNavButton, "click", () => setActiveView("rules"), "rulesNavButton");
+bindUi(elements.goToProcessesButton, "click", () => setActiveView("processes"), "goToProcessesButton");
+bindUi(elements.quickProcessesButton, "click", () => setActiveView("processes"), "quickProcessesButton");
+bindUi(elements.startScreenDashboard, "change", () => updateSetting("startScreen", "dashboard"), "startScreenDashboard");
+bindUi(elements.startScreenProcesses, "change", () => updateSetting("startScreen", "processes"), "startScreenProcesses");
+bindUi(elements.compactTableToggle, "change", (event) => updateSetting("compactProcessTable", event.target.checked), "compactTableToggle");
+bindUi(elements.showPathToggle, "change", (event) => updateSetting("showExecutablePathColumn", event.target.checked), "showPathToggle");
+bindUi(elements.showSafetyNotesToggle, "change", (event) => updateSetting("showSafetyNotes", event.target.checked), "showSafetyNotesToggle");
+bindUi(elements.reduceEffectsToggle, "change", (event) => updateSetting("reduceVisualEffects", event.target.checked), "reduceEffectsToggle");
+bindUi(elements.confirmDestructiveToggle, "change", () => renderSettings(), "confirmDestructiveToggle");
+bindUi(elements.updatesChecksToggle, "change", (event) => {
   const enabled = event.target.checked;
   state.settings.updateChecksEnabled = enabled;
   elements.updateIntervalSelect.disabled = !enabled;
   saveSettings();
-});
-elements.updateIntervalSelect.addEventListener("change", (event) => updateSetting("updateCheckInterval", event.target.value));
-elements.autoInstallToggle.addEventListener("change", () => renderSettings());
-elements.resetSettingsButton.addEventListener("click", () => {
+}, "updatesChecksToggle");
+bindUi(elements.updateIntervalSelect, "change", (event) => updateSetting("updateCheckInterval", event.target.value), "updateIntervalSelect");
+bindUi(elements.autoInstallToggle, "change", () => renderSettings(), "autoInstallToggle");
+bindUi(elements.resetSettingsButton, "click", () => {
   state.resetSettingsModalOpen = true;
   render();
-});
-elements.manualCheckButton.addEventListener("click", () => {
+}, "resetSettingsButton");
+bindUi(elements.manualCheckButton, "click", () => {
   checkForUpdates(true);
-});
-elements.searchInput.addEventListener("input", (event) => {
+}, "manualCheckButton");
+bindUi(elements.searchInput, "input", (event) => {
   state.query = event.target.value;
   applyFilter();
-});
+}, "searchInput");
+
+function ensureProfileModalDom() {
+  if (document.getElementById("profileModal")) return;
+
+  const deleteModal = document.getElementById("deleteProfileModal");
+  const profilesList = document.getElementById("profilesList");
+
+  const html = `<div id="profileModal" class="modal-backdrop hidden-view">
+    <div class="confirm-modal profile-form-modal">
+      <h2 id="profileModalTitle">Create profile</h2>
+      
+      <form id="profileForm">
+        <div class="form-group">
+          <label for="profileName">Profile name</label>
+          <input type="text" id="profileName" placeholder="e.g. Heavy Game Preset" required>
+        </div>
+
+        <div class="form-row-flex">
+          <div class="form-group">
+            <label for="profileMatchMode">Match mode</label>
+            <select id="profileMatchMode" class="setting-select">
+              <option value="path">Executable path</option>
+              <option value="name">Process name</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" id="exePathGroup">
+          <label for="profileExePath">Target executable path (preferred)</label>
+          <input type="text" id="profileExePath" placeholder="e.g. C:\\Games\\HeavyGame.exe">
+        </div>
+
+        <div class="form-group" id="processNameGroup">
+          <label for="profileProcessName">Target process name (fallback)</label>
+          <input type="text" id="profileProcessName" placeholder="e.g. HeavyGame.exe">
+        </div>
+
+        <div class="form-row-double">
+          <div class="form-group">
+            <label for="profileCpuPriority">CPU Priority</label>
+            <select id="profileCpuPriority" class="setting-select">
+              <option value="DoNotChange">Do not change</option>
+              <option value="High">High</option>
+              <option value="AboveNormal">Above normal</option>
+              <option value="Normal">Normal</option>
+              <option value="BelowNormal">Below normal</option>
+              <option value="Idle">Idle</option>
+              <option value="Realtime">Realtime</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="profileGpuPreference">GPU Preference</label>
+            <select id="profileGpuPreference" class="setting-select">
+              <option value="DoNotChange">Do not change</option>
+              <option value="SystemDefault">System default</option>
+              <option value="PowerSaving">Power saving / iGPU</option>
+              <option value="HighPerformance">High performance / dGPU</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="profileRealtimeWarningBlock" class="modal-warning hidden-view">
+          <p>Warning: Realtime priority can make Windows less responsive.</p>
+          <label class="profile-form-checkbox-label">
+            <input type="checkbox" id="profileRealtimeCheckbox">
+            <span class="profile-form-warning-span">I understand the risk of Realtime priority in this profile.</span>
+          </label>
+        </div>
+
+        <div class="form-switches">
+          <div class="switch-item">
+            <div class="switch-label-group">
+              <strong>Apply to family</strong>
+              <span>Applies to all instances sharing this app target</span>
+            </div>
+            <label class="switch-control">
+              <input id="profileApplyToFamily" type="checkbox">
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+
+          <div class="switch-item locked-item">
+            <div class="switch-label-group">
+              <strong>Auto apply</strong>
+              <span>Planned / Inactive — Not available yet</span>
+            </div>
+            <label class="switch-control locked">
+              <input id="profileAutoApply" type="checkbox" disabled>
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="profileNotes">Notes</label>
+          <textarea id="profileNotes" rows="2" placeholder="Enter optional notes about this profile..."></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button id="profileResetButton" class="secondary-button" type="button">Reset form</button>
+          <button id="profileCancelButton" class="secondary-button" type="button">Cancel</button>
+          <button id="profileSaveButton" class="primary-button" type="submit">Save profile</button>
+        </div>
+      </form>
+    </div>
+  </div>`;
+
+  if (deleteModal) {
+    deleteModal.insertAdjacentHTML("beforebegin", html);
+  } else if (profilesList) {
+    profilesList.insertAdjacentHTML("afterend", html);
+  } else {
+    return;
+  }
+
+  elements.profileModal = document.getElementById("profileModal");
+  elements.profileModalTitle = document.getElementById("profileModalTitle");
+  elements.profileForm = document.getElementById("profileForm");
+  elements.profileName = document.getElementById("profileName");
+  elements.profileMatchMode = document.getElementById("profileMatchMode");
+  elements.profileExePath = document.getElementById("profileExePath");
+  elements.profileProcessName = document.getElementById("profileProcessName");
+  elements.exePathGroup = document.getElementById("exePathGroup");
+  elements.processNameGroup = document.getElementById("processNameGroup");
+  elements.profileCpuPriority = document.getElementById("profileCpuPriority");
+  elements.profileGpuPreference = document.getElementById("profileGpuPreference");
+  elements.profileRealtimeWarningBlock = document.getElementById("profileRealtimeWarningBlock");
+  elements.profileRealtimeCheckbox = document.getElementById("profileRealtimeCheckbox");
+  elements.profileApplyToFamily = document.getElementById("profileApplyToFamily");
+  elements.profileAutoApply = document.getElementById("profileAutoApply");
+  elements.profileNotes = document.getElementById("profileNotes");
+  elements.profileResetButton = document.getElementById("profileResetButton");
+  elements.profileCancelButton = document.getElementById("profileCancelButton");
+  elements.profileSaveButton = document.getElementById("profileSaveButton");
+}
 
 // Bind Profile v1 UI Events
-elements.createProfileButton.addEventListener("click", () => openProfileModal(null));
-elements.emptyCreateProfileButton.addEventListener("click", () => openProfileModal(null));
-elements.profileCancelButton.addEventListener("click", closeProfileModal);
-elements.profileResetButton.addEventListener("click", resetProfileForm);
-elements.profileMatchMode.addEventListener("change", updateMatchModeUi);
-elements.profileCpuPriority.addEventListener("change", updateCpuRealtimeUi);
-elements.profileRealtimeCheckbox.addEventListener("change", updateCpuRealtimeUi);
-elements.profileForm.addEventListener("submit", saveProfileForm);
-elements.deleteProfileCancelButton.addEventListener("click", closeDeleteProfileModal);
-elements.deleteProfileConfirmButton.addEventListener("click", confirmDeleteProfile);
+ensureProfileModalDom();
+bindUi(elements.createProfileButton, "click", () => openProfileModal(null), "createProfileButton");
+bindUi(elements.emptyCreateProfileButton, "click", () => openProfileModal(null), "emptyCreateProfileButton");
+bindUi(elements.profileCancelButton, "click", closeProfileModal, "profileCancelButton");
+bindUi(elements.profileResetButton, "click", resetProfileForm, "profileResetButton");
+bindUi(elements.profileMatchMode, "change", updateMatchModeUi, "profileMatchMode");
+bindUi(elements.profileCpuPriority, "change", updateCpuRealtimeUi, "profileCpuPriority");
+bindUi(elements.profileRealtimeCheckbox, "change", updateCpuRealtimeUi, "profileRealtimeCheckbox");
+bindUi(elements.profileForm, "submit", saveProfileForm, "profileForm");
+bindUi(elements.deleteProfileCancelButton, "click", closeDeleteProfileModal, "deleteProfileCancelButton");
+bindUi(elements.deleteProfileConfirmButton, "click", confirmDeleteProfile, "deleteProfileConfirmButton");
 
 render();
 requestProcesses();
