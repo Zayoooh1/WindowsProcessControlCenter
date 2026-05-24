@@ -101,12 +101,14 @@ endif()
 target_link_libraries(WindowsProcessControlCenter PRIVATE
     ${WEBVIEW2_LOADER_LIB}
     advapi32
+    comdlg32
     dwmapi
     ole32
     shell32
     shlwapi
     user32
     version
+    windowscodecs
 )
 
 set_target_properties(WindowsProcessControlCenter PROPERTIES

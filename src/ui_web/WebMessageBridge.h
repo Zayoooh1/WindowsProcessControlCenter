@@ -21,6 +21,7 @@ namespace wpcc
         LoadProfiles,
         SaveProfiles,
         ExportProfilesToFile,
+        ChooseExecutable,
     };
 
     struct SetCpuPriorityRequest
@@ -73,6 +74,7 @@ namespace wpcc
         std::wstring BuildProfilesLoadedMessage(bool success, const std::string& profilesJson, std::wstring_view warning) const;
         std::wstring BuildProfilesSavedMessage(bool success, std::wstring_view warning) const;
         std::wstring BuildProfilesExportedMessage(bool success, bool cancelled, std::wstring_view warning) const;
+        std::wstring BuildExecutableChosenMessage(bool success, bool cancelled, std::wstring_view path, std::wstring_view fileName, std::string_view iconDataUrl) const;
         std::wstring BuildErrorMessage(std::string_view message) const;
 
     private:

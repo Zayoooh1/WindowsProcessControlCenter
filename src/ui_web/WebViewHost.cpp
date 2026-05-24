@@ -4,10 +4,12 @@
 
 #include <ShlObj.h>
 #include <commdlg.h>
+#include <shobjidl.h>
 
 #include <algorithm>
 #include <array>
 #include <fstream>
+#include <iostream>
 #include <vector>
 
 using Microsoft::WRL::Callback;
@@ -17,6 +19,12 @@ namespace
     std::wstring Quote(std::wstring_view value)
     {
         return L"\"" + std::wstring(value) + L"\"";
+    }
+
+    void AppLog(const std::wstring& message)
+    {
+        std::wcout << L"[WPCC LOG] " << message << std::endl;
+        OutputDebugStringW((L"[WPCC LOG] " + message + L"\n").c_str());
     }
 }
 
@@ -179,6 +187,10 @@ namespace wpcc
                         break;
                     case WebMessageType::ExportProfilesToFile:
                         HandleExportProfilesToFile(messageJson);
+                        break;
+                    case WebMessageType::ChooseExecutable:
+                        AppLog(L"Browse clicked");
+                        PostMessageW(m_hwnd, ChooseExecutableWindowMessage, 0, 0);
                         break;
                     default:
                         SendError("Unsupported frontend message.");
@@ -412,6 +424,127 @@ namespace wpcc
         }
 
         const std::wstring response = m_bridge.BuildProfilesExportedMessage(success, cancelled, warning);
+        m_webView->PostWebMessageAsJson(response.c_str());
+    }
+
+    void WebViewHost::ChooseExecutable()
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        AppLog(L"Opening executable picker");
+
+        bool cancelled = false;
+        bool success = false;
+        std::wstring path;
+        std::wstring fileName;
+        const std::string iconDataUrl;
+
+        // Bring the host window to the foreground so the file dialog
+        // appears on top of the WebView2 control and is not hidden.
+        if (m_hwnd)
+        {
+            SetForegroundWindow(m_hwnd);
+        }
+
+        Microsoft::WRL::ComPtr<IFileOpenDialog> fileDialog;
+        HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&fileDialog));
+        if (SUCCEEDED(hr))
+        {
+            COMDLG_FILTERSPEC fileTypes[] = {
+                { L"Executable Files (*.exe)", L"*.exe" },
+                { L"All Files (*.*)", L"*.*" }
+            };
+            fileDialog->SetFileTypes(ARRAYSIZE(fileTypes), fileTypes);
+            fileDialog->SetDefaultExtension(L"exe");
+            
+            FILEOPENDIALOGOPTIONS options;
+            if (SUCCEEDED(fileDialog->GetOptions(&options)))
+            {
+                options |= FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR;
+                fileDialog->SetOptions(options);
+            }
+
+            hr = fileDialog->Show(m_hwnd);
+            if (SUCCEEDED(hr))
+            {
+                Microsoft::WRL::ComPtr<IShellItem> item;
+                hr = fileDialog->GetResult(&item);
+                if (SUCCEEDED(hr))
+                {
+                    wchar_t* filePath = nullptr;
+                    hr = item->GetDisplayName(SIGDN_FILESYSPATH, &filePath);
+                    if (SUCCEEDED(hr))
+                    {
+                        path = filePath;
+                        CoTaskMemFree(filePath);
+                        success = true;
+                        AppLog(L"Picker selected: " + path);
+                    }
+                    else
+                    {
+                        AppLog(L"Picker failed: GetDisplayName error " + HResultToMessage(hr));
+                    }
+                }
+                else
+                {
+                    AppLog(L"Picker failed: GetResult error " + HResultToMessage(hr));
+                }
+            }
+            else if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+            {
+                cancelled = true;
+                AppLog(L"Picker cancelled");
+            }
+            else
+            {
+                cancelled = true;
+                AppLog(L"Picker failed: " + HResultToMessage(hr));
+            }
+        }
+        else
+        {
+            // Fallback to GetOpenFileNameW if ComPtr/IFileOpenDialog fails
+            std::array<wchar_t, 32768> filePath{};
+            OPENFILENAMEW ofn = {};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = m_hwnd;
+            ofn.lpstrFile = filePath.data();
+            ofn.nMaxFile = static_cast<DWORD>(filePath.size());
+            ofn.lpstrFilter = L"Executable Files\0*.exe\0All Files\0*.*\0";
+            ofn.lpstrDefExt = L"exe";
+            ofn.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_EXPLORER;
+
+            if (GetOpenFileNameW(&ofn))
+            {
+                path = filePath.data();
+                success = true;
+                AppLog(L"Picker selected: " + path);
+            }
+            else
+            {
+                cancelled = true;
+                const DWORD err = CommDlgExtendedError();
+                if (err == 0)
+                {
+                    AppLog(L"Picker cancelled");
+                }
+                else
+                {
+                    AppLog(L"Picker failed: GetOpenFileName error " + std::to_wstring(err));
+                }
+            }
+        }
+
+        if (success && !path.empty())
+        {
+            const size_t lastSlash = path.find_last_of(L"\\/");
+            fileName = (lastSlash != std::wstring::npos) ? path.substr(lastSlash + 1) : path;
+        }
+
+        const std::wstring response = m_bridge.BuildExecutableChosenMessage(success, cancelled, path, fileName, iconDataUrl);
         m_webView->PostWebMessageAsJson(response.c_str());
     }
 

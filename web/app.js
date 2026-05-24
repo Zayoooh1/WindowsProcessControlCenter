@@ -152,6 +152,15 @@ const elements = {
   deleteProfileTargetDisplay: document.getElementById("deleteProfileTargetDisplay"),
   deleteProfileCancelButton: document.getElementById("deleteProfileCancelButton"),
   deleteProfileConfirmButton: document.getElementById("deleteProfileConfirmButton"),
+  safetyNoteButton: document.getElementById("safetyNoteButton"),
+  storageInfoButton: document.getElementById("storageInfoButton"),
+  safetyModal: document.getElementById("safetyModal"),
+  safetyModalCloseButton: document.getElementById("safetyModalCloseButton"),
+  storageModal: document.getElementById("storageModal"),
+  storageModalCloseButton: document.getElementById("storageModalCloseButton"),
+  exeBrowseRow: document.getElementById("exeBrowseRow"),
+  browseExeButton: document.getElementById("browseExeButton"),
+  exeIconPreview: document.getElementById("exeIconPreview"),
 };
 
 function loadSettings() {
@@ -348,8 +357,8 @@ function saveProfiles() {
     }
   }
 
-  if (window.chrome?.webview) {
-    window.chrome.webview.postMessage({
+  if (webviewBridgeInitialized || window.chrome?.webview) {
+    postToHost({
       type: "saveProfiles",
       profiles: JSON.stringify(data),
     });
@@ -362,8 +371,8 @@ function exportProfiles() {
     profiles: state.profilesState.profiles,
   };
 
-  if (window.chrome?.webview) {
-    window.chrome.webview.postMessage({
+  if (webviewBridgeInitialized || window.chrome?.webview) {
+    postToHost({
       type: "exportProfilesToFile",
       profiles: JSON.stringify(data),
     });
@@ -432,6 +441,10 @@ function openProfileModal(profileId = null) {
   elements.profileNotes.value = prof ? prof.notes : "";
   elements.profileRealtimeCheckbox.checked = prof ? prof.allowRealtime : false;
 
+  if (!prof) {
+    elements.exeIconPreview.innerHTML = "<span class=\"exe-icon-fallback\">&#x1F4C1;</span>";
+  }
+
   updateMatchModeUi();
   updateCpuRealtimeUi();
 
@@ -460,9 +473,10 @@ function resetProfileForm() {
     elements.profileCpuPriority.value = "DoNotChange";
     elements.profileGpuPreference.value = "DoNotChange";
     elements.profileApplyToFamily.checked = false;
-  elements.profileAutoApply.checked = prof ? prof.autoApply : false;
+    elements.profileAutoApply.checked = false;
     elements.profileNotes.value = "";
     elements.profileRealtimeCheckbox.checked = false;
+    elements.exeIconPreview.innerHTML = "<span class=\"exe-icon-fallback\">&#x1F4C1;</span>";
 
     updateMatchModeUi();
     updateCpuRealtimeUi();
@@ -512,6 +526,33 @@ function saveProfileForm(event) {
   saveProfiles();
   closeProfileModal();
   render();
+}
+
+function openSafetyModal() {
+  elements.safetyModal.classList.remove("hidden-view");
+  elements.safetyModalCloseButton.focus();
+}
+
+function closeSafetyModal() {
+  elements.safetyModal.classList.add("hidden-view");
+}
+
+function openStorageModal() {
+  elements.storageModal.classList.remove("hidden-view");
+  elements.storageModalCloseButton.focus();
+}
+
+function closeStorageModal() {
+  elements.storageModal.classList.add("hidden-view");
+}
+
+function openExecutablePicker() {
+  if (!webviewBridgeInitialized && !window.chrome?.webview) {
+    state.profilesState.warning = "Executable picker requires the native app (WebView2).";
+    render();
+    return;
+  }
+  postToHost({ type: "chooseExecutable" });
 }
 
 function openDeleteProfileModal(profile) {
@@ -911,18 +952,55 @@ function renderProfiles() {
   }
 }
 
-function postToHost(message) {
-  if (!window.chrome?.webview) {
-    showError("WebView2 bridge is not available.");
-    return;
-  }
+const pendingHostMessages = [];
+let webviewBridgeInitialized = false;
 
-  window.chrome.webview.postMessage(message);
+function ensureWebviewBridge() {
+  if (webviewBridgeInitialized) return;
+  
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.addEventListener("message", handleHostMessage);
+    webviewBridgeInitialized = true;
+    while (pendingHostMessages.length > 0) {
+      const msg = pendingHostMessages.shift();
+      window.chrome.webview.postMessage(msg);
+    }
+  } else {
+    if (!window._webviewReadyChecking) {
+      window._webviewReadyChecking = true;
+      let checkCount = 0;
+      const interval = setInterval(() => {
+        checkCount++;
+        if (window.chrome && window.chrome.webview) {
+          clearInterval(interval);
+          window._webviewReadyChecking = false;
+          window.chrome.webview.addEventListener("message", handleHostMessage);
+          webviewBridgeInitialized = true;
+          while (pendingHostMessages.length > 0) {
+            const msg = pendingHostMessages.shift();
+            window.chrome.webview.postMessage(msg);
+          }
+        } else if (checkCount >= 40) { // 2 seconds limit
+          clearInterval(interval);
+          window._webviewReadyChecking = false;
+          showError("WebView2 bridge is not available.");
+        }
+      }, 50);
+    }
+  }
+}
+
+function postToHost(message) {
+  if (window.chrome && window.chrome.webview) {
+    window.chrome.webview.postMessage(message);
+  } else {
+    pendingHostMessages.push(message);
+    ensureWebviewBridge();
+  }
 }
 
 function requestNativeProfiles() {
-  if (!window.chrome?.webview) return;
-  window.chrome.webview.postMessage({ type: "loadProfiles" });
+  postToHost({ type: "loadProfiles" });
 }
 
 function requestProcesses() {
@@ -1055,6 +1133,21 @@ function handleHostMessage(event) {
     } else if (!message.cancelled && message.warning) {
       state.profilesState.warning = message.warning;
       render();
+    }
+    return;
+  }
+
+  if (message.type === "executableChosen") {
+    if (message.success && message.path) {
+      elements.profileExePath.value = message.path;
+      elements.profileProcessName.value = message.fileName || "";
+      elements.profileMatchMode.value = "path";
+      updateMatchModeUi();
+      if (message.iconDataUrl) {
+        elements.exeIconPreview.innerHTML = "<img src=\"" + message.iconDataUrl.replace(/"/g, "&quot;") + "\" class=\"exe-icon-img\" alt=\"\">";
+      } else {
+        elements.exeIconPreview.innerHTML = "<span class=\"exe-icon-fallback\">&#x1F4C1;</span>";
+      }
     }
     return;
   }
@@ -2828,6 +2921,9 @@ function ensureProfileModalDom() {
   elements.profileResetButton = document.getElementById("profileResetButton");
   elements.profileCancelButton = document.getElementById("profileCancelButton");
   elements.profileSaveButton = document.getElementById("profileSaveButton");
+  elements.exeBrowseRow = document.getElementById("exeBrowseRow");
+  elements.browseExeButton = document.getElementById("browseExeButton");
+  elements.exeIconPreview = document.getElementById("exeIconPreview");
 }
 
 // Bind Profile v1 UI Events
@@ -2845,6 +2941,18 @@ bindUi(elements.deleteProfileConfirmButton, "click", confirmDeleteProfile, "dele
 bindUi(elements.exportProfilesButton, "click", exportProfiles, "exportProfilesButton");
 bindUi(elements.importProfilesButton, "click", importProfiles, "importProfilesButton");
 bindUi(elements.importFileInput, "change", handleImportFile, "importFileInput");
+bindUi(elements.safetyNoteButton, "click", openSafetyModal, "safetyNoteButton");
+bindUi(elements.storageInfoButton, "click", openStorageModal, "storageInfoButton");
+bindUi(elements.safetyModalCloseButton, "click", closeSafetyModal, "safetyModalCloseButton");
+bindUi(elements.storageModalCloseButton, "click", closeStorageModal, "storageModalCloseButton");
+bindUi(elements.browseExeButton, "click", openExecutablePicker, "browseExeButton");
+
+elements.safetyModal.addEventListener("click", function (event) {
+  if (event.target === elements.safetyModal) closeSafetyModal();
+});
+elements.storageModal.addEventListener("click", function (event) {
+  if (event.target === elements.storageModal) closeStorageModal();
+});
 
 render();
 requestProcesses();
