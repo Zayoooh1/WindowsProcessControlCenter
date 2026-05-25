@@ -20,12 +20,21 @@ namespace wpcc
     {
     public:
         static constexpr UINT ChooseExecutableWindowMessage = WM_APP + 101;
+        static constexpr UINT WM_DOWNLOAD_PROGRESS = WM_APP + 102;
+        static constexpr UINT WM_DOWNLOAD_COMPLETE = WM_APP + 103;
+
+        struct ProgressData {
+            uint32_t downloaded;
+            uint32_t total;
+        };
 
         bool Initialize(HWND hwnd);
         void Resize();
         void Shutdown();
         void RefreshProcesses();
         void ChooseExecutable();
+        void OnDownloadComplete(bool success, const std::wstring& filePath);
+        void NotifyDownloadProgress(uint32_t downloadedBytes, uint32_t totalBytes);
 
     private:
         void OnEnvironmentCreated(HRESULT result, ICoreWebView2Environment* environment);
@@ -42,6 +51,8 @@ namespace wpcc
         void HandleSaveProfiles(std::wstring_view messageJson);
         void HandleExportProfilesToFile(std::wstring_view messageJson);
         void HandleApplyProfile(std::wstring_view messageJson);
+        void HandleExecuteInstaller(std::wstring_view messageJson);
+        void HandleDownloadUpdate(std::wstring_view messageJson);
         void SendError(std::string_view message);
         void ShowInitializationError(std::wstring_view message) const;
 

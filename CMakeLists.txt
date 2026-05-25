@@ -5,7 +5,7 @@ if(POLICY CMP0091)
 endif()
 
 project(WindowsProcessControlCenter
-    VERSION 0.1.1
+    VERSION 0.1.2
     DESCRIPTION "Modern Windows desktop shell for process control workflows"
     LANGUAGES CXX
 )
@@ -105,6 +105,7 @@ target_link_libraries(WindowsProcessControlCenter PRIVATE
     ole32
     shell32
     shlwapi
+    urlmon
     user32
     version
 )

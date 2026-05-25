@@ -75,6 +75,18 @@ namespace wpcc
             return WebMessageType::ApplyProfile;
         }
 
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"executeInstaller\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::ExecuteInstaller;
+        }
+
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"downloadUpdate\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::DownloadUpdate;
+        }
+
         return WebMessageType::Unknown;
     }
 
@@ -123,6 +135,16 @@ namespace wpcc
         return ExtractString(messageJson, L"profileId");
     }
 
+    std::wstring WebMessageBridge::ParseExecuteInstallerRequest(std::wstring_view messageJson) const
+    {
+        return Utf8ToWide(ExtractString(messageJson, L"filePath"));
+    }
+
+    std::wstring WebMessageBridge::ParseDownloadUpdateUrl(std::wstring_view messageJson) const
+    {
+        return Utf8ToWide(ExtractString(messageJson, L"url"));
+    }
+
     SetGpuPreferenceRequest WebMessageBridge::ParseSetGpuPreferenceRequest(std::wstring_view messageJson) const
     {
         SetGpuPreferenceRequest request{};
@@ -160,6 +182,35 @@ namespace wpcc
         }
 
         json << L"]}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildDownloadCompleteMessage(bool success, std::wstring_view filePath, std::wstring_view errorMessage) const
+    {
+        std::wostringstream json;
+        json << L"{";
+        json << L"\"type\":\"downloadComplete\",";
+        json << L"\"success\":" << (success ? L"true" : L"false");
+        if (success)
+        {
+            json << L",\"filePath\":\"" << EscapeJson(WideToUtf8(filePath)) << L"\"";
+        }
+        else
+        {
+            json << L",\"message\":\"" << EscapeJson(WideToUtf8(errorMessage)) << L"\"";
+        }
+        json << L"}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildDownloadProgressMessage(uint32_t downloadedBytes, uint32_t totalBytes) const
+    {
+        std::wostringstream json;
+        json << L"{";
+        json << L"\"type\":\"downloadProgress\",";
+        json << L"\"downloadedBytes\":" << downloadedBytes << L",";
+        json << L"\"totalBytes\":" << totalBytes;
+        json << L"}";
         return json.str();
     }
 

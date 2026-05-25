@@ -1,7 +1,7 @@
 const SETTINGS_STORAGE_KEY = "wpcc.settings";
 const VALID_UPDATE_INTERVALS = ["3d", "weekly", "monthly"];
 const UPDATE_STATE_KEY = "wpcc.updateState";
-const CURRENT_VERSION = "0.1.1";
+const CURRENT_VERSION = "0.1.2";
 
 const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS = {
   autoInstallUpdates: false,
   ignoredUpdateVersion: null,
   autoRefreshInterval: "off",
+  showPidColumn: true,
 };
 
 const VALID_AUTO_REFRESH_INTERVALS = ["off", "5s", "15s", "30s", "60s"];
@@ -41,6 +42,10 @@ const state = {
   settingsStorageWarning: initialSettingsState.warning,
   resetSettingsModalOpen: false,
   detailsPanelOpen: true,
+  pendingInstallerFilePath: null,
+  // Sorting state
+  sortColumn: null,
+  sortDirection: "none",
   // Profiles State
   profilesState: {
     profiles: initialProfilesState.profiles,
@@ -78,6 +83,7 @@ const elements = {
   startScreenProcesses: document.getElementById("startScreenProcesses"),
   compactTableToggle: document.getElementById("compactTableToggle"),
   showPathToggle: document.getElementById("showPathToggle"),
+  showPidToggle: document.getElementById("showPidToggle"),
   showSafetyNotesToggle: document.getElementById("showSafetyNotesToggle"),
   confirmDestructiveToggle: document.getElementById("confirmDestructiveToggle"),
   reduceEffectsToggle: document.getElementById("reduceEffectsToggle"),
@@ -87,8 +93,12 @@ const elements = {
   autoRefreshSelect: document.getElementById("autoRefreshSelect"),
   autoInstallToggle: document.getElementById("autoInstallToggle"),
   ignoredUpdateVersionDisplay: document.getElementById("ignoredUpdateVersionDisplay"),
+  resetIgnoredVersionButton: document.getElementById("resetIgnoredVersionButton"),
   manualCheckButton: document.getElementById("manualCheckButton"),
   updateStatusArea: document.getElementById("updateStatusArea"),
+  downloadCompleteModal: document.getElementById("downloadCompleteModal"),
+  dismissInstallBtn: document.getElementById("dismissInstallBtn"),
+  confirmInstallBtn: document.getElementById("confirmInstallBtn"),
   searchInput: document.getElementById("searchInput"),
   processRows: document.getElementById("processRows"),
   detailsContent: document.getElementById("detailsContent"),
@@ -110,6 +120,7 @@ const elements = {
   profileModalTitle: document.getElementById("profileModalTitle"),
   profileForm: document.getElementById("profileForm"),
   profileName: document.getElementById("profileName"),
+  profileRunningProcessPicker: document.getElementById("profileRunningProcessPicker"),
   profileMatchMode: document.getElementById("profileMatchMode"),
   profileExePath: document.getElementById("profileExePath"),
   profileProcessName: document.getElementById("profileProcessName"),
@@ -126,6 +137,8 @@ const elements = {
   profileCancelButton: document.getElementById("profileCancelButton"),
   profileSaveButton: document.getElementById("profileSaveButton"),
   deleteProfileModal: document.getElementById("deleteProfileModal"),
+  colPriorityHeader: document.querySelector("th.col-priority"),
+  colGpuHeader: document.querySelector("th.col-gpu"),
   deleteProfileNameDisplay: document.getElementById("deleteProfileNameDisplay"),
   deleteProfileTargetDisplay: document.getElementById("deleteProfileTargetDisplay"),
   deleteProfileCancelButton: document.getElementById("deleteProfileCancelButton"),
@@ -179,6 +192,7 @@ function normalizeSettings(value) {
     startScreen: source.startScreen === "processes" ? "processes" : "dashboard",
     compactProcessTable: Boolean(source.compactProcessTable),
     showExecutablePathColumn: source.showExecutablePathColumn !== false,
+    showPidColumn: source.showPidColumn !== false,
     showSafetyNotes: source.showSafetyNotes !== false,
     reduceVisualEffects: Boolean(source.reduceVisualEffects),
     confirmDestructiveActions: true,
@@ -186,7 +200,7 @@ function normalizeSettings(value) {
     updateCheckInterval: VALID_UPDATE_INTERVALS.includes(source.updateCheckInterval)
       ? source.updateCheckInterval
       : "weekly",
-    autoInstallUpdates: false,
+    autoInstallUpdates: Boolean(source.autoInstallUpdates),
     ignoredUpdateVersion: source.ignoredUpdateVersion && typeof source.ignoredUpdateVersion === "string"
       ? source.ignoredUpdateVersion
       : null,
@@ -410,6 +424,12 @@ function openProfileModal(profileId = null) {
   elements.profileNotes.value = prof ? prof.notes : "";
   elements.profileRealtimeCheckbox.checked = prof ? prof.allowRealtime : false;
 
+  if (elements.profileDeleteButton) {
+    elements.profileDeleteButton.classList.toggle("hidden", !profileId);
+  }
+
+  populateRunningProcessPicker();
+
   updateMatchModeUi();
   updateCpuRealtimeUi();
 
@@ -441,6 +461,10 @@ function resetProfileForm() {
     elements.profileAutoApply.checked = false;
     elements.profileNotes.value = "";
     elements.profileRealtimeCheckbox.checked = false;
+
+    if (elements.profileRunningProcessPicker) {
+      elements.profileRunningProcessPicker.selectedIndex = 0;
+    }
 
     updateMatchModeUi();
     updateCpuRealtimeUi();
@@ -489,6 +513,11 @@ function saveProfileForm(event) {
   saveProfiles();
   closeProfileModal();
   render();
+
+  const matches = getMatchingProcesses(profileData);
+  if (matches.length > 0 && (profileData.applyToFamily || profileData.targetExePath || profileData.targetProcessName)) {
+    applyProfile(profileData.id);
+  }
 }
 
 function openDeleteProfileModal(profile) {
@@ -570,7 +599,7 @@ function renderProfiles() {
   const hasProfiles = profiles.length > 0;
 
   elements.rulesEmptyState.classList.toggle("hidden-view", hasProfiles);
-  elements.rulesActionsBar.classList.toggle("hidden-view", !hasProfiles);
+  elements.rulesActionsBar.classList.remove("hidden-view");
   elements.profilesList.classList.toggle("hidden-view", !hasProfiles);
 
   if (!hasProfiles) {
@@ -580,166 +609,50 @@ function renderProfiles() {
   elements.profilesList.replaceChildren();
 
   for (const prof of profiles) {
-    const card = document.createElement("article");
-    card.className = "profile-card";
+    const row = document.createElement("div");
+    row.className = "profile-row";
+    row.setAttribute("role", "button");
+    row.setAttribute("tabindex", "0");
+    row.addEventListener("click", () => {
+      openProfileModal(prof.id);
+    });
+    row.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openProfileModal(prof.id);
+      }
+    });
 
-    const header = document.createElement("div");
-    header.className = "profile-card-header";
-    const title = document.createElement("h3");
-    title.className = "profile-card-title";
-    title.textContent = prof.name;
-    header.appendChild(title);
-    card.appendChild(header);
+    const leftContainer = document.createElement("div");
+    leftContainer.className = "profile-row-left";
 
-    const target = document.createElement("div");
-    target.className = "profile-card-target";
-    const targetLabel = document.createElement("span");
-    targetLabel.className = "profile-card-target-label";
-    targetLabel.textContent = prof.matchMode === "path" ? "Match Path" : "Match Name";
-    const targetVal = document.createElement("span");
-    targetVal.className = "profile-card-target-value";
-    targetVal.textContent = prof.matchMode === "path" ? (prof.targetExePath || "Any Executable") : (prof.targetProcessName || "Any Process");
-    target.appendChild(targetLabel);
-    target.appendChild(targetVal);
-    card.appendChild(target);
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "profile-row-icon";
+    iconSpan.textContent = "⚡";
 
-    const presets = document.createElement("div");
-    presets.className = "profile-card-presets";
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "profile-row-title";
+    titleSpan.textContent = prof.name;
+
+    leftContainer.appendChild(iconSpan);
+    leftContainer.appendChild(titleSpan);
+    row.appendChild(leftContainer);
+
+    const rightContainer = document.createElement("div");
+    rightContainer.className = "profile-row-right";
 
     const cpuBadgeVal = prof.cpuPriority === "DoNotChange" ? "CPU: Keep Current" : `CPU: ${prof.cpuPriority}`;
     const cpuBadge = badge(cpuBadgeVal, prof.cpuPriority === "DoNotChange" ? "neutral" : priorityTone(prof.cpuPriority));
-    presets.appendChild(cpuBadge);
+    rightContainer.appendChild(cpuBadge);
 
     const gpuBadgeVal = prof.gpuPreference === "DoNotChange" 
       ? "GPU: Keep Current" 
       : `GPU: ${gpuPreferenceLabel(prof.gpuPreference)}`;
     const gpuBadge = badge(gpuBadgeVal, prof.gpuPreference === "DoNotChange" ? "neutral" : gpuPreferenceTone(prof.gpuPreference));
-    presets.appendChild(gpuBadge);
+    rightContainer.appendChild(gpuBadge);
 
-    card.appendChild(presets);
-
-    if (prof.notes) {
-      const notes = document.createElement("div");
-      notes.className = "profile-card-notes";
-      notes.textContent = prof.notes;
-      card.appendChild(notes);
-    }
-
-    const meta = document.createElement("div");
-    meta.className = "profile-card-meta";
-
-    const familyRow = document.createElement("div");
-    familyRow.className = "profile-card-meta-row";
-    const familyLbl = document.createElement("span");
-    familyLbl.textContent = "Apply to family";
-    const familyVal = document.createElement("span");
-    familyVal.className = "profile-card-meta-value";
-    familyVal.textContent = prof.applyToFamily ? "Yes" : "No";
-    familyRow.appendChild(familyLbl);
-    familyRow.appendChild(familyVal);
-    meta.appendChild(familyRow);
-
-    const autoRow = document.createElement("div");
-    autoRow.className = "profile-card-meta-row";
-    const autoLbl = document.createElement("span");
-    autoLbl.textContent = "Auto apply";
-    const autoVal = document.createElement("span");
-    autoVal.className = "profile-card-meta-value";
-    autoVal.classList.add("profile-card-auto-value");
-    autoVal.textContent = "Planned / Inactive";
-    autoRow.appendChild(autoLbl);
-    autoRow.appendChild(autoVal);
-    meta.appendChild(autoRow);
-
-    const dateRow = document.createElement("div");
-    dateRow.className = "profile-card-meta-row";
-    const dateLbl = document.createElement("span");
-    dateLbl.textContent = "Last updated";
-    const dateVal = document.createElement("span");
-    dateVal.className = "profile-card-meta-value";
-    dateVal.textContent = new Date(prof.updatedAt).toLocaleDateString();
-    dateRow.appendChild(dateLbl);
-    dateRow.appendChild(dateVal);
-    meta.appendChild(dateRow);
-
-    card.appendChild(meta);
-
-    const matches = getMatchingProcesses(prof);
-    const matchSection = document.createElement("div");
-    matchSection.className = "profile-card-matches";
-
-    if (matches.length > 0) {
-      const header = document.createElement("div");
-      header.className = "profile-card-match-header";
-      header.textContent = `Matched processes (${matches.length})`;
-      matchSection.appendChild(header);
-
-      for (const procMatch of matches) {
-        const item = document.createElement("div");
-        item.className = "profile-card-match-item";
-
-        const nameSpan = document.createElement("span");
-        nameSpan.className = "profile-card-match-name";
-        nameSpan.textContent = procMatch.name || "Unknown";
-        item.appendChild(nameSpan);
-
-        const pidSpan = document.createElement("span");
-        pidSpan.className = "profile-card-match-pid";
-        pidSpan.textContent = `PID ${procMatch.pid}`;
-        item.appendChild(pidSpan);
-
-        if (procMatch.cpuPriority) {
-          const cpuSpan = document.createElement("span");
-          cpuSpan.className = "profile-card-match-cpu";
-          cpuSpan.textContent = procMatch.cpuPriority;
-          item.appendChild(cpuSpan);
-        }
-
-        matchSection.appendChild(item);
-      }
-    } else {
-      const empty = document.createElement("div");
-      empty.className = "profile-card-match-empty";
-      empty.textContent = "No running matches";
-      matchSection.appendChild(empty);
-    }
-
-    card.appendChild(matchSection);
-
-    const actions = document.createElement("div");
-    actions.className = "profile-card-actions";
-
-    const applyBtn = document.createElement("button");
-    applyBtn.type = "button";
-    applyBtn.className = "profile-card-btn primary";
-    applyBtn.textContent = state.profilesState.applyingProfileId === prof.id ? "Applying..." : "Apply profile";
-    applyBtn.disabled = state.profilesState.applyingProfileId === prof.id;
-    applyBtn.addEventListener("click", () => {
-      applyProfile(prof.id);
-    });
-    actions.appendChild(applyBtn);
-
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "profile-card-btn";
-    editBtn.textContent = "Edit";
-    editBtn.addEventListener("click", () => {
-      openProfileModal(prof.id);
-    });
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.type = "button";
-    deleteBtn.className = "profile-card-btn danger";
-    deleteBtn.textContent = "Delete";
-    deleteBtn.addEventListener("click", () => {
-      openDeleteProfileModal(prof);
-    });
-
-    actions.appendChild(editBtn);
-    actions.appendChild(deleteBtn);
-    card.appendChild(actions);
-
-    elements.profilesList.appendChild(card);
+    row.appendChild(rightContainer);
+    elements.profilesList.appendChild(row);
   }
 }
 
@@ -902,6 +815,47 @@ function handleHostMessage(event) {
     elements.dashboardRefreshButton.disabled = false;
     elements.quickRefreshButton.disabled = false;
     showError(message.message || "Unknown backend error.");
+    return;
+  }
+
+  if (message.type === "downloadProgress") {
+    const progressBar = document.getElementById("updateProgressBar");
+    const progressText = document.getElementById("updateProgressText");
+    if (progressBar && progressText) {
+      const percent = message.totalBytes > 0 ? Math.floor((message.downloadedBytes / message.totalBytes) * 100) : 0;
+      progressBar.style.width = percent + "%";
+      const downloadedMb = (message.downloadedBytes / (1024 * 1024)).toFixed(2);
+      const totalMb = (message.totalBytes / (1024 * 1024)).toFixed(2);
+      progressText.textContent = `Downloading... ${downloadedMb} MB / ${totalMb} MB (${percent}%)`;
+    }
+    return;
+  }
+
+  if (message.type === "downloadComplete") {
+    const progressContainer = document.getElementById("updateProgressContainer");
+    const completionActions = document.getElementById("updateCompletionActions");
+    const updateProgressText = document.getElementById("updateProgressText");
+    const actions = document.querySelector(".update-modal-actions");
+
+    if (message.success === false) {
+      if (progressContainer) {
+        progressContainer.classList.add("hidden-view");
+      }
+      if (actions) {
+        actions.classList.remove("hidden-view");
+      }
+      showError(message.message || "Failed to download update.");
+    } else {
+      state.pendingInstallerFilePath = message.filePath;
+      if (progressContainer && completionActions && updateProgressText) {
+        updateProgressText.textContent = "Download completed. Install now?";
+        document.getElementById("updateProgressBar").style.width = "100%";
+        completionActions.classList.remove("hidden-view");
+      } else {
+        elements.downloadCompleteModal.classList.remove("hidden-view");
+      }
+    }
+    return;
   }
 }
 
@@ -916,6 +870,23 @@ function applyFilter() {
       })
     : [...state.processes];
 
+  if (state.sortColumn && state.sortDirection !== "none") {
+    const dirMultiplier = state.sortDirection === "asc" ? 1 : -1;
+    if (state.sortColumn === "priority") {
+      state.filtered.sort((a, b) => {
+        const priorityA = mapPriorityToValue(a.cpuPriority);
+        const priorityB = mapPriorityToValue(b.cpuPriority);
+        return (priorityA - priorityB) * dirMultiplier;
+      });
+    } else if (state.sortColumn === "gpu") {
+      state.filtered.sort((a, b) => {
+        const gpuA = mapGpuToValue(a.gpuPreference);
+        const gpuB = mapGpuToValue(b.gpuPreference);
+        return (gpuA - gpuB) * dirMultiplier;
+      });
+    }
+  }
+
   if (!state.filtered.some((process) => process.pid === state.selectedPid)) {
     state.selectedPid = state.filtered[0]?.pid ?? null;
   }
@@ -928,6 +899,7 @@ function render() {
   elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
   elements.processesView.classList.toggle("details-collapsed", !state.detailsPanelOpen);
   applySettingsEffects();
+  updateHeaderIndicators();
   renderActiveView();
   renderDashboard();
   renderSettings();
@@ -965,6 +937,7 @@ function renderActiveView() {
 function applySettingsEffects() {
   document.body.classList.toggle("compact-process-table", state.settings.compactProcessTable);
   document.body.classList.toggle("hide-executable-path", !state.settings.showExecutablePathColumn);
+  document.body.classList.toggle("hide-pid-column", !state.settings.showPidColumn);
   document.body.classList.toggle("reduced-motion", state.settings.reduceVisualEffects);
 }
 
@@ -984,6 +957,7 @@ function renderSettings() {
   elements.startScreenProcesses.checked = state.settings.startScreen === "processes";
   elements.compactTableToggle.checked = state.settings.compactProcessTable;
   elements.showPathToggle.checked = state.settings.showExecutablePathColumn;
+  elements.showPidToggle.checked = state.settings.showPidColumn;
   elements.showSafetyNotesToggle.checked = state.settings.showSafetyNotes;
   elements.reduceEffectsToggle.checked = state.settings.reduceVisualEffects;
   elements.confirmDestructiveToggle.checked = true;
@@ -992,9 +966,10 @@ function renderSettings() {
   elements.updateIntervalSelect.value = state.settings.updateCheckInterval;
   elements.updateIntervalSelect.disabled = !state.settings.updateChecksEnabled;
   elements.autoRefreshSelect.value = state.settings.autoRefreshInterval;
-  elements.autoInstallToggle.checked = false;
-  elements.autoInstallToggle.disabled = true;
+  elements.autoInstallToggle.checked = state.settings.autoInstallUpdates;
+  elements.autoInstallToggle.disabled = false;
   elements.ignoredUpdateVersionDisplay.textContent = state.settings.ignoredUpdateVersion || "None";
+  elements.resetIgnoredVersionButton.disabled = !state.settings.ignoredUpdateVersion;
   elements.manualCheckButton.disabled = false;
   renderUpdateStatus();
 }
@@ -1082,10 +1057,6 @@ function renderUpdateStatus() {
     status += `New version available: ${latest}`;
   }
 
-  if (stateObj.latestReleaseUrl) {
-    status += ` — ${stateObj.latestReleaseUrl}`;
-  }
-
   elements.updateStatusArea.textContent = status;
 }
 
@@ -1167,18 +1138,25 @@ async function checkForUpdates(manual = false) {
     }
 
     if (updateState.ignoredVersion && updateState.ignoredVersion === parsedVersion) {
-      elements.updateStatusArea.textContent = `This version ${parsedVersion} is currently ignored.` + (releaseUrl ? ` ${releaseUrl}` : "");
+      renderUpdateStatus();
       return;
     }
 
     if (cmp <= -1) {
       // latest is greater
-      let details = `New version available: ${parsedVersion}`;
-      if (releaseName) details += ` — ${releaseName}`;
-      if (releaseUrl) details += ` — ${releaseUrl}`;
-      if (installerExe) details += ` — installer: ${installerExe}`;
-      if (portableZip) details += ` — portable: ${portableZip}`;
-      elements.updateStatusArea.textContent = details;
+      renderUpdateStatus();
+
+      // Auto updates download
+      if (state.settings.autoInstallUpdates) {
+        const downloadUrl = installerExe || portableZip;
+        if (downloadUrl) {
+          postToHost({
+            type: "downloadUpdate",
+            url: downloadUrl,
+          });
+        }
+      }
+
       // show modal with release details
       try {
         showUpdateModal({
@@ -1193,7 +1171,7 @@ async function checkForUpdates(manual = false) {
         // ignore modal errors
       }
     } else {
-      elements.updateStatusArea.textContent = `You are up to date. (${CURRENT_VERSION})`;
+      renderUpdateStatus();
     }
   } catch (e) {
     clearTimeout(timeout);
@@ -1271,48 +1249,6 @@ function showUpdateModal(release) {
 
   modal.appendChild(info);
 
-  const assets = document.createElement("div");
-  assets.className = "update-assets";
-  const list = document.createElement("ul");
-  list.className = "update-asset-list";
-  if (release.installerExe) {
-    const li = document.createElement("li");
-    const a = document.createElement("a");
-    a.href = release.installerExe;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.textContent = "Installer EXE available";
-    li.appendChild(a);
-    list.appendChild(li);
-  }
-  if (release.portableZip) {
-    const li = document.createElement("li");
-    const a = document.createElement("a");
-    a.href = release.portableZip;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.textContent = "Portable ZIP available";
-    li.appendChild(a);
-    list.appendChild(li);
-  }
-  if (release.releaseUrl) {
-    const li = document.createElement("li");
-    const a = document.createElement("a");
-    a.href = release.releaseUrl;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.textContent = "Open release page";
-    li.appendChild(a);
-    list.appendChild(li);
-  }
-  if (list.children.length === 0) {
-    const li = document.createElement("li");
-    li.textContent = "No downloadable assets detected.";
-    list.appendChild(li);
-  }
-  assets.appendChild(list);
-  modal.appendChild(assets);
-
   const actions = document.createElement("div");
   actions.className = "modal-actions update-modal-actions";
 
@@ -1329,8 +1265,16 @@ function showUpdateModal(release) {
   downloadInstaller.className = "secondary-button";
   downloadInstaller.textContent = "Download installer";
   downloadInstaller.disabled = !release.installerExe;
-  downloadInstaller.addEventListener("click", () => {
-    if (release.installerExe) window.open(release.installerExe, "_blank");
+  downloadInstaller.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (release.installerExe) {
+      postToHost({
+        type: "downloadUpdate",
+        url: release.installerExe,
+      });
+      actions.classList.add("hidden-view");
+      document.getElementById("updateProgressContainer").classList.remove("hidden-view");
+    }
   });
 
   const downloadZip = document.createElement("button");
@@ -1338,8 +1282,16 @@ function showUpdateModal(release) {
   downloadZip.className = "secondary-button";
   downloadZip.textContent = "Download portable ZIP";
   downloadZip.disabled = !release.portableZip;
-  downloadZip.addEventListener("click", () => {
-    if (release.portableZip) window.open(release.portableZip, "_blank");
+  downloadZip.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (release.portableZip) {
+      postToHost({
+        type: "downloadUpdate",
+        url: release.portableZip,
+      });
+      actions.classList.add("hidden-view");
+      document.getElementById("updateProgressContainer").classList.remove("hidden-view");
+    }
   });
 
   const remindLater = document.createElement("button");
@@ -1384,6 +1336,49 @@ function showUpdateModal(release) {
   actions.appendChild(disableChecks);
 
   modal.appendChild(actions);
+
+  const progressContainer = document.createElement("div");
+  progressContainer.className = "progress-container hidden-view";
+  progressContainer.id = "updateProgressContainer";
+  progressContainer.innerHTML = `
+    <div class="progress-track">
+      <div class="progress-fill" id="updateProgressBar"></div>
+    </div>
+    <p id="updateProgressText" style="text-align: center; margin-top: 10px; color: var(--muted);">Starting download...</p>
+  `;
+
+  const completionActions = document.createElement("div");
+  completionActions.className = "modal-actions hidden-view";
+  completionActions.id = "updateCompletionActions";
+
+  const confirmInstall = document.createElement("button");
+  confirmInstall.type = "button";
+  confirmInstall.className = "primary-button";
+  confirmInstall.textContent = "Ok";
+  confirmInstall.addEventListener("click", () => {
+    if (state.pendingInstallerFilePath) {
+      postToHost({
+        type: "executeInstaller",
+        filePath: state.pendingInstallerFilePath,
+      });
+      closeUpdateModal();
+    }
+  });
+
+  const cancelInstall = document.createElement("button");
+  cancelInstall.type = "button";
+  cancelInstall.className = "secondary-button";
+  cancelInstall.textContent = "Cancel";
+  cancelInstall.addEventListener("click", () => {
+    closeUpdateModal();
+  });
+
+  completionActions.appendChild(confirmInstall);
+  completionActions.appendChild(cancelInstall);
+
+  modal.appendChild(progressContainer);
+  modal.appendChild(completionActions);
+
   backdrop.appendChild(modal);
   document.body.appendChild(backdrop);
   openRelease.focus();
@@ -1532,7 +1527,7 @@ function renderRows() {
       render();
     });
 
-    row.appendChild(textCell(process.pid, "col-pid"));
+    row.appendChild(textCell(process.pid, "col-pid pid-cell"));
     row.appendChild(textCell(process.name || "Unknown", "col-process"));
     row.appendChild(pathCell(process.path || "Unavailable"));
     row.appendChild(badgeCell(runtimeLabel(process), runtimeTone(process), "col-runtime"));
@@ -2479,7 +2474,10 @@ function hideError() {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
-    if (state.terminateModalProcess || state.freezeModalProcess || state.resetSettingsModalOpen) {
+    if (!elements.downloadCompleteModal.classList.contains("hidden-view")) {
+      elements.downloadCompleteModal.classList.add("hidden-view");
+      state.pendingInstallerFilePath = null;
+    } else if (state.terminateModalProcess || state.freezeModalProcess || state.resetSettingsModalOpen) {
       state.terminateModalProcess = null;
       state.freezeModalProcess = null;
       state.resetSettingsModalOpen = false;
@@ -2504,6 +2502,8 @@ window.chrome?.webview?.addEventListener("message", handleHostMessage);
 bindUi(elements.refreshButton, "click", requestProcesses, "refreshButton");
 bindUi(elements.dashboardRefreshButton, "click", requestProcesses, "dashboardRefreshButton");
 bindUi(elements.quickRefreshButton, "click", requestProcesses, "quickRefreshButton");
+bindUi(elements.colPriorityHeader, "click", () => handleHeaderClick("priority"), "colPriorityHeader");
+bindUi(elements.colGpuHeader, "click", () => handleHeaderClick("gpu"), "colGpuHeader");
 bindUi(elements.dashboardNavButton, "click", () => setActiveView("dashboard"), "dashboardNavButton");
 bindUi(elements.processesNavButton, "click", () => setActiveView("processes"), "processesNavButton");
 bindUi(elements.settingsNavButton, "click", () => setActiveView("settings"), "settingsNavButton");
@@ -2515,6 +2515,7 @@ bindUi(elements.startScreenDashboard, "change", () => updateSetting("startScreen
 bindUi(elements.startScreenProcesses, "change", () => updateSetting("startScreen", "processes"), "startScreenProcesses");
 bindUi(elements.compactTableToggle, "change", (event) => updateSetting("compactProcessTable", event.target.checked), "compactTableToggle");
 bindUi(elements.showPathToggle, "change", (event) => updateSetting("showExecutablePathColumn", event.target.checked), "showPathToggle");
+bindUi(elements.showPidToggle, "change", (event) => updateSetting("showPidColumn", event.target.checked), "showPidToggle");
 bindUi(elements.showSafetyNotesToggle, "change", (event) => updateSetting("showSafetyNotes", event.target.checked), "showSafetyNotesToggle");
 bindUi(elements.reduceEffectsToggle, "change", (event) => updateSetting("reduceVisualEffects", event.target.checked), "reduceEffectsToggle");
 bindUi(elements.confirmDestructiveToggle, "change", () => renderSettings(), "confirmDestructiveToggle");
@@ -2529,7 +2530,7 @@ bindUi(elements.autoRefreshSelect, "change", (event) => {
   updateSetting("autoRefreshInterval", event.target.value);
   restartAutoRefresh();
 }, "autoRefreshSelect");
-bindUi(elements.autoInstallToggle, "change", () => renderSettings(), "autoInstallToggle");
+bindUi(elements.autoInstallToggle, "change", (event) => updateSetting("autoInstallUpdates", event.target.checked), "autoInstallToggle");
 bindUi(elements.resetSettingsButton, "click", () => {
   state.resetSettingsModalOpen = true;
   render();
@@ -2537,6 +2538,30 @@ bindUi(elements.resetSettingsButton, "click", () => {
 bindUi(elements.manualCheckButton, "click", () => {
   checkForUpdates(true);
 }, "manualCheckButton");
+
+bindUi(elements.resetIgnoredVersionButton, "click", () => {
+  state.settings.ignoredUpdateVersion = null;
+  saveSettings();
+  const us = loadUpdateState();
+  us.ignoredVersion = null;
+  saveUpdateState(us);
+  renderSettings();
+}, "resetIgnoredVersionButton");
+
+bindUi(elements.dismissInstallBtn, "click", () => {
+  elements.downloadCompleteModal.classList.add("hidden-view");
+  state.pendingInstallerFilePath = null;
+}, "dismissInstallBtn");
+
+bindUi(elements.confirmInstallBtn, "click", () => {
+  if (state.pendingInstallerFilePath) {
+    postToHost({
+      type: "executeInstaller",
+      filePath: state.pendingInstallerFilePath,
+    });
+    elements.downloadCompleteModal.classList.add("hidden-view");
+  }
+}, "confirmInstallBtn");
 bindUi(elements.searchInput, "input", (event) => {
   state.query = event.target.value;
   applyFilter();
@@ -2549,6 +2574,141 @@ bindUi(elements.closeDetailsButton, "click", () => {
   state.detailsPanelOpen = false;
   render();
 }, "closeDetailsButton");
+
+function populateRunningProcessPicker() {
+  const picker = elements.profileRunningProcessPicker;
+  if (!picker) return;
+
+  picker.innerHTML = "";
+
+  const defaultOpt = document.createElement("option");
+  defaultOpt.value = "";
+  defaultOpt.textContent = "-- Select a running process --";
+  picker.appendChild(defaultOpt);
+
+  const excludedNames = new Set([
+    "smss.exe",
+    "wininit.exe",
+    "spoolsv.exe",
+    "searchindexer.exe",
+    "rtkauduservice64.exe",
+    "securityhealthservice.exe",
+    "sendevsvc.exe",
+    "wmiprvse.exe",
+    "wudfhost.exe"
+  ]);
+
+  const uniqueProcesses = [];
+  const seenPaths = new Set();
+  const seenNames = new Set();
+
+  for (const proc of state.processes) {
+    if (!proc.name) continue;
+
+    // Filter rules
+    const nameLower = proc.name.toLowerCase();
+    if (proc.pid <= 4) continue;
+    if (proc.accessStatus === "Protected/System" || proc.accessStatus === "Access denied") continue;
+    if (excludedNames.has(nameLower)) continue;
+
+    const pathNormalized = (proc.path || "").toLowerCase().replace(/\\/g, "/");
+    if (pathNormalized.includes("system32") ||
+        pathNormalized.includes("systemapps") ||
+        pathNormalized.includes("syswow64") ||
+        pathNormalized.includes("wbem")) {
+      continue;
+    }
+
+    const pathKey = proc.path ? proc.path.toLowerCase() : "";
+
+    if (pathKey) {
+      if (!seenPaths.has(pathKey)) {
+        seenPaths.add(pathKey);
+        uniqueProcesses.push(proc);
+      }
+    } else {
+      if (!seenNames.has(nameLower)) {
+        seenNames.add(nameLower);
+        uniqueProcesses.push(proc);
+      }
+    }
+  }
+
+  uniqueProcesses.sort((a, b) => {
+    const nameA = a.name.toLowerCase();
+    const nameB = b.name.toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  for (const proc of uniqueProcesses) {
+    const opt = document.createElement("option");
+    opt.value = JSON.stringify({ path: proc.path || "", name: proc.name || "" });
+    opt.textContent = proc.name + (proc.path ? ` (${proc.path})` : "");
+    picker.appendChild(opt);
+  }
+}
+
+function updateHeaderIndicators() {
+  const priorityTh = elements.colPriorityHeader;
+  const gpuTh = elements.colGpuHeader;
+  if (!priorityTh || !gpuTh) return;
+
+  priorityTh.textContent = "CPU Priority";
+  gpuTh.textContent = "GPU Preference";
+
+  if (state.sortColumn === "priority") {
+    if (state.sortDirection === "asc") {
+      priorityTh.textContent = "CPU Priority ▲";
+    } else if (state.sortDirection === "desc") {
+      priorityTh.textContent = "CPU Priority ▼";
+    }
+  } else if (state.sortColumn === "gpu") {
+    if (state.sortDirection === "asc") {
+      gpuTh.textContent = "GPU Preference ▲";
+    } else if (state.sortDirection === "desc") {
+      gpuTh.textContent = "GPU Preference ▼";
+    }
+  }
+}
+
+function handleHeaderClick(column) {
+  if (state.sortColumn !== column) {
+    state.sortColumn = column;
+    state.sortDirection = "asc";
+  } else {
+    if (state.sortDirection === "asc") {
+      state.sortDirection = "desc";
+    } else if (state.sortDirection === "desc") {
+      state.sortDirection = "none";
+      state.sortColumn = null;
+    } else {
+      state.sortDirection = "asc";
+    }
+  }
+  applyFilter();
+}
+
+function mapPriorityToValue(priority) {
+  const norm = normalizePriority(priority);
+  switch (norm) {
+    case "Realtime": return 6;
+    case "High": return 5;
+    case "Above Normal": return 4;
+    case "Normal": return 3;
+    case "Below Normal": return 2;
+    case "Idle": return 1;
+    default: return 0;
+  }
+}
+
+function mapGpuToValue(preference) {
+  switch (preference) {
+    case "HighPerformance": return 3;
+    case "PowerSaving": return 2;
+    case "SystemDefault": return 1;
+    default: return 0;
+  }
+}
 
 function ensureProfileModalDom() {
   if (document.getElementById("profileModal")) return;
@@ -2564,6 +2724,13 @@ function ensureProfileModalDom() {
         <div class="form-group">
           <label for="profileName">Profile name</label>
           <input type="text" id="profileName" placeholder="e.g. Heavy Game Preset" required>
+        </div>
+
+        <div class="form-group">
+          <label for="profileRunningProcessPicker">Select running process</label>
+          <select id="profileRunningProcessPicker" class="setting-select">
+            <option value="">-- Select a running process --</option>
+          </select>
         </div>
 
         <div class="form-row-flex">
@@ -2649,6 +2816,7 @@ function ensureProfileModalDom() {
         </div>
 
         <div class="modal-actions">
+          <button id="profileDeleteButton" class="danger-action-button hidden" type="button">Delete profile</button>
           <button id="profileResetButton" class="secondary-button" type="button">Reset form</button>
           <button id="profileCancelButton" class="secondary-button" type="button">Cancel</button>
           <button id="profileSaveButton" class="primary-button" type="submit">Save profile</button>
@@ -2669,6 +2837,7 @@ function ensureProfileModalDom() {
   elements.profileModalTitle = document.getElementById("profileModalTitle");
   elements.profileForm = document.getElementById("profileForm");
   elements.profileName = document.getElementById("profileName");
+  elements.profileRunningProcessPicker = document.getElementById("profileRunningProcessPicker");
   elements.profileMatchMode = document.getElementById("profileMatchMode");
   elements.profileExePath = document.getElementById("profileExePath");
   elements.profileProcessName = document.getElementById("profileProcessName");
@@ -2684,6 +2853,7 @@ function ensureProfileModalDom() {
   elements.profileResetButton = document.getElementById("profileResetButton");
   elements.profileCancelButton = document.getElementById("profileCancelButton");
   elements.profileSaveButton = document.getElementById("profileSaveButton");
+  elements.profileDeleteButton = document.getElementById("profileDeleteButton");
 }
 
 // Bind Profile v1 UI Events
@@ -2692,10 +2862,33 @@ bindUi(elements.createProfileButton, "click", () => openProfileModal(null), "cre
 bindUi(elements.emptyCreateProfileButton, "click", () => openProfileModal(null), "emptyCreateProfileButton");
 bindUi(elements.profileCancelButton, "click", closeProfileModal, "profileCancelButton");
 bindUi(elements.profileResetButton, "click", resetProfileForm, "profileResetButton");
+bindUi(elements.profileRunningProcessPicker, "change", (event) => {
+  const val = event.target.value;
+  if (!val) return;
+  try {
+    const data = JSON.parse(val);
+    elements.profileExePath.value = data.path || "";
+    elements.profileProcessName.value = data.name || "";
+    if (!elements.profileName.value || elements.profileName.value === "Unnamed Profile") {
+      elements.profileName.value = `${data.name} Preset`;
+    }
+  } catch (e) {
+    console.error("Failed to parse process picker value", e);
+  }
+}, "profileRunningProcessPicker");
 bindUi(elements.profileMatchMode, "change", updateMatchModeUi, "profileMatchMode");
 bindUi(elements.profileCpuPriority, "change", updateCpuRealtimeUi, "profileCpuPriority");
 bindUi(elements.profileRealtimeCheckbox, "change", updateCpuRealtimeUi, "profileRealtimeCheckbox");
 bindUi(elements.profileForm, "submit", saveProfileForm, "profileForm");
+bindUi(elements.profileDeleteButton, "click", () => {
+  if (state.editingProfileId) {
+    const prof = state.profilesState.profiles.find(p => p.id === state.editingProfileId);
+    if (prof) {
+      closeProfileModal();
+      openDeleteProfileModal(prof);
+    }
+  }
+}, "profileDeleteButton");
 bindUi(elements.deleteProfileCancelButton, "click", closeDeleteProfileModal, "deleteProfileCancelButton");
 bindUi(elements.deleteProfileConfirmButton, "click", confirmDeleteProfile, "deleteProfileConfirmButton");
 bindUi(elements.exportProfilesButton, "click", exportProfiles, "exportProfilesButton");

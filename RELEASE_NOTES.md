@@ -1,3 +1,46 @@
+# Windows Process Control Center 0.1.2
+
+Release date: 2026-05-25
+
+**Update: Native Downloader Engine, Process Picker & Table Enhancements.**
+
+- **Native Update Downloader Engine**: Overhauled the update delivery pipeline to execute downloads directly on the C++ backend using native `URLDownloadToFileW`. This completely suppresses the default Edge WebView2 download dialogs and overrides Microsoft Defender SmartScreen blocks for unsigned executables.
+- **Real-Time Progress Tracking & Thread Safety**: Implemented the `IBindStatusCallback` interface to intercept and report download bytes dynamically. Progress is dispatched to the main UI thread via thread-safe window messaging (`WM_DOWNLOAD_PROGRESS` & `WM_DOWNLOAD_COMPLETE`) and memory-guarded pointers, preventing COM STA threading violations or application hangs.
+- **Interactive Update Modal & Auto-Install**: Redesigned the "Update available" modal to transition into a smooth progress track during download. On completion, it triggers an instant installation sequence using `ShellExecuteW` to launch the installer and exits the application cleanly.
+- **Unignored Version Revocation**: Added a reset button in Settings → Updates to clear the ignored release version, resolving the lock trap and permitting users to reinstall or review ignored versions.
+- **Profile Process Picker**: Integrated a "Select running process" dropdown in the Profile Creation panel to pre-populate executable paths and process names from active processes.
+- **Hardened Process Exclusions**: Secured the process picker by excluding low PID system processes, protected tasks, and system folder paths (e.g., `System32`, `SysWOW64`, `SystemApps`) using path normalization and fallback checking for empty or unavailable paths.
+- **Table Sorting & Column Toggles**: Implemented column-header sorting on the process table by CPU Priority class and GPU Preference, and introduced a toggle to show/hide the Process ID (PID) column.
+- **UI Layout & Popover Stabilization**: Replaced the sidebar-based safety note with an interactive popover tooltip positioned safely to avoid container clipping. Restructured the profiles list to prevent name truncation and badge overlaps.
+
+## Portable Package (0.1.2)
+
+The portable package is named:
+
+```text
+WindowsProcessControlCenter-0.1.2-portable.zip
+```
+
+Unzip it and run:
+
+```text
+WindowsProcessControlCenter.exe
+```
+
+The `web/` folder must remain beside the executable.
+
+## Installer Package (0.1.2)
+
+An optional Windows installer is also available:
+
+```text
+WindowsProcessControlCenter-0.1.2-setup.exe
+```
+
+The installer installs per user by default, supports custom install locations, and configures shortcuts.
+
+---
+
 # Windows Process Control Center 0.1.1
 
 Release date: 2026-05-24

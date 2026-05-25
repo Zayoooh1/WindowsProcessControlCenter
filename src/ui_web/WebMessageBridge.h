@@ -23,6 +23,8 @@ namespace wpcc
         ExportProfilesToFile,
         ChooseExecutable,
         ApplyProfile,
+        ExecuteInstaller,
+        DownloadUpdate,
     };
 
     struct SetCpuPriorityRequest
@@ -71,7 +73,11 @@ namespace wpcc
         SetGpuPreferenceRequest ParseSetGpuPreferenceRequest(std::wstring_view messageJson) const;
         std::string ParseSaveProfilesRequest(std::wstring_view messageJson) const;
         std::string ParseApplyProfileRequest(std::wstring_view messageJson) const;
+        std::wstring ParseExecuteInstallerRequest(std::wstring_view messageJson) const;
+        std::wstring ParseDownloadUpdateUrl(std::wstring_view messageJson) const;
         std::wstring BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes) const;
+        std::wstring BuildDownloadCompleteMessage(bool success, std::wstring_view filePath, std::wstring_view errorMessage) const;
+        std::wstring BuildDownloadProgressMessage(uint32_t downloadedBytes, uint32_t totalBytes) const;
         std::wstring BuildActionResultMessage(std::string_view action, const ProcessActionResult& result) const;
         std::wstring BuildProfilesLoadedMessage(bool success, const std::string& profilesJson, std::wstring_view warning) const;
         std::wstring BuildProfilesSavedMessage(bool success, std::wstring_view warning) const;

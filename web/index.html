@@ -16,7 +16,6 @@
       </div>
       <div class="top-actions">
         <span class="version-pill">v0.1.1</span>
-        <span class="mode-pill">User mode</span>
         <span id="processCount" class="count">0 processes</span>
         <button id="refreshButton" class="primary-button" type="button">Refresh</button>
       </div>
@@ -121,8 +120,8 @@
                     <th class="col-process">Process</th>
                     <th class="col-path path-column">Executable Path</th>
                     <th class="col-runtime">Runtime</th>
-                    <th class="col-priority">CPU Priority</th>
-                    <th class="col-gpu">GPU Preference</th>
+                    <th class="col-priority clickable-header">CPU Priority</th>
+                    <th class="col-gpu clickable-header">GPU Preference</th>
                     <th class="col-admin">Admin</th>
                     <th class="col-access">Access</th>
                   </tr>
@@ -155,9 +154,7 @@
           <section class="panel settings-hero">
             <div>
               <h2>Settings</h2>
-              <p>Local interface preferences for this WebView2 session profile.</p>
             </div>
-            <span class="badge neutral">Frontend-only</span>
           </section>
 
           <div id="settingsStorageNotice" class="settings-storage-notice hidden"></div>
@@ -211,6 +208,17 @@
                 </div>
                 <label class="switch-control">
                   <input id="showPathToggle" type="checkbox">
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                </label>
+              </article>
+
+              <article class="panel setting-card">
+                <div class="setting-copy">
+                  <h3>Show PID column</h3>
+                  <p>Show or hide the PID column in the process table.</p>
+                </div>
+                <label class="switch-control">
+                  <input id="showPidToggle" type="checkbox">
                   <span class="switch-track"><span class="switch-thumb"></span></span>
                 </label>
               </article>
@@ -309,13 +317,13 @@
                 </select>
               </article>
 
-              <article class="panel setting-card locked-setting">
+              <article class="panel setting-card">
                 <div class="setting-copy">
                   <h3>Install updates automatically</h3>
                   <p>Automatic installation is planned for a future version. Current version will only check and prompt.</p>
                 </div>
-                <label class="switch-control locked">
-                  <input id="autoInstallToggle" type="checkbox" disabled>
+                <label class="switch-control">
+                  <input id="autoInstallToggle" type="checkbox">
                   <span class="switch-track"><span class="switch-thumb"></span></span>
                 </label>
               </article>
@@ -325,7 +333,10 @@
                   <h3>Ignored update version</h3>
                   <p>A detected release version that the user chose to ignore. Currently none.</p>
                 </div>
-                <span id="ignoredUpdateVersionDisplay" class="setting-value-text">None</span>
+                <div class="setting-actions-group">
+                  <span id="ignoredUpdateVersionDisplay" class="setting-value-text">None</span>
+                  <button id="resetIgnoredVersionButton" class="secondary-button" type="button">Reset / Unignore</button>
+                </div>
               </article>
 
               <article class="panel setting-card">
@@ -333,7 +344,7 @@
                   <h3>Check for updates now</h3>
                   <p>Check GitHub Releases for a newer WPCC version.</p>
                 </div>
-                <div style="display: grid; gap:8px; align-items:start;">
+                <div class="update-checker-controls">
                   <button id="manualCheckButton" class="secondary-button" type="button">Check for updates now</button>
                   <div id="updateStatusArea" class="update-status-area">Never checked</div>
                 </div>
@@ -447,33 +458,24 @@
           <div id="rulesStorageNotice" class="settings-storage-notice hidden"></div>
 
           <div class="rules-layout">
-            <!-- Sidebar with safety and storage info -->
-            <div class="rules-info-sidebar">
-              <section class="panel rules-card">
-                <div class="rules-card-header">
-                  <h2>Safety note</h2>
-                </div>
-                <div class="rules-status-message">
-                  <p>Profiles are saved locally in this browser/WebView storage. They do not perform automatic actions yet.</p>
-                  <p class="rules-safety-warning">End Process, Freeze and Resume are not supported in profiles.</p>
-                </div>
-              </section>
-
-              <section class="panel rules-card">
-                <div class="rules-card-header">
-                  <h2>Storage information</h2>
-                </div>
-                <div class="about-info-list rules-storage-info">
-                  <div class="about-info-row"><strong>storage type</strong><span>localStorage</span></div>
-                  <div class="about-info-row"><strong>storage key</strong><span>wpcc.profiles</span></div>
-                </div>
-                <p class="rules-note rules-storage-note">Native profiles.json storage is planned for a future version.</p>
-              </section>
-            </div>
-
             <!-- Main area: Actions, empty state, and grid of cards -->
             <div class="rules-main-content">
               <div id="rulesActionsBar" class="rules-actions-bar hidden-view">
+                <div class="safety-note-container">
+                  <button id="safetyNoteButton" class="icon-button" type="button" aria-label="View safety note">ⓘ</button>
+                  <div class="safety-note-popover">
+                    <h3>Safety note</h3>
+                    <p>Profiles are saved locally in this browser/WebView storage. They do not perform automatic actions yet.</p>
+                    <p class="rules-safety-warning">End Process, Freeze and Resume are not supported in profiles.</p>
+                    <hr>
+                    <h3>Storage information</h3>
+                    <div class="about-info-list rules-storage-info">
+                      <div class="about-info-row"><strong>storage type</strong><span>localStorage</span></div>
+                      <div class="about-info-row"><strong>storage key</strong><span>wpcc.profiles</span></div>
+                    </div>
+                    <p class="rules-note rules-storage-note">Native profiles.json storage is planned for a future version.</p>
+                  </div>
+                </div>
                 <button id="createProfileButton" class="primary-button" type="button">Create profile</button>
                 <button id="exportProfilesButton" class="secondary-button" type="button">Export profiles</button>
                 <button id="importProfilesButton" class="secondary-button" type="button">Import profiles</button>
@@ -499,6 +501,13 @@
                     <div class="form-group">
                       <label for="profileName">Profile name</label>
                       <input type="text" id="profileName" placeholder="e.g. Heavy Game Preset" required>
+                    </div>
+
+                    <div class="form-group">
+                      <label for="profileRunningProcessPicker">Select running process</label>
+                      <select id="profileRunningProcessPicker" class="setting-select">
+                        <option value="">-- Select a running process --</option>
+                      </select>
                     </div>
 
                     <div class="form-row-flex">
@@ -585,6 +594,7 @@
                     </div>
 
                     <div class="modal-actions">
+                      <button id="profileDeleteButton" class="danger-action-button hidden" type="button">Delete profile</button>
                       <button id="profileResetButton" class="secondary-button" type="button">Reset form</button>
                       <button id="profileCancelButton" class="secondary-button" type="button">Cancel</button>
                       <button id="profileSaveButton" class="primary-button" type="submit">Save profile</button>
@@ -613,6 +623,20 @@
                   <div class="modal-actions">
                     <button id="deleteProfileCancelButton" class="secondary-button" type="button">Cancel</button>
                     <button id="deleteProfileConfirmButton" class="danger-action-button" type="button">Delete</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Download Complete Modal -->
+              <div id="downloadCompleteModal" class="modal-backdrop hidden-view">
+                <div class="confirm-modal">
+                  <h2>Update Ready</h2>
+                  <div class="download-modal-text">
+                    Windows Process Control Center v0.1.1 has been successfully downloaded to your local staging directory. Would you like to proceed with the installation now?
+                  </div>
+                  <div class="modal-actions">
+                    <button id="dismissInstallBtn" class="secondary-button" type="button">Do not install</button>
+                    <button id="confirmInstallBtn" class="primary-button" type="button">Install now</button>
                   </div>
                 </div>
               </div>

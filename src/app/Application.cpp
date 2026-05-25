@@ -94,6 +94,30 @@ namespace wpcc
             }
             handled = true;
             return 0;
+        case WebViewHost::WM_DOWNLOAD_COMPLETE:
+            if (m_webViewHost)
+            {
+                std::wstring* filePathPtr = reinterpret_cast<std::wstring*>(lParam);
+                if (filePathPtr)
+                {
+                    m_webViewHost->OnDownloadComplete(wParam == 1, *filePathPtr);
+                    delete filePathPtr;
+                }
+            }
+            handled = true;
+            return 0;
+        case WebViewHost::WM_DOWNLOAD_PROGRESS:
+            if (m_webViewHost)
+            {
+                WebViewHost::ProgressData* progressPtr = reinterpret_cast<WebViewHost::ProgressData*>(lParam);
+                if (progressPtr)
+                {
+                    m_webViewHost->NotifyDownloadProgress(progressPtr->downloaded, progressPtr->total);
+                    delete progressPtr;
+                }
+            }
+            handled = true;
+            return 0;
         case WM_SIZE:
             if (m_webViewHost && wParam != SIZE_MINIMIZED)
             {

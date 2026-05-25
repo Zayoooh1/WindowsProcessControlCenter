@@ -3,7 +3,10 @@
 #include <wrl/event.h>
 
 #include <ShlObj.h>
+#include <shellapi.h>
 #include <commdlg.h>
+#include <thread>
+#include <urlmon.h>
 
 #include <algorithm>
 #include <array>
@@ -25,6 +28,46 @@ namespace
         std::wcout << L"[WPCC LOG] " << message << std::endl;
         OutputDebugStringW((L"[WPCC LOG] " + message + L"\n").c_str());
     }
+
+    class DownloadProgressCallback : public IBindStatusCallback {
+    public:
+        DownloadProgressCallback(HWND hwnd) : m_hwnd(hwnd), m_refCount(1) {}
+
+        // IUnknown
+        HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppvObject) override {
+            if (riid == IID_IUnknown || riid == IID_IBindStatusCallback) {
+                *ppvObject = this;
+                AddRef();
+                return S_OK;
+            }
+            *ppvObject = nullptr;
+            return E_NOINTERFACE;
+        }
+        ULONG STDMETHODCALLTYPE AddRef() override { return InterlockedIncrement(&m_refCount); }
+        ULONG STDMETHODCALLTYPE Release() override {
+            ULONG ref = InterlockedDecrement(&m_refCount);
+            if (ref == 0) delete this;
+            return ref;
+        }
+
+        // IBindStatusCallback
+        HRESULT STDMETHODCALLTYPE OnStartBinding(DWORD, IBinding*) override { return E_NOTIMPL; }
+        HRESULT STDMETHODCALLTYPE GetPriority(LONG*) override { return E_NOTIMPL; }
+        HRESULT STDMETHODCALLTYPE OnLowResource(DWORD) override { return E_NOTIMPL; }
+        HRESULT STDMETHODCALLTYPE OnProgress(ULONG ulProgress, ULONG ulProgressMax, ULONG, LPCWSTR) override {
+            wpcc::WebViewHost::ProgressData* data = new wpcc::WebViewHost::ProgressData{ulProgress, ulProgressMax};
+            PostMessageW(m_hwnd, wpcc::WebViewHost::WM_DOWNLOAD_PROGRESS, 0, reinterpret_cast<LPARAM>(data));
+            return S_OK;
+        }
+        HRESULT STDMETHODCALLTYPE OnStopBinding(HRESULT, LPCWSTR) override { return E_NOTIMPL; }
+        HRESULT STDMETHODCALLTYPE GetBindInfo(DWORD* grfBINDF, BINDINFO* pbindinfo) override { return E_NOTIMPL; }
+        HRESULT STDMETHODCALLTYPE OnDataAvailable(DWORD, DWORD, FORMATETC*, STGMEDIUM*) override { return E_NOTIMPL; }
+        HRESULT STDMETHODCALLTYPE OnObjectAvailable(REFIID, IUnknown*) override { return E_NOTIMPL; }
+
+    private:
+        HWND m_hwnd;
+        ULONG m_refCount;
+    };
 }
 
 namespace wpcc
@@ -193,6 +236,12 @@ namespace wpcc
                         break;
                     case WebMessageType::ApplyProfile:
                         HandleApplyProfile(messageJson);
+                        break;
+                    case WebMessageType::ExecuteInstaller:
+                        HandleExecuteInstaller(messageJson);
+                        break;
+                    case WebMessageType::DownloadUpdate:
+                        HandleDownloadUpdate(messageJson);
                         break;
                     default:
                         SendError("Unsupported frontend message.");
@@ -477,6 +526,120 @@ namespace wpcc
         m_webView->PostWebMessageAsJson(response.c_str());
 
         SendProcessSnapshot();
+    }
+
+    void WebViewHost::HandleExecuteInstaller(std::wstring_view messageJson)
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        std::wstring filePath = m_bridge.ParseExecuteInstallerRequest(messageJson);
+        if (filePath.empty())
+        {
+            SendError("Installer file path is empty.");
+            return;
+        }
+
+        HINSTANCE result = ShellExecuteW(nullptr, L"open", filePath.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        if (reinterpret_cast<INT_PTR>(result) <= 32)
+        {
+            SendError("Failed to launch the installer.");
+            return;
+        }
+
+        PostQuitMessage(0);
+    }
+
+    void WebViewHost::HandleDownloadUpdate(std::wstring_view messageJson)
+    {
+        std::wstring url = m_bridge.ParseDownloadUpdateUrl(messageJson);
+        if (url.empty())
+        {
+            SendError("Download URL is empty.");
+            return;
+        }
+
+        HWND hwnd = m_hwnd;
+        std::thread downloadThread([url, hwnd]() {
+            wchar_t tempDir[MAX_PATH];
+            if (GetTempPathW(MAX_PATH, tempDir) > 0)
+            {
+                std::filesystem::path targetPath = std::filesystem::path(tempDir) / L"WPCC_Update_Setup.exe";
+                
+                std::error_code ec;
+                std::filesystem::create_directories(targetPath.parent_path(), ec);
+                if (ec)
+                {
+                    std::string errMsg = ec.message();
+                    std::wstring wmsg(errMsg.begin(), errMsg.end());
+                    AppLog(L"Failed to create directories: " + wmsg);
+                    OutputDebugStringW((L"[WPCC ERROR] Failed to create directory: " + wmsg + L"\n").c_str());
+                }
+
+                std::filesystem::remove(targetPath, ec);
+
+                AppLog(L"Starting URLDownloadToFileW from URL: " + url + L" to path: " + targetPath.wstring());
+                OutputDebugStringW((L"[WPCC LOG] Starting URLDownloadToFileW to " + targetPath.wstring() + L"\n").c_str());
+
+                DownloadProgressCallback* cb = new DownloadProgressCallback(hwnd);
+                HRESULT hr = URLDownloadToFileW(nullptr, url.c_str(), targetPath.c_str(), 0, cb);
+                cb->Release();
+                
+                AppLog(L"URLDownloadToFileW completed with HRESULT: " + std::to_wstring(hr));
+                OutputDebugStringW((L"[WPCC LOG] URLDownloadToFileW completed with HRESULT: " + std::to_wstring(hr) + L"\n").c_str());
+
+                if (SUCCEEDED(hr))
+                {
+                    PostMessageW(hwnd, WebViewHost::WM_DOWNLOAD_COMPLETE, 1, reinterpret_cast<LPARAM>(new std::wstring(targetPath.wstring())));
+                }
+                else
+                {
+                    std::wostringstream wss;
+                    wss << L"HRESULT 0x" << std::hex << std::uppercase << hr;
+                    PostMessageW(hwnd, WebViewHost::WM_DOWNLOAD_COMPLETE, 0, reinterpret_cast<LPARAM>(new std::wstring(wss.str())));
+                }
+            }
+            else
+            {
+                AppLog(L"GetTempPathW failed.");
+                OutputDebugStringW(L"[WPCC ERROR] GetTempPathW failed.\n");
+                PostMessageW(hwnd, WebViewHost::WM_DOWNLOAD_COMPLETE, 0, reinterpret_cast<LPARAM>(new std::wstring(L"Failed to resolve temporary directory path.")));
+            }
+        });
+        downloadThread.detach();
+    }
+
+    void WebViewHost::OnDownloadComplete(bool success, const std::wstring& filePathOrError)
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        if (success)
+        {
+            std::wstring jsonMessage = m_bridge.BuildDownloadCompleteMessage(true, filePathOrError, L"");
+            m_webView->PostWebMessageAsJson(jsonMessage.c_str());
+        }
+        else
+        {
+            std::wstring errorMessage = L"Native Downloader Error: " + filePathOrError;
+            std::wstring jsonMessage = m_bridge.BuildDownloadCompleteMessage(false, L"", errorMessage);
+            m_webView->PostWebMessageAsJson(jsonMessage.c_str());
+        }
+    }
+
+    void WebViewHost::NotifyDownloadProgress(uint32_t downloadedBytes, uint32_t totalBytes)
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        std::wstring jsonMessage = m_bridge.BuildDownloadProgressMessage(downloadedBytes, totalBytes);
+        m_webView->PostWebMessageAsJson(jsonMessage.c_str());
     }
 
     void WebViewHost::ChooseExecutable()
