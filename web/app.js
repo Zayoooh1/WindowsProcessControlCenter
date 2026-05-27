@@ -2925,9 +2925,18 @@ document.querySelectorAll("th.clickable-header").forEach(th => {
   });
 });
 
+function initVersionDisplay() {
+  document.querySelectorAll(".app-version-display").forEach(el => {
+    el.textContent = "v" + CURRENT_VERSION;
+  });
+}
+
+initVersionDisplay();
 render();
 requestProcesses();
 requestNativeProfiles();
 restartAutoRefresh();
 runAutoUpdateCheckIfNeeded();
+
+
 
