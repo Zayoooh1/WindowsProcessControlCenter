@@ -27,7 +27,9 @@ namespace wpcc
         std::string targetProcessName;
         std::string matchMode;
         std::string cpuPriority;
+        std::string gpuPreference;
         bool allowRealtime = false;
+        bool autoApply = false;
     };
 
     class ProfileStore

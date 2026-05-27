@@ -2,6 +2,7 @@
 
 #include "core/ProcessActions.h"
 #include "core/ProcessInfo.h"
+#include "core/AutoApplyEngine.h"
 
 #include <string>
 #include <string_view>
@@ -75,7 +76,7 @@ namespace wpcc
         std::string ParseApplyProfileRequest(std::wstring_view messageJson) const;
         std::wstring ParseExecuteInstallerRequest(std::wstring_view messageJson) const;
         std::wstring ParseDownloadUpdateUrl(std::wstring_view messageJson) const;
-        std::wstring BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes) const;
+        std::wstring BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes, const std::vector<AutoApplyLog>& autoApplyLogs) const;
         std::wstring BuildDownloadCompleteMessage(bool success, std::wstring_view filePath, std::wstring_view errorMessage) const;
         std::wstring BuildDownloadProgressMessage(uint32_t downloadedBytes, uint32_t totalBytes) const;
         std::wstring BuildActionResultMessage(std::string_view action, const ProcessActionResult& result) const;

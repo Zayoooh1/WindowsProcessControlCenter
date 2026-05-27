@@ -72,9 +72,10 @@ namespace
 
 namespace wpcc
 {
-    bool WebViewHost::Initialize(HWND hwnd)
+    bool WebViewHost::Initialize(HWND hwnd, AutoApplyEngine* autoApplyEngine)
     {
         m_hwnd = hwnd;
+        m_autoApplyEngine = autoApplyEngine;
 
         const std::filesystem::path userDataFolder = GetExecutableDirectory() / L"WebView2UserData";
         const HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
@@ -306,7 +307,12 @@ namespace wpcc
                 process.isFrozenByApp = m_processActions.IsFrozenByApp(process.pid);
                 process.gpuPreference = m_gpuPreferenceManager.GetPreferenceForExecutablePath(process.executablePath);
             }
-            const std::wstring message = m_bridge.BuildProcessSnapshotMessage(processes);
+            std::vector<AutoApplyLog> logs;
+            if (m_autoApplyEngine)
+            {
+                logs = m_autoApplyEngine->GetLogs();
+            }
+            const std::wstring message = m_bridge.BuildProcessSnapshotMessage(processes, logs);
             m_webView->PostWebMessageAsJson(message.c_str());
         }
         catch (...)

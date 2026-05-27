@@ -4,6 +4,7 @@
 #include "core/GpuPreferenceManager.h"
 #include "core/ProcessProvider.h"
 #include "core/ProfileStore.h"
+#include "core/AutoApplyEngine.h"
 #include "ui_web/WebMessageBridge.h"
 
 #include <Windows.h>
@@ -28,7 +29,7 @@ namespace wpcc
             uint32_t total;
         };
 
-        bool Initialize(HWND hwnd);
+        bool Initialize(HWND hwnd, AutoApplyEngine* autoApplyEngine);
         void Resize();
         void Shutdown();
         void RefreshProcesses();
@@ -73,6 +74,7 @@ namespace wpcc
         ProcessProvider m_processProvider;
         ProcessActions m_processActions;
         GpuPreferenceManager m_gpuPreferenceManager;
+        AutoApplyEngine* m_autoApplyEngine = nullptr;
         WebMessageBridge m_bridge;
     };
 }

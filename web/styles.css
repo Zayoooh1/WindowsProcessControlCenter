@@ -682,6 +682,14 @@ h2 {
   gap: 10px;
 }
 
+.auto-apply-ledger {
+  display: grid;
+  gap: 8px;
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .status-row {
   display: grid;
   grid-template-columns: 12px minmax(0, 1fr);

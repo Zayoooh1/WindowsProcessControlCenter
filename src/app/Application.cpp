@@ -20,6 +20,7 @@ namespace wpcc
 
     Application::~Application()
     {
+        m_autoApplyEngine.Stop();
         m_trayIcon.Destroy();
 
         if (m_webViewHost)
@@ -57,12 +58,14 @@ namespace wpcc
         }
 
         m_webViewHost = std::make_unique<WebViewHost>();
-        if (!m_webViewHost->Initialize(m_window.GetHandle()))
+        if (!m_webViewHost->Initialize(m_window.GetHandle(), &m_autoApplyEngine))
         {
             return false;
         }
 
         m_trayIcon.Create(m_window.GetHandle(), m_instance, IDI_APP_ICON, L"Windows Process Control Center");
+
+        m_autoApplyEngine.Start();
 
         m_window.Show(m_showCommand);
         m_running = true;

@@ -161,7 +161,9 @@ namespace wpcc
                     if (item.contains("targetProcessName") && item["targetProcessName"].is_string()) profile.targetProcessName = item["targetProcessName"].get<std::string>();
                     if (item.contains("matchMode") && item["matchMode"].is_string()) profile.matchMode = item["matchMode"].get<std::string>();
                     if (item.contains("cpuPriority") && item["cpuPriority"].is_string()) profile.cpuPriority = item["cpuPriority"].get<std::string>();
+                    if (item.contains("gpuPreference") && item["gpuPreference"].is_string()) profile.gpuPreference = item["gpuPreference"].get<std::string>();
                     if (item.contains("allowRealtime") && item["allowRealtime"].is_boolean()) profile.allowRealtime = item["allowRealtime"].get<bool>();
+                    if (item.contains("autoApply") && item["autoApply"].is_boolean()) profile.autoApply = item["autoApply"].get<bool>();
                     profiles.push_back(profile);
                 }
             }

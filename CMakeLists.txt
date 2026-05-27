@@ -69,6 +69,7 @@ add_executable(WindowsProcessControlCenter WIN32
     src/core/GpuPreferenceManager.h
     src/core/ProcessActions.cpp
     src/core/ProcessActions.h
+    src/core/AutoApplyEngine.cpp
     src/core/ProfileStore.cpp
     src/core/ProfileStore.h
     src/core/ProcessProvider.cpp

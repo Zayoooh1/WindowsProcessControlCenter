@@ -155,7 +155,7 @@ namespace wpcc
         return request;
     }
 
-    std::wstring WebMessageBridge::BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes) const
+    std::wstring WebMessageBridge::BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes, const std::vector<AutoApplyLog>& autoApplyLogs) const
     {
         std::wostringstream json;
         json << L"{\"type\":\"processSnapshot\",\"processes\":[";
@@ -178,6 +178,23 @@ namespace wpcc
             json << L"\"adminNeeded\":" << (process.likelyRequiresAdmin ? L"true" : L"false") << L",";
             json << L"\"accessStatus\":\"" << EscapeJson(process.accessStatus) << L"\",";
             json << L"\"accessError\":\"" << EscapeJson(process.accessError) << L"\"";
+            json << L"}";
+        }
+
+        json << L"],\"autoApplyLogs\":[";
+        for (size_t index = 0; index < autoApplyLogs.size(); ++index)
+        {
+            const AutoApplyLog& log = autoApplyLogs[index];
+            if (index > 0)
+            {
+                json << L",";
+            }
+
+            json << L"{";
+            json << L"\"timestamp\":\"" << EscapeJson(log.timestamp) << L"\",";
+            json << L"\"processName\":\"" << EscapeJson(log.processName) << L"\",";
+            json << L"\"action\":\"" << EscapeJson(log.action) << L"\",";
+            json << L"\"status\":\"" << EscapeJson(log.status) << L"\"";
             json << L"}";
         }
 

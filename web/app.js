@@ -1,7 +1,7 @@
 const SETTINGS_STORAGE_KEY = "wpcc.settings";
 const VALID_UPDATE_INTERVALS = ["3d", "weekly", "monthly"];
 const UPDATE_STATE_KEY = "wpcc.updateState";
-const CURRENT_VERSION = "0.1.4";
+const CURRENT_VERSION = "0.1.5";
 
 const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
@@ -100,6 +100,8 @@ const elements = {
   downloadCompleteModal: document.getElementById("downloadCompleteModal"),
   dismissInstallBtn: document.getElementById("dismissInstallBtn"),
   confirmInstallBtn: document.getElementById("confirmInstallBtn"),
+  lastActionContent: document.getElementById("lastActionContent"),
+  autoApplyContent: document.getElementById("autoApplyContent"),
   searchInput: document.getElementById("searchInput"),
   processRows: document.getElementById("processRows"),
   detailsContent: document.getElementById("detailsContent"),
@@ -681,6 +683,11 @@ function handleHostMessage(event) {
     } else {
       applyFilter();
     }
+    
+    if (message.autoApplyLogs) {
+      renderAutoApplyLogs(message.autoApplyLogs);
+    }
+    
     return;
   }
 
@@ -2937,6 +2944,36 @@ requestProcesses();
 requestNativeProfiles();
 restartAutoRefresh();
 runAutoUpdateCheckIfNeeded();
+
+
+
+
+function renderAutoApplyLogs(logs) {
+  if (!elements.autoApplyContent) return;
+
+  if (!logs || logs.length === 0) {
+    elements.autoApplyContent.innerHTML = '<div class="empty-state">No automated actions yet.</div>';
+    return;
+  }
+
+  elements.autoApplyContent.innerHTML = "";
+  
+  logs.forEach(log => {
+    const row = document.createElement("div");
+    row.className = "status-row";
+    
+    const dot = document.createElement("span");
+    dot.className = `status-dot `;
+    
+    const text = document.createElement("span");
+    text.textContent = `[]  -  ()`;
+    
+    row.appendChild(dot);
+    row.appendChild(text);
+    
+    elements.autoApplyContent.appendChild(row);
+  });
+}
 
 
 

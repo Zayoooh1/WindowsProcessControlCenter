@@ -3,6 +3,7 @@
 #include "platform/Win32Window.h"
 #include "platform/TrayIcon.h"
 #include "ui_web/WebViewHost.h"
+#include "core/AutoApplyEngine.h"
 
 #include <Windows.h>
 
@@ -30,6 +31,7 @@ namespace wpcc
         Win32Window m_window;
         TrayIcon m_trayIcon;
         std::unique_ptr<WebViewHost> m_webViewHost;
+        AutoApplyEngine m_autoApplyEngine;
         bool m_comInitialized = false;
         bool m_running = false;
     };
