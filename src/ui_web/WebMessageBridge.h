@@ -18,7 +18,7 @@ namespace wpcc
         FreezeProcess,
         ResumeProcess,
         SetGpuPreference,
-        LoadProfiles,
+        GetProfiles,
         SaveProfiles,
         ExportProfilesToFile,
         ChooseExecutable,

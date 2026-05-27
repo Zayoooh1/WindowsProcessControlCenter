@@ -221,8 +221,8 @@ namespace wpcc
                     case WebMessageType::SetGpuPreference:
                         HandleSetGpuPreference(messageJson);
                         break;
-                    case WebMessageType::LoadProfiles:
-                        HandleLoadProfiles();
+                    case WebMessageType::GetProfiles:
+                        HandleGetProfiles();
                         break;
                     case WebMessageType::SaveProfiles:
                         HandleSaveProfiles(messageJson);
@@ -400,14 +400,14 @@ namespace wpcc
         }
     }
 
-    void WebViewHost::HandleLoadProfiles()
+    void WebViewHost::HandleGetProfiles()
     {
         if (!m_webView)
         {
             return;
         }
 
-        const ProfileLoadResult result = ProfileStore::LoadProfiles();
+        const ProfileLoadResult result = ProfileStore::GetProfiles();
         const std::wstring response = m_bridge.BuildProfilesLoadedMessage(result.success, result.jsonContent, result.warning);
         m_webView->PostWebMessageAsJson(response.c_str());
     }
@@ -493,7 +493,7 @@ namespace wpcc
             return;
         }
 
-        const ProfileLoadResult loadResult = ProfileStore::LoadProfiles();
+        const ProfileLoadResult loadResult = ProfileStore::GetProfiles();
         if (!loadResult.success)
         {
             const std::wstring response = m_bridge.BuildProfileAppliedMessage(profileId, false, 0, 0, 0, "Failed to load profiles storage.");

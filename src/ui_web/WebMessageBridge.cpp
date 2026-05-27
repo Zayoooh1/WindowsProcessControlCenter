@@ -46,9 +46,9 @@ namespace wpcc
         }
 
         if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
-            messageJson.find(L"\"loadProfiles\"") != std::wstring_view::npos)
+            messageJson.find(L"\"getProfiles\"") != std::wstring_view::npos)
         {
-            return WebMessageType::LoadProfiles;
+            return WebMessageType::GetProfiles;
         }
 
         if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&

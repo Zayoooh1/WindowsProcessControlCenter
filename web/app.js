@@ -22,6 +22,7 @@ const VALID_AUTO_REFRESH_INTERVALS = ["off", "5s", "15s", "30s", "60s"];
 const initialSettingsState = loadSettings();
 const initialProfilesState = loadProfiles();
 let autoRefreshTimer = null;
+let snapshotDebounceTimer = null;
 
 const state = {
   activeView: initialSettingsState.settings.startScreen,
@@ -235,49 +236,12 @@ const VALID_GPU_PREFERENCES = ["DoNotChange", "SystemDefault", "PowerSaving", "H
 const VALID_MATCH_MODES = ["path", "name"];
 
 function loadProfiles() {
-  const fallback = {
+  return {
     schemaVersion: 1,
     profiles: [],
-    storageAvailable: false,
-    warning: "",
+    storageAvailable: true,
+    warning: "Loading profiles from native storage...",
   };
-
-  try {
-    const storage = window.localStorage;
-    const testKey = `${PROFILES_STORAGE_KEY}.test`;
-    storage.setItem(testKey, "1");
-    storage.removeItem(testKey);
-
-    const raw = storage.getItem(PROFILES_STORAGE_KEY);
-    if (!raw) {
-      return { schemaVersion: 1, profiles: [], storageAvailable: true, warning: "" };
-    }
-
-    try {
-      const parsed = JSON.parse(raw);
-      const validated = normalizeProfiles(parsed);
-      return {
-        schemaVersion: validated.schemaVersion,
-        profiles: validated.profiles,
-        storageAvailable: true,
-        warning: "",
-      };
-    } catch {
-      return {
-        schemaVersion: 1,
-        profiles: [],
-        storageAvailable: true,
-        warning: "Saved profiles could not be read. Storage reset to defaults.",
-      };
-    }
-  } catch {
-    return {
-      schemaVersion: 1,
-      profiles: [],
-      storageAvailable: false,
-      warning: "Local storage is unavailable. Profiles cannot be persisted.",
-    };
-  }
 }
 
 function normalizeProfiles(parsed) {
@@ -330,21 +294,13 @@ function saveProfiles() {
     profiles: state.profilesState.profiles,
   };
 
-  if (state.profilesState.storageAvailable) {
-    try {
-      window.localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(data));
-      state.profilesState.warning = "";
-    } catch {
-      state.profilesState.storageAvailable = false;
-      state.profilesState.warning = "Local storage is unavailable. Profiles cannot be persisted.";
-    }
-  }
-
   if (window.chrome?.webview) {
     window.chrome.webview.postMessage({
       type: "saveProfiles",
       profiles: JSON.stringify(data),
     });
+  } else {
+    state.profilesState.warning = "Cannot save: Native backend is unavailable.";
   }
 }
 
@@ -667,7 +623,7 @@ function postToHost(message) {
 
 function requestNativeProfiles() {
   if (!window.chrome?.webview) return;
-  window.chrome.webview.postMessage({ type: "loadProfiles" });
+  window.chrome.webview.postMessage({ type: "getProfiles" });
 }
 
 function requestProcesses() {
@@ -717,7 +673,14 @@ function handleHostMessage(event) {
     if (!state.processes.some((process) => process.pid === state.selectedPid)) {
       state.selectedPid = state.processes[0]?.pid ?? null;
     }
-    applyFilter();
+    if (state.processes.length > 50) {
+      clearTimeout(snapshotDebounceTimer);
+      snapshotDebounceTimer = setTimeout(() => {
+        applyFilter();
+      }, 150);
+    } else {
+      applyFilter();
+    }
     return;
   }
 
@@ -771,14 +734,11 @@ function handleHostMessage(event) {
     if (message.success && message.profiles && typeof message.profiles === "object") {
       const validated = normalizeProfiles(message.profiles);
       state.profilesState.profiles = validated.profiles;
-      if (state.profilesState.storageAvailable) {
-        try {
-          window.localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify({ schemaVersion: 1, profiles: validated.profiles }));
-        } catch {}
-      }
       state.profilesState.warning = "";
     } else if (message.warning) {
       state.profilesState.warning = message.warning;
+    } else if (!message.success) {
+      state.profilesState.warning = "Failed to load profiles from native storage.";
     }
     render();
     return;
@@ -872,19 +832,35 @@ function applyFilter() {
 
   if (state.sortColumn && state.sortDirection !== "none") {
     const dirMultiplier = state.sortDirection === "asc" ? 1 : -1;
-    if (state.sortColumn === "priority") {
-      state.filtered.sort((a, b) => {
-        const priorityA = mapPriorityToValue(a.cpuPriority);
-        const priorityB = mapPriorityToValue(b.cpuPriority);
-        return (priorityA - priorityB) * dirMultiplier;
-      });
-    } else if (state.sortColumn === "gpu") {
-      state.filtered.sort((a, b) => {
-        const gpuA = mapGpuToValue(a.gpuPreference);
-        const gpuB = mapGpuToValue(b.gpuPreference);
-        return (gpuA - gpuB) * dirMultiplier;
-      });
-    }
+    state.filtered.sort((a, b) => {
+      if (state.sortColumn === "pid") {
+        return ((a.pid || 0) - (b.pid || 0)) * dirMultiplier;
+      }
+      if (state.sortColumn === "name") {
+        return (a.name || "").localeCompare(b.name || "") * dirMultiplier;
+      }
+      if (state.sortColumn === "path") {
+        return (a.path || "").localeCompare(b.path || "") * dirMultiplier;
+      }
+      if (state.sortColumn === "runtime") {
+        return (runtimeLabel(a) || "").localeCompare(runtimeLabel(b) || "") * dirMultiplier;
+      }
+      if (state.sortColumn === "priority") {
+        return (mapPriorityToValue(a.cpuPriority) - mapPriorityToValue(b.cpuPriority)) * dirMultiplier;
+      }
+      if (state.sortColumn === "gpu") {
+        return (mapGpuToValue(a.gpuPreference) - mapGpuToValue(b.gpuPreference)) * dirMultiplier;
+      }
+      if (state.sortColumn === "admin") {
+        const aVal = a.adminNeeded ? 1 : 0;
+        const bVal = b.adminNeeded ? 1 : 0;
+        return (aVal - bVal) * dirMultiplier;
+      }
+      if (state.sortColumn === "access") {
+        return (a.accessStatus || "").localeCompare(b.accessStatus || "") * dirMultiplier;
+      }
+      return 0;
+    });
   }
 
   if (!state.filtered.some((process) => process.pid === state.selectedPid)) {
@@ -892,6 +868,16 @@ function applyFilter() {
   }
 
   render();
+}
+
+function updateHeaderIndicators() {
+  document.querySelectorAll("th.clickable-header").forEach(th => {
+    th.classList.remove("sort-asc", "sort-desc");
+    if (th.dataset.sort === state.sortColumn) {
+      if (state.sortDirection === "asc") th.classList.add("sort-asc");
+      else if (state.sortDirection === "desc") th.classList.add("sort-desc");
+    }
+  });
 }
 
 function render() {
@@ -1503,9 +1489,8 @@ function actionLabel(action) {
 }
 
 function renderRows() {
-  elements.processRows.replaceChildren();
-
   if (state.filtered.length === 0) {
+    elements.processRows.replaceChildren();
     const row = document.createElement("tr");
     const cell = document.createElement("td");
     cell.colSpan = 8;
@@ -1516,16 +1501,35 @@ function renderRows() {
     return;
   }
 
+  const existingRows = Array.from(elements.processRows.children);
+  const rowsByPid = new Map();
+  for (const row of existingRows) {
+    if (row.dataset.pid) rowsByPid.set(row.dataset.pid, row);
+    else row.remove();
+  }
+
+  const fragment = document.createDocumentFragment();
+
   for (const process of state.filtered) {
-    const row = document.createElement("tr");
-    row.className = process.pid === state.selectedPid ? "selected" : "";
-    row.addEventListener("click", () => {
-      state.selectedPid = process.pid;
-      if (!state.detailsPanelOpen) {
-        state.detailsPanelOpen = true;
-      }
-      render();
-    });
+    const pidStr = String(process.pid);
+    let row = rowsByPid.get(pidStr);
+
+    if (row) {
+      rowsByPid.delete(pidStr);
+      row.className = process.pid === state.selectedPid ? "selected" : "";
+      row.replaceChildren();
+    } else {
+      row = document.createElement("tr");
+      row.dataset.pid = pidStr;
+      row.className = process.pid === state.selectedPid ? "selected" : "";
+      row.addEventListener("click", () => {
+        state.selectedPid = process.pid;
+        if (!state.detailsPanelOpen) {
+          state.detailsPanelOpen = true;
+        }
+        render();
+      });
+    }
 
     row.appendChild(textCell(process.pid, "col-pid pid-cell"));
     row.appendChild(textCell(process.name || "Unknown", "col-process"));
@@ -1535,8 +1539,14 @@ function renderRows() {
     row.appendChild(badgeCell(gpuPreferenceLabel(process.gpuPreference), gpuPreferenceTone(process.gpuPreference), "col-gpu"));
     row.appendChild(badgeCell(process.adminNeeded ? "Likely" : "No", process.adminNeeded ? "warning" : "neutral", "col-admin"));
     row.appendChild(badgeCell(process.accessStatus || "Unknown", accessTone(process.accessStatus), "col-access"));
-    elements.processRows.appendChild(row);
+    fragment.appendChild(row);
   }
+
+  for (const row of rowsByPid.values()) {
+    row.remove();
+  }
+
+  elements.processRows.replaceChildren(fragment);
 }
 
 function renderDetails() {
@@ -2894,6 +2904,26 @@ bindUi(elements.deleteProfileConfirmButton, "click", confirmDeleteProfile, "dele
 bindUi(elements.exportProfilesButton, "click", exportProfiles, "exportProfilesButton");
 bindUi(elements.importProfilesButton, "click", importProfiles, "importProfilesButton");
 bindUi(elements.importFileInput, "change", handleImportFile, "importFileInput");
+bindUi(elements.searchInput, "input", (e) => {
+  state.query = e.target.value;
+  applyFilter();
+}, "searchInput");
+
+document.querySelectorAll("th.clickable-header").forEach(th => {
+  th.addEventListener("click", () => {
+    const col = th.dataset.sort;
+    if (!col) return;
+    if (state.sortColumn === col) {
+      if (state.sortDirection === "asc") state.sortDirection = "desc";
+      else if (state.sortDirection === "desc") { state.sortDirection = "none"; state.sortColumn = null; }
+      else state.sortDirection = "asc";
+    } else {
+      state.sortColumn = col;
+      state.sortDirection = "asc";
+    }
+    applyFilter();
+  });
+});
 
 render();
 requestProcesses();

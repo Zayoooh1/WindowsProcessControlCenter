@@ -53,6 +53,13 @@ endif()
 set(WEBVIEW2_INCLUDE_DIR "${WEBVIEW2_PACKAGE_DIR}/build/native/include")
 set(WEBVIEW2_LOADER_LIB "${WEBVIEW2_PACKAGE_DIR}/build/native/${WEBVIEW2_ARCH}/WebView2LoaderStatic.lib")
 
+include(FetchContent)
+FetchContent_Declare(
+    nlohmann_json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 add_executable(WindowsProcessControlCenter WIN32
     src/main.cpp
     src/app/Application.cpp
@@ -100,6 +107,7 @@ endif()
 
 target_link_libraries(WindowsProcessControlCenter PRIVATE
     ${WEBVIEW2_LOADER_LIB}
+    nlohmann_json::nlohmann_json
     advapi32
     dwmapi
     ole32

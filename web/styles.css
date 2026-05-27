@@ -903,6 +903,20 @@ th.clickable-header:hover {
   color: #ffffff;
 }
 
+th.clickable-header.sort-asc::after {
+  content: " \2191"; /* Up arrow */
+  opacity: 0.7;
+  font-size: 0.9em;
+  margin-left: 4px;
+}
+
+th.clickable-header.sort-desc::after {
+  content: " \2193"; /* Down arrow */
+  opacity: 0.7;
+  font-size: 0.9em;
+  margin-left: 4px;
+}
+
 thead {
   position: sticky;
   top: 0;

@@ -47,7 +47,7 @@ namespace wpcc
         void HandleFreezeProcess(std::wstring_view messageJson);
         void HandleResumeProcess(std::wstring_view messageJson);
         void HandleSetGpuPreference(std::wstring_view messageJson);
-        void HandleLoadProfiles();
+        void HandleGetProfiles();
         void HandleSaveProfiles(std::wstring_view messageJson);
         void HandleExportProfilesToFile(std::wstring_view messageJson);
         void HandleApplyProfile(std::wstring_view messageJson);
