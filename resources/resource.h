@@ -15,4 +15,6 @@
 #define VER_FILE_DESCRIPTION_STR "Windows Process Control Center"
 #define VER_ORIGINAL_FILENAME_STR "WindowsProcessControlCenter.exe"
 #define VER_INTERNAL_NAME_STR "WindowsProcessControlCenter"
-#define VER_COPYRIGHT_STR "Copyright (C) 2026"
+#define VER_COPYRIGHT_STR "Copyright (C) 2026"
+
+
