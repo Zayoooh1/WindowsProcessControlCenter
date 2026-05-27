@@ -1,10 +1,26 @@
 param(
-    [string]$Version = "0.1.2"
+    [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+
+if (-not $Version) {
+    $resourceH = Join-Path $repoRoot "resources\resource.h"
+    if (Test-Path $resourceH) {
+        $versionMatch = Get-Content $resourceH | Select-String 'VER_PRODUCT_VERSION_STR\s+"([^"]+)"'
+        if ($versionMatch) {
+            $rawVersion = $versionMatch.Matches[0].Groups[1].Value
+            $Version = $rawVersion -replace '\.0$', ''
+        }
+    }
+}
+
+if (-not $Version) {
+    $Version = "0.1.4" # Fallback
+}
+
 $installerScript = Join-Path $repoRoot "installer\WindowsProcessControlCenter.iss"
 $installerOutput = Join-Path $repoRoot "dist\installer\WindowsProcessControlCenter-$Version-setup.exe"
 
@@ -48,7 +64,7 @@ if (-not (Test-Path $installerScript)) {
     throw "Inno Setup script was not found: $installerScript"
 }
 
-& $iscc $installerScript
+& $iscc "/DMyAppVersion=$Version" $installerScript
 
 if (-not (Test-Path $installerOutput)) {
     throw "Installer was not generated: $installerOutput"

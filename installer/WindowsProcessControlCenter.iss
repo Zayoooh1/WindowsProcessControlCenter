@@ -1,10 +1,12 @@
 #define MyAppName "Windows Process Control Center"
 #define MyAppExeName "WindowsProcessControlCenter.exe"
+#ifndef MyAppVersion
 #define MyAppVersion "0.1.4"
+#endif
 #define MyAppPublisher "Windows Process Control Center"
 #define MyAppId "{{6FDC4703-94B6-4E3D-98B1-B22588940D1E}"
 #define MyAppIcon "..\assets\icon.ico"
-#define PortableDir "..\dist\WindowsProcessControlCenter-0.1.4-portable"
+#define PortableDir "..\dist\WindowsProcessControlCenter-" + MyAppVersion + "-portable"
 
 [Setup]
 AppId={#MyAppId}
@@ -37,6 +39,11 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
 Name: "startmenu"; Description: "Create Start Menu folder"; GroupDescription: "Shortcuts:"; Flags: checkedonce
 Name: "startup"; Description: "Start with Windows"; GroupDescription: "Startup:"; Flags: unchecked
+
+[InstallDelete]
+Type: files; Name: "{app}\*.*"
+Type: filesandordirs; Name: "{app}\web"
+Type: filesandordirs; Name: "{app}\WebView2UserData"
 
 [Files]
 Source: "{#PortableDir}\WindowsProcessControlCenter.exe"; DestDir: "{app}"; Flags: ignoreversion
