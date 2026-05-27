@@ -1,7 +1,7 @@
 const SETTINGS_STORAGE_KEY = "wpcc.settings";
 const VALID_UPDATE_INTERVALS = ["3d", "weekly", "monthly"];
 const UPDATE_STATE_KEY = "wpcc.updateState";
-const CURRENT_VERSION = "0.1.6";
+const CURRENT_VERSION = "0.1.7";
 
 const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
@@ -46,6 +46,8 @@ const state = {
   resetSettingsModalOpen: false,
   detailsPanelOpen: true,
   pendingInstallerFilePath: null,
+  isBulkDeleteMode: false,
+  bulkDeleteSelectedIds: new Set(),
   // Sorting state
   sortColumn: null,
   sortDirection: "none",
@@ -116,6 +118,7 @@ const elements = {
   // Profiles Elements
   rulesStorageNotice: document.getElementById("rulesStorageNotice"),
   rulesActionsBar: document.getElementById("rulesActionsBar"),
+  deleteProfilesButton: document.getElementById("deleteProfilesButton"),
   createProfileButton: document.getElementById("createProfileButton"),
   exportProfilesButton: document.getElementById("exportProfilesButton"),
   importProfilesButton: document.getElementById("importProfilesButton"),
@@ -527,6 +530,13 @@ function renderProfiles() {
   elements.rulesEmptyState.classList.toggle("hidden-view", hasProfiles);
   elements.rulesActionsBar.classList.remove("hidden-view");
   elements.profilesList.classList.toggle("hidden-view", !hasProfiles);
+  elements.deleteProfilesButton.classList.toggle("hidden-view", !hasProfiles);
+
+  if (state.isBulkDeleteMode) {
+    elements.deleteProfilesButton.textContent = `Delete (${state.bulkDeleteSelectedIds.size})`;
+  } else {
+    elements.deleteProfilesButton.textContent = "Delete profiles";
+  }
 
   if (!hasProfiles) {
     return;
@@ -540,17 +550,35 @@ function renderProfiles() {
     row.setAttribute("role", "button");
     row.setAttribute("tabindex", "0");
     row.addEventListener("click", () => {
-      openProfileModal(prof.id);
+      if (state.isBulkDeleteMode) {
+        toggleBulkDeleteSelection(prof.id);
+      } else {
+        openProfileModal(prof.id);
+      }
     });
     row.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        openProfileModal(prof.id);
+        if (state.isBulkDeleteMode) {
+          toggleBulkDeleteSelection(prof.id);
+        } else {
+          openProfileModal(prof.id);
+        }
       }
     });
 
     const leftContainer = document.createElement("div");
     leftContainer.className = "profile-row-left";
+
+    if (state.isBulkDeleteMode) {
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "bulk-delete-checkbox";
+      checkbox.checked = state.bulkDeleteSelectedIds.has(prof.id);
+      checkbox.style.marginRight = "12px";
+      checkbox.style.pointerEvents = "none";
+      leftContainer.appendChild(checkbox);
+    }
 
     const iconSpan = document.createElement("span");
     iconSpan.className = "profile-row-icon";
@@ -589,6 +617,31 @@ function postToHost(message) {
   }
 
   window.chrome.webview.postMessage(message);
+}
+
+function toggleBulkDeleteSelection(profileId) {
+  if (state.bulkDeleteSelectedIds.has(profileId)) {
+    state.bulkDeleteSelectedIds.delete(profileId);
+  } else {
+    state.bulkDeleteSelectedIds.add(profileId);
+  }
+  renderProfiles();
+}
+
+function handleBulkDeleteClick() {
+  if (!state.isBulkDeleteMode) {
+    state.isBulkDeleteMode = true;
+    state.bulkDeleteSelectedIds.clear();
+    renderProfiles();
+  } else {
+    if (state.bulkDeleteSelectedIds.size > 0) {
+      state.profilesState.profiles = state.profilesState.profiles.filter(p => !state.bulkDeleteSelectedIds.has(p.id));
+      saveProfiles();
+    }
+    state.isBulkDeleteMode = false;
+    state.bulkDeleteSelectedIds.clear();
+    renderProfiles();
+  }
 }
 
 function requestNativeProfiles() {
@@ -2902,6 +2955,7 @@ bindUi(elements.profileDeleteButton, "click", () => {
 }, "profileDeleteButton");
 bindUi(elements.deleteProfileCancelButton, "click", closeDeleteProfileModal, "deleteProfileCancelButton");
 bindUi(elements.deleteProfileConfirmButton, "click", confirmDeleteProfile, "deleteProfileConfirmButton");
+bindUi(elements.deleteProfilesButton, "click", handleBulkDeleteClick, "deleteProfilesButton");
 bindUi(elements.exportProfilesButton, "click", exportProfiles, "exportProfilesButton");
 bindUi(elements.importProfilesButton, "click", importProfiles, "importProfilesButton");
 bindUi(elements.importFileInput, "change", handleImportFile, "importFileInput");
@@ -2975,6 +3029,7 @@ function renderAutoApplyLogs(logs) {
     elements.autoApplyContent.appendChild(row);
   });
 }
+
 
 
 

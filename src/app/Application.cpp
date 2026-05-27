@@ -258,13 +258,10 @@ namespace wpcc
             return;
         }
 
-        if (IsIconic(hwnd))
-        {
-            ShowWindow(hwnd, SW_RESTORE);
-        }
-
+        ShowWindow(hwnd, SW_RESTORE);
+        ShowWindow(hwnd, SW_SHOW);
         SetForegroundWindow(hwnd);
-        SetFocus(hwnd);
+        SetActiveWindow(hwnd);
     }
 
     void Application::ApplyStartWithWindows(bool enable)

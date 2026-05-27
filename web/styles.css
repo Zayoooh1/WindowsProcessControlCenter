@@ -1886,6 +1886,7 @@ body.reduced-motion *::after {
   position: relative;
   display: inline-block;
   margin-right: auto;
+  z-index: 100;
 }
 
 #safetyNoteButton {

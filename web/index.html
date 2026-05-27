@@ -504,17 +504,11 @@
                   <button id="safetyNoteButton" class="icon-button" type="button" aria-label="View safety note">ⓘ</button>
                   <div class="safety-note-popover">
                     <h3>Safety note</h3>
-                    <p>Profiles are saved locally in this browser/WebView storage. They do not perform automatic actions yet.</p>
+                    <p>Profiles are safely stored natively in %APPDATA%. The Background Auto-Apply Engine continuously enforces these rules every 5 seconds.</p>
                     <p class="rules-safety-warning">End Process, Freeze and Resume are not supported in profiles.</p>
-                    <hr>
-                    <h3>Storage information</h3>
-                    <div class="about-info-list rules-storage-info">
-                      <div class="about-info-row"><strong>storage type</strong><span>localStorage</span></div>
-                      <div class="about-info-row"><strong>storage key</strong><span>wpcc.profiles</span></div>
-                    </div>
-                    <p class="rules-note rules-storage-note">Native profiles.json storage is planned for a future version.</p>
                   </div>
                 </div>
+                <button id="deleteProfilesButton" class="secondary-button hidden-view" type="button">Delete profiles</button>
                 <button id="createProfileButton" class="primary-button" type="button">Create profile</button>
                 <button id="exportProfilesButton" class="secondary-button" type="button">Export profiles</button>
                 <button id="importProfilesButton" class="secondary-button" type="button">Import profiles</button>
