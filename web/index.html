@@ -496,24 +496,24 @@
           <!-- Storage Warning Banner -->
           <div id="rulesStorageNotice" class="settings-storage-notice hidden"></div>
 
+          <div id="rulesActionsBar" class="rules-actions-bar hidden-view">
+            <div class="safety-note-container">
+              <button id="safetyNoteButton" class="icon-button" type="button" aria-label="View safety note">ⓘ</button>
+              <div class="safety-note-popover">
+                <h3>Safety note</h3>
+                <p>Profiles are safely stored natively in %APPDATA%. The Background Auto-Apply Engine continuously enforces these rules every 5 seconds.</p>
+                <p class="rules-safety-warning">End Process, Freeze and Resume are not supported in profiles.</p>
+              </div>
+            </div>
+            <button id="deleteProfilesButton" class="secondary-button hidden-view" type="button">Delete profiles</button>
+            <button id="createProfileButton" class="primary-button" type="button">Create profile</button>
+            <button id="exportProfilesButton" class="secondary-button" type="button">Export profiles</button>
+            <button id="importProfilesButton" class="secondary-button" type="button">Import profiles</button>
+          </div>
+
           <div class="rules-layout">
             <!-- Main area: Actions, empty state, and grid of cards -->
             <div class="rules-main-content">
-              <div id="rulesActionsBar" class="rules-actions-bar hidden-view">
-                <div class="safety-note-container">
-                  <button id="safetyNoteButton" class="icon-button" type="button" aria-label="View safety note">ⓘ</button>
-                  <div class="safety-note-popover">
-                    <h3>Safety note</h3>
-                    <p>Profiles are safely stored natively in %APPDATA%. The Background Auto-Apply Engine continuously enforces these rules every 5 seconds.</p>
-                    <p class="rules-safety-warning">End Process, Freeze and Resume are not supported in profiles.</p>
-                  </div>
-                </div>
-                <button id="deleteProfilesButton" class="secondary-button hidden-view" type="button">Delete profiles</button>
-                <button id="createProfileButton" class="primary-button" type="button">Create profile</button>
-                <button id="exportProfilesButton" class="secondary-button" type="button">Export profiles</button>
-                <button id="importProfilesButton" class="secondary-button" type="button">Import profiles</button>
-              </div>
-
               <!-- Empty state -->
               <div id="rulesEmptyState" class="panel rules-card empty-profiles-card">
                 <div class="rules-empty-icon">📂</div>
