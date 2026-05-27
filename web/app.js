@@ -190,7 +190,7 @@ function saveSettings() {
   if (window.chrome?.webview) {
     window.chrome.webview.postMessage({
       type: "saveSettings",
-      settings: state.settings,
+      settings: JSON.stringify(state.settings),
     });
   }
 }
@@ -2975,6 +2975,7 @@ function renderAutoApplyLogs(logs) {
     elements.autoApplyContent.appendChild(row);
   });
 }
+
 
 
 

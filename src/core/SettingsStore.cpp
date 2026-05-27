@@ -40,10 +40,21 @@ namespace wpcc
             return { false, "", L"Unable to determine system AppData directory." };
         }
 
-        if (!std::filesystem::exists(path))
+        std::error_code ec;
+        if (!std::filesystem::exists(path, ec) || std::filesystem::file_size(path, ec) == 0)
         {
-            // Return empty JSON object string since app.js handles defaults
-            return { true, "{}", L"" };
+            try
+            {
+                std::filesystem::create_directories(path.parent_path(), ec);
+                std::ofstream file(path, std::ios::out | std::ios::binary | std::ios::trunc);
+                if (file)
+                {
+                    file << "{\"startWithWindows\": false, \"minimizeToTray\": false}";
+                    file.close();
+                }
+            }
+            catch (...) {}
+            return { true, "{\"startWithWindows\": false, \"minimizeToTray\": false}", L"" };
         }
 
         try
