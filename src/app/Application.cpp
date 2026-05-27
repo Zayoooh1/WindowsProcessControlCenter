@@ -1,4 +1,5 @@
 #include "app/Application.h"
+#include "core/SettingsStore.h"
 #include "resource.h"
 
 #include <Windows.h>
@@ -13,8 +14,8 @@ namespace
 
 namespace wpcc
 {
-    Application::Application(HINSTANCE instance, int showCommand)
-        : m_instance(instance), m_showCommand(showCommand)
+    Application::Application(HINSTANCE instance, int showCommand, bool startMinimized)
+        : m_instance(instance), m_showCommand(showCommand), m_startMinimized(startMinimized)
     {
     }
 
@@ -63,11 +64,27 @@ namespace wpcc
             return false;
         }
 
-        m_trayIcon.Create(m_window.GetHandle(), m_instance, IDI_APP_ICON, L"Windows Process Control Center");
+        SettingsLoadResult settingsResult = SettingsStore::GetSettings();
+        if (settingsResult.success && !settingsResult.jsonContent.empty())
+        {
+            AppSettings settings = SettingsStore::ParseSettingsJson(settingsResult.jsonContent);
+            m_minimizeToTray = settings.minimizeToTray;
+        }
+
+        m_webViewHost->SetSettingsChangedCallback([this](bool startWithWindows, bool minimizeToTray) {
+            m_minimizeToTray = minimizeToTray;
+            ApplyStartWithWindows(startWithWindows);
+        });
+
+        m_trayIcon.Create(m_window.GetHandle(), m_instance, IDI_APP_ICON, L"WindowsProcessControlCenter");
 
         m_autoApplyEngine.Start();
 
-        m_window.Show(m_showCommand);
+        if (!(m_startMinimized && m_minimizeToTray))
+        {
+            m_window.Show(m_showCommand);
+        }
+        
         m_running = true;
         return true;
     }
@@ -134,6 +151,12 @@ namespace wpcc
                 handled = true;
                 return 0;
             }
+            if ((wParam & 0xfff0) == SC_MINIMIZE && m_minimizeToTray)
+            {
+                ShowWindow(m_window.GetHandle(), SW_HIDE);
+                handled = true;
+                return 0;
+            }
             break;
         case WM_TRAY_NOTIFY:
             HandleTrayNotification(wParam, lParam);
@@ -163,6 +186,14 @@ namespace wpcc
                 }
             }
             break;
+        case WM_CLOSE:
+            if (m_minimizeToTray)
+            {
+                ShowWindow(m_window.GetHandle(), SW_HIDE);
+                handled = true;
+                return 0;
+            }
+            break; // Let default handler handle it (destroy window)
         case WM_DESTROY:
             m_running = false;
             PostQuitMessage(0);
@@ -234,5 +265,29 @@ namespace wpcc
 
         SetForegroundWindow(hwnd);
         SetFocus(hwnd);
+    }
+
+    void Application::ApplyStartWithWindows(bool enable)
+    {
+        HKEY hKey;
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, nullptr, 0, KEY_WRITE, nullptr, &hKey, nullptr) == ERROR_SUCCESS)
+        {
+            if (enable)
+            {
+                wchar_t exePath[MAX_PATH];
+                if (GetModuleFileNameW(nullptr, exePath, MAX_PATH) > 0)
+                {
+                    std::wstring command = L"\"";
+                    command += exePath;
+                    command += L"\" --minimized";
+                    RegSetValueExW(hKey, L"WindowsProcessControlCenter", 0, REG_SZ, reinterpret_cast<const BYTE*>(command.c_str()), static_cast<DWORD>((command.length() + 1) * sizeof(wchar_t)));
+                }
+            }
+            else
+            {
+                RegDeleteValueW(hKey, L"WindowsProcessControlCenter");
+            }
+            RegCloseKey(hKey);
+        }
     }
 }

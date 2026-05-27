@@ -46,6 +46,18 @@ namespace wpcc
         }
 
         if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"getSettings\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::GetSettings;
+        }
+
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"saveSettings\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::SaveSettings;
+        }
+
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
             messageJson.find(L"\"getProfiles\"") != std::wstring_view::npos)
         {
             return WebMessageType::GetProfiles;
@@ -128,6 +140,11 @@ namespace wpcc
     std::string WebMessageBridge::ParseSaveProfilesRequest(std::wstring_view messageJson) const
     {
         return ExtractString(messageJson, L"profiles");
+    }
+
+    std::string WebMessageBridge::ParseSaveSettingsRequest(std::wstring_view messageJson) const
+    {
+        return ExtractString(messageJson, L"settings");
     }
 
     std::string WebMessageBridge::ParseApplyProfileRequest(std::wstring_view messageJson) const
@@ -244,6 +261,43 @@ namespace wpcc
         }
 
         if (!warning.empty())
+        {
+            json << L",\"warning\":\"" << EscapeJson(WideToUtf8(warning)) << L"\"";
+        }
+
+        json << L"}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildSettingsLoadedMessage(bool success, const std::string& settingsJson, std::wstring_view warning) const
+    {
+        std::wostringstream json;
+        json << L"{";
+        json << L"\"type\":\"settingsLoaded\",";
+        json << L"\"success\":" << (success ? L"true" : L"false");
+
+        if (success && !settingsJson.empty())
+        {
+            json << L",\"settings\":" << Utf8ToWide(settingsJson);
+        }
+
+        if (!warning.empty())
+        {
+            json << L",\"warning\":\"" << EscapeJson(WideToUtf8(warning)) << L"\"";
+        }
+
+        json << L"}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildSettingsSavedMessage(bool success, std::wstring_view warning) const
+    {
+        std::wostringstream json;
+        json << L"{";
+        json << L"\"type\":\"settingsSaved\",";
+        json << L"\"success\":" << (success ? L"true" : L"false");
+
+        if (!success && !warning.empty())
         {
             json << L",\"warning\":\"" << EscapeJson(WideToUtf8(warning)) << L"\"";
         }

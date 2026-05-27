@@ -1,7 +1,7 @@
 const SETTINGS_STORAGE_KEY = "wpcc.settings";
 const VALID_UPDATE_INTERVALS = ["3d", "weekly", "monthly"];
 const UPDATE_STATE_KEY = "wpcc.updateState";
-const CURRENT_VERSION = "0.1.5";
+const CURRENT_VERSION = "0.1.6";
 
 const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
@@ -16,6 +16,8 @@ const DEFAULT_SETTINGS = {
   ignoredUpdateVersion: null,
   autoRefreshInterval: "off",
   showPidColumn: true,
+  startWithWindows: false,
+  minimizeToTray: false,
 };
 
 const VALID_AUTO_REFRESH_INTERVALS = ["off", "5s", "15s", "30s", "60s"];
@@ -85,6 +87,8 @@ const elements = {
   compactTableToggle: document.getElementById("compactTableToggle"),
   showPathToggle: document.getElementById("showPathToggle"),
   showPidToggle: document.getElementById("showPidToggle"),
+  startWithWindowsToggle: document.getElementById("startWithWindowsToggle"),
+  minimizeToTrayToggle: document.getElementById("minimizeToTrayToggle"),
   showSafetyNotesToggle: document.getElementById("showSafetyNotesToggle"),
   confirmDestructiveToggle: document.getElementById("confirmDestructiveToggle"),
   reduceEffectsToggle: document.getElementById("reduceEffectsToggle"),
@@ -149,44 +153,11 @@ const elements = {
 };
 
 function loadSettings() {
-  const fallback = {
+  return {
     settings: { ...DEFAULT_SETTINGS },
-    storageAvailable: false,
-    warning: "",
+    storageAvailable: true,
+    warning: "Loading settings from native storage...",
   };
-
-  try {
-    const storage = window.localStorage;
-    const testKey = `${SETTINGS_STORAGE_KEY}.test`;
-    storage.setItem(testKey, "1");
-    storage.removeItem(testKey);
-
-    const raw = storage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) {
-      return { ...fallback, storageAvailable: true };
-    }
-
-    try {
-      const parsed = JSON.parse(raw);
-      return {
-        settings: normalizeSettings(parsed),
-        storageAvailable: true,
-        warning: "",
-      };
-    } catch {
-      return {
-        settings: { ...DEFAULT_SETTINGS },
-        storageAvailable: true,
-        warning: "Saved settings could not be read. Defaults are active until settings are saved again.",
-      };
-    }
-  } catch {
-    return {
-      settings: { ...DEFAULT_SETTINGS },
-      storageAvailable: false,
-      warning: "Local settings storage is unavailable. Defaults are active for this session.",
-    };
-  }
 }
 
 function normalizeSettings(value) {
@@ -210,20 +181,17 @@ function normalizeSettings(value) {
     autoRefreshInterval: VALID_AUTO_REFRESH_INTERVALS.includes(source.autoRefreshInterval)
       ? source.autoRefreshInterval
       : "off",
+    startWithWindows: Boolean(source.startWithWindows),
+    minimizeToTray: Boolean(source.minimizeToTray),
   };
 }
 
 function saveSettings() {
-  if (!state.settingsStorageAvailable) {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
-    state.settingsStorageWarning = "";
-  } catch {
-    state.settingsStorageAvailable = false;
-    state.settingsStorageWarning = "Local settings storage is unavailable. Defaults are active for this session.";
+  if (window.chrome?.webview) {
+    window.chrome.webview.postMessage({
+      type: "saveSettings",
+      settings: state.settings,
+    });
   }
 }
 
@@ -261,7 +229,7 @@ function normalizeProfiles(parsed) {
     const cpuPriority = VALID_PRIORITIES.includes(p.cpuPriority) ? p.cpuPriority : "DoNotChange";
     const gpuPreference = VALID_GPU_PREFERENCES.includes(p.gpuPreference) ? p.gpuPreference : "DoNotChange";
     const applyToFamily = Boolean(p.applyToFamily);
-    const autoApply = false;
+    const autoApply = Boolean(p.autoApply);
     const allowRealtime = Boolean(p.allowRealtime);
     const notes = typeof p.notes === "string" ? p.notes.trim() : "";
     const createdAt = typeof p.createdAt === "string" ? p.createdAt : new Date().toISOString();
@@ -378,7 +346,7 @@ function openProfileModal(profileId = null) {
   elements.profileCpuPriority.value = prof ? prof.cpuPriority : "DoNotChange";
   elements.profileGpuPreference.value = prof ? prof.gpuPreference : "DoNotChange";
   elements.profileApplyToFamily.checked = prof ? prof.applyToFamily : false;
-  elements.profileAutoApply.checked = false;
+  elements.profileAutoApply.checked = prof ? Boolean(prof.autoApply) : false;
   elements.profileNotes.value = prof ? prof.notes : "";
   elements.profileRealtimeCheckbox.checked = prof ? prof.allowRealtime : false;
 
@@ -455,7 +423,7 @@ function saveProfileForm(event) {
     cpuPriority: priority,
     gpuPreference: elements.profileGpuPreference.value,
     applyToFamily: elements.profileApplyToFamily.checked,
-    autoApply: false,
+    autoApply: elements.profileAutoApply.checked,
     allowRealtime: isRealtime && elements.profileRealtimeCheckbox.checked,
     notes: elements.profileNotes.value.trim(),
     createdAt: prof ? prof.createdAt : now,
@@ -737,6 +705,28 @@ function handleHostMessage(event) {
     return;
   }
 
+  if (message.type === "settingsLoaded") {
+    if (message.success && message.settings && typeof message.settings === "object") {
+      state.settings = normalizeSettings(message.settings);
+      state.settingsStorageAvailable = true;
+      state.settingsStorageWarning = "";
+    } else if (message.warning) {
+      state.settingsStorageWarning = message.warning;
+    } else if (!message.success) {
+      state.settingsStorageWarning = "Failed to load settings from native storage.";
+    }
+    render();
+    return;
+  }
+
+  if (message.type === "settingsSaved") {
+    if (!message.success && message.warning) {
+      state.settingsStorageWarning = message.warning;
+      render();
+    }
+    return;
+  }
+
   if (message.type === "profilesLoaded") {
     if (message.success && message.profiles && typeof message.profiles === "object") {
       const validated = normalizeProfiles(message.profiles);
@@ -946,6 +936,8 @@ function updateSetting(key, value) {
 function renderSettings() {
   elements.settingsStorageNotice.classList.toggle("hidden", !state.settingsStorageWarning);
   elements.settingsStorageNotice.textContent = state.settingsStorageWarning;
+  elements.startWithWindowsToggle.checked = state.settings.startWithWindows;
+  elements.minimizeToTrayToggle.checked = state.settings.minimizeToTray;
   elements.startScreenDashboard.checked = state.settings.startScreen === "dashboard";
   elements.startScreenProcesses.checked = state.settings.startScreen === "processes";
   elements.compactTableToggle.checked = state.settings.compactProcessTable;
@@ -2530,6 +2522,8 @@ bindUi(elements.goToProcessesButton, "click", () => setActiveView("processes"), 
 bindUi(elements.quickProcessesButton, "click", () => setActiveView("processes"), "quickProcessesButton");
 bindUi(elements.startScreenDashboard, "change", () => updateSetting("startScreen", "dashboard"), "startScreenDashboard");
 bindUi(elements.startScreenProcesses, "change", () => updateSetting("startScreen", "processes"), "startScreenProcesses");
+bindUi(elements.startWithWindowsToggle, "change", (event) => updateSetting("startWithWindows", event.target.checked), "startWithWindowsToggle");
+bindUi(elements.minimizeToTrayToggle, "change", (event) => updateSetting("minimizeToTray", event.target.checked), "minimizeToTrayToggle");
 bindUi(elements.compactTableToggle, "change", (event) => updateSetting("compactProcessTable", event.target.checked), "compactTableToggle");
 bindUi(elements.showPathToggle, "change", (event) => updateSetting("showExecutablePathColumn", event.target.checked), "showPathToggle");
 bindUi(elements.showPidToggle, "change", (event) => updateSetting("showPidColumn", event.target.checked), "showPidToggle");
@@ -2815,13 +2809,13 @@ function ensureProfileModalDom() {
             </label>
           </div>
 
-          <div class="switch-item locked-item">
+          <div class="switch-item">
             <div class="switch-label-group">
               <strong>Auto apply</strong>
-              <span>Planned / Inactive — Not available yet</span>
+              <span>Automatically enforce this profile in the background</span>
             </div>
-            <label class="switch-control locked">
-              <input id="profileAutoApply" type="checkbox" disabled>
+            <label class="switch-control">
+              <input id="profileAutoApply" type="checkbox">
               <span class="switch-track"><span class="switch-thumb"></span></span>
             </label>
           </div>
@@ -2938,9 +2932,16 @@ function initVersionDisplay() {
   });
 }
 
+function requestNativeSettings() {
+  if (window.chrome?.webview) {
+    window.chrome.webview.postMessage({ type: "getSettings" });
+  }
+}
+
 initVersionDisplay();
 render();
 requestProcesses();
+requestNativeSettings();
 requestNativeProfiles();
 restartAutoRefresh();
 runAutoUpdateCheckIfNeeded();
@@ -2974,6 +2975,8 @@ function renderAutoApplyLogs(logs) {
     elements.autoApplyContent.appendChild(row);
   });
 }
+
+
 
 
 

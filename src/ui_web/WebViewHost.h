@@ -14,6 +14,7 @@
 
 #include <filesystem>
 #include <string>
+#include <functional>
 
 namespace wpcc
 {
@@ -36,6 +37,7 @@ namespace wpcc
         void ChooseExecutable();
         void OnDownloadComplete(bool success, const std::wstring& filePath);
         void NotifyDownloadProgress(uint32_t downloadedBytes, uint32_t totalBytes);
+        void SetSettingsChangedCallback(std::function<void(bool, bool)> callback);
 
     private:
         void OnEnvironmentCreated(HRESULT result, ICoreWebView2Environment* environment);
@@ -50,6 +52,8 @@ namespace wpcc
         void HandleSetGpuPreference(std::wstring_view messageJson);
         void HandleGetProfiles();
         void HandleSaveProfiles(std::wstring_view messageJson);
+        void HandleGetSettings();
+        void HandleSaveSettings(std::wstring_view messageJson);
         void HandleExportProfilesToFile(std::wstring_view messageJson);
         void HandleApplyProfile(std::wstring_view messageJson);
         void HandleExecuteInstaller(std::wstring_view messageJson);
@@ -76,5 +80,6 @@ namespace wpcc
         GpuPreferenceManager m_gpuPreferenceManager;
         AutoApplyEngine* m_autoApplyEngine = nullptr;
         WebMessageBridge m_bridge;
+        std::function<void(bool, bool)> m_onSettingsChanged;
     };
 }

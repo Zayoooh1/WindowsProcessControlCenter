@@ -4,9 +4,10 @@
 
 #include <cstdlib>
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR cmdLine, int showCommand)
 {
-    wpcc::Application app(instance, showCommand);
+    bool startMinimized = cmdLine && wcsstr(cmdLine, L"--minimized") != nullptr;
+    wpcc::Application app(instance, showCommand, startMinimized);
     if (!app.Initialize())
     {
         MessageBoxW(nullptr, L"Windows Process Control Center failed to initialize.", L"Startup error", MB_ICONERROR | MB_OK);

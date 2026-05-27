@@ -2,6 +2,8 @@
 
 #include <wrl/event.h>
 
+#include "core/SettingsStore.h"
+
 #include <ShlObj.h>
 #include <shellapi.h>
 #include <commdlg.h>
@@ -96,6 +98,11 @@ namespace wpcc
         }
 
         return true;
+    }
+
+    void WebViewHost::SetSettingsChangedCallback(std::function<void(bool, bool)> callback)
+    {
+        m_onSettingsChanged = std::move(callback);
     }
 
     void WebViewHost::Resize()
@@ -227,6 +234,12 @@ namespace wpcc
                         break;
                     case WebMessageType::SaveProfiles:
                         HandleSaveProfiles(messageJson);
+                        break;
+                    case WebMessageType::GetSettings:
+                        HandleGetSettings();
+                        break;
+                    case WebMessageType::SaveSettings:
+                        HandleSaveSettings(messageJson);
                         break;
                     case WebMessageType::ExportProfilesToFile:
                         HandleExportProfilesToFile(messageJson);
@@ -416,6 +429,44 @@ namespace wpcc
         const ProfileLoadResult result = ProfileStore::GetProfiles();
         const std::wstring response = m_bridge.BuildProfilesLoadedMessage(result.success, result.jsonContent, result.warning);
         m_webView->PostWebMessageAsJson(response.c_str());
+    }
+
+    void WebViewHost::HandleGetSettings()
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        const SettingsLoadResult result = SettingsStore::GetSettings();
+        const std::wstring response = m_bridge.BuildSettingsLoadedMessage(result.success, result.jsonContent, result.warning);
+        m_webView->PostWebMessageAsJson(response.c_str());
+    }
+
+    void WebViewHost::HandleSaveSettings(std::wstring_view messageJson)
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        const std::string settingsJson = m_bridge.ParseSaveSettingsRequest(messageJson);
+        if (settingsJson.empty())
+        {
+            const std::wstring response = m_bridge.BuildSettingsSavedMessage(false, L"No settings data received.");
+            m_webView->PostWebMessageAsJson(response.c_str());
+            return;
+        }
+
+        const SettingsSaveResult result = SettingsStore::SaveSettings(settingsJson);
+        const std::wstring response = m_bridge.BuildSettingsSavedMessage(result.success, result.warning);
+        m_webView->PostWebMessageAsJson(response.c_str());
+
+        if (result.success && m_onSettingsChanged)
+        {
+            AppSettings settings = SettingsStore::ParseSettingsJson(settingsJson);
+            m_onSettingsChanged(settings.startWithWindows, settings.minimizeToTray);
+        }
     }
 
     void WebViewHost::HandleSaveProfiles(std::wstring_view messageJson)

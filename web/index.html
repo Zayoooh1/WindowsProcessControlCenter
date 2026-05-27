@@ -195,6 +195,36 @@
 
           <section class="settings-section">
             <div class="settings-section-heading">
+              <h2>System integration</h2>
+              <p>Configure how WPCC interacts with Windows on startup and shutdown.</p>
+            </div>
+            <div class="settings-grid">
+              <article class="panel setting-card">
+                <div class="setting-copy">
+                  <h3>Start with Windows</h3>
+                  <p>Launch Windows Process Control Center automatically on system startup.</p>
+                </div>
+                <label class="switch-control">
+                  <input id="startWithWindowsToggle" type="checkbox">
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                </label>
+              </article>
+
+              <article class="panel setting-card">
+                <div class="setting-copy">
+                  <h3>Minimize to tray</h3>
+                  <p>Closing or minimizing the application hides it to the system tray instead of exiting.</p>
+                </div>
+                <label class="switch-control">
+                  <input id="minimizeToTrayToggle" type="checkbox">
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                </label>
+              </article>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <div class="settings-section-heading">
               <h2>Process table</h2>
               <p>Tune density and columns without changing process data collection.</p>
             </div>
@@ -585,13 +615,13 @@
                         </label>
                       </div>
 
-                      <div class="switch-item locked-item">
+                      <div class="switch-item">
                         <div class="switch-label-group">
                           <strong>Auto apply</strong>
-                          <span>Planned / Inactive — Not available yet</span>
+                          <span>Automatically enforce this profile in the background</span>
                         </div>
-                        <label class="switch-control locked">
-                          <input id="profileAutoApply" type="checkbox" disabled>
+                        <label class="switch-control">
+                          <input id="profileAutoApply" type="checkbox">
                           <span class="switch-track"><span class="switch-thumb"></span></span>
                         </label>
                       </div>

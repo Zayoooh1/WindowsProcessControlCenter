@@ -14,7 +14,7 @@ namespace wpcc
     class Application
     {
     public:
-        Application(HINSTANCE instance, int showCommand);
+        Application(HINSTANCE instance, int showCommand, bool startMinimized);
         ~Application();
 
         bool Initialize();
@@ -25,6 +25,7 @@ namespace wpcc
         void HandleTrayNotification(WPARAM wParam, LPARAM lParam);
         void ShowTrayContextMenu();
         void RestoreMainWindow();
+        void ApplyStartWithWindows(bool enable);
 
         HINSTANCE m_instance;
         int m_showCommand;
@@ -34,5 +35,7 @@ namespace wpcc
         AutoApplyEngine m_autoApplyEngine;
         bool m_comInitialized = false;
         bool m_running = false;
+        bool m_minimizeToTray = false;
+        bool m_startMinimized = false;
     };
 }
