@@ -1,7 +1,7 @@
 const SETTINGS_STORAGE_KEY = "wpcc.settings";
 const VALID_UPDATE_INTERVALS = ["3d", "weekly", "monthly"];
 const UPDATE_STATE_KEY = "wpcc.updateState";
-const CURRENT_VERSION = "0.1.8";
+const CURRENT_VERSION = "0.1.7";
 
 const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
@@ -3029,6 +3029,7 @@ function renderAutoApplyLogs(logs) {
     elements.autoApplyContent.appendChild(row);
   });
 }
+
 
 
 
