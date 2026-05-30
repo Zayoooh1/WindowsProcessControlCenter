@@ -1,18 +1,26 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Windows Process Control Center</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <div class="app-shell">
     <header class="top-bar">
-      <div>
-        <h1>Windows Process Control Center</h1>
-        <p>Release candidate process controls</p>
+      <div class="top-bar-title-group">
+        <div>
+          <h1>Windows Process Control Center</h1>
+          <p>Release candidate process controls</p>
+        </div>
+        <div class="coffee-banner-wrap">
+          <img src="buymeacoffee.svg" id="buy-me-coffee-btn" alt="Buy me a coffee" />
+        </div>
       </div>
       <div class="top-actions">
         <span class="version-pill app-version-display"></span>
@@ -55,11 +63,16 @@
                 <span class="badge success">Active</span>
               </div>
               <div class="status-list">
-                <div class="status-row"><span class="status-dot success"></span><span>Critical Windows processes are protected.</span></div>
-                <div class="status-row"><span class="status-dot warning"></span><span>Destructive actions require confirmation.</span></div>
-                <div class="status-row"><span class="status-dot neutral"></span><span>Freeze/Resume only applies to the current WPCC session.</span></div>
-                <div class="status-row"><span class="status-dot neutral"></span><span>GPU Preference may require restarting the target app.</span></div>
-                <div class="status-row"><span class="status-dot warning"></span><span>Realtime priority requires explicit confirmation.</span></div>
+                <div class="status-row"><span class="status-dot success"></span><span>Critical Windows processes are
+                    protected.</span></div>
+                <div class="status-row"><span class="status-dot warning"></span><span>Destructive actions require
+                    confirmation.</span></div>
+                <div class="status-row"><span class="status-dot neutral"></span><span>Freeze/Resume only applies to the
+                    current WPCC session.</span></div>
+                <div class="status-row"><span class="status-dot neutral"></span><span>GPU Preference may require
+                    restarting the target app.</span></div>
+                <div class="status-row"><span class="status-dot warning"></span><span>Realtime priority requires
+                    explicit confirmation.</span></div>
               </div>
             </section>
 
@@ -148,7 +161,8 @@
             <div class="details-title">
               <div class="details-title-row">
                 <h2>Process details</h2>
-                <button id="closeDetailsButton" class="close-details-btn" type="button" aria-label="Close details">×</button>
+                <button id="closeDetailsButton" class="close-details-btn" type="button"
+                  aria-label="Close details">×</button>
               </div>
               <p>Process actions & inspection</p>
             </div>
@@ -265,7 +279,8 @@
               <article class="panel setting-card">
                 <div class="setting-copy">
                   <h3>Auto-refresh process list</h3>
-                  <p>Automatically refresh the active process snapshot at a chosen interval. Also updates the Profiles match preview.</p>
+                  <p>Automatically refresh the active process snapshot at a chosen interval. Also updates the Profiles
+                    match preview.</p>
                 </div>
                 <select id="autoRefreshSelect" class="setting-select">
                   <option value="off">Off / Manual only</option>
@@ -359,7 +374,8 @@
               <article class="panel setting-card">
                 <div class="setting-copy">
                   <h3>Install updates automatically</h3>
-                  <p>Automatic installation is planned for a future version. Current version will only check and prompt.</p>
+                  <p>Automatic installation is planned for a future version. Current version will only check and prompt.
+                  </p>
                 </div>
                 <label class="switch-control">
                   <input id="autoInstallToggle" type="checkbox">
@@ -374,7 +390,8 @@
                 </div>
                 <div class="setting-actions-group">
                   <span id="ignoredUpdateVersionDisplay" class="setting-value-text">None</span>
-                  <button id="resetIgnoredVersionButton" class="secondary-button" type="button">Reset / Unignore</button>
+                  <button id="resetIgnoredVersionButton" class="secondary-button" type="button">Reset /
+                    Unignore</button>
                 </div>
               </article>
 
@@ -399,7 +416,8 @@
             <article class="panel setting-card reset-card">
               <div class="setting-copy">
                 <h3>Reset settings</h3>
-                <p>Clears the WPCC localStorage settings key and restores Dashboard, normal table spacing, visible path column, safety notes, visual effects, and update checking defaults.</p>
+                <p>Clears the WPCC localStorage settings key and restores Dashboard, normal table spacing, visible path
+                  column, safety notes, visual effects, and update checking defaults.</p>
               </div>
               <button id="resetSettingsButton" class="secondary-button" type="button">Reset settings</button>
             </article>
@@ -423,7 +441,8 @@
               <div class="about-info-list">
                 <div class="about-info-row"><strong>App Name</strong><span>Windows Process Control Center</span></div>
                 <div class="about-info-row"><strong>Version</strong><span class="app-version-display"></span></div>
-                <div class="about-info-row"><strong>Status</strong><span>Portable Preview / Release Candidate</span></div>
+                <div class="about-info-row"><strong>Status</strong><span>Portable Preview / Release Candidate</span>
+                </div>
               </div>
             </section>
 
@@ -501,11 +520,13 @@
               <button id="safetyNoteButton" class="icon-button" type="button" aria-label="View safety note">ⓘ</button>
               <div class="safety-note-popover">
                 <h3>Safety note</h3>
-                <p>Profiles are safely stored natively in %APPDATA%. The Background Auto-Apply Engine continuously enforces these rules every 5 seconds.</p>
+                <p>Profiles are safely stored natively in %APPDATA%. The Background Auto-Apply Engine continuously
+                  enforces these rules every 5 seconds.</p>
                 <p class="rules-safety-warning">End Process, Freeze and Resume are not supported in profiles.</p>
               </div>
             </div>
-            <button id="deleteProfilesButton" class="secondary-button hidden-view" type="button">Delete profiles</button>
+            <button id="deleteProfilesButton" class="secondary-button hidden-view" type="button">Delete
+              profiles</button>
             <button id="createProfileButton" class="primary-button" type="button">Create profile</button>
             <button id="exportProfilesButton" class="secondary-button" type="button">Export profiles</button>
             <button id="importProfilesButton" class="secondary-button" type="button">Import profiles</button>
@@ -518,7 +539,8 @@
               <div id="rulesEmptyState" class="panel rules-card empty-profiles-card">
                 <div class="rules-empty-icon">📂</div>
                 <h3>No profiles yet</h3>
-                <p class="rules-empty-text">Create a profile to store CPU Priority and GPU Preference presets for apps.</p>
+                <p class="rules-empty-text">Create a profile to store CPU Priority and GPU Preference presets for apps.
+                </p>
                 <button id="emptyCreateProfileButton" class="primary-button" type="button">Create profile</button>
               </div>
 
@@ -529,7 +551,7 @@
               <div id="profileModal" class="modal-backdrop hidden-view">
                 <div class="confirm-modal profile-form-modal">
                   <h2 id="profileModalTitle">Create profile</h2>
-                  
+
                   <form id="profileForm">
                     <div class="form-group">
                       <label for="profileName">Profile name</label>
@@ -593,7 +615,8 @@
                       <p>Warning: Realtime priority can make Windows less responsive.</p>
                       <label class="profile-form-checkbox-label">
                         <input type="checkbox" id="profileRealtimeCheckbox">
-                        <span class="profile-form-warning-span">I understand the risk of Realtime priority in this profile.</span>
+                        <span class="profile-form-warning-span">I understand the risk of Realtime priority in this
+                          profile.</span>
                       </label>
                     </div>
 
@@ -623,11 +646,13 @@
 
                     <div class="form-group">
                       <label for="profileNotes">Notes</label>
-                      <textarea id="profileNotes" rows="2" placeholder="Enter optional notes about this profile..."></textarea>
+                      <textarea id="profileNotes" rows="2"
+                        placeholder="Enter optional notes about this profile..."></textarea>
                     </div>
 
                     <div class="modal-actions">
-                      <button id="profileDeleteButton" class="danger-action-button hidden" type="button">Delete profile</button>
+                      <button id="profileDeleteButton" class="danger-action-button hidden" type="button">Delete
+                        profile</button>
                       <button id="profileResetButton" class="secondary-button" type="button">Reset form</button>
                       <button id="profileCancelButton" class="secondary-button" type="button">Cancel</button>
                       <button id="profileSaveButton" class="primary-button" type="submit">Save profile</button>
@@ -643,7 +668,7 @@
                   <div class="modal-warning">
                     This action cannot be undone. The profile configuration will be permanently removed from storage.
                   </div>
-                  
+
                   <div class="modal-info-line">
                     <span>Profile name</span>
                     <strong id="deleteProfileNameDisplay">Profile Name</strong>
@@ -665,7 +690,8 @@
                 <div class="confirm-modal">
                   <h2>Update Ready</h2>
                   <div class="download-modal-text">
-                    Windows Process Control Center <span class="app-version-display"></span> has been successfully downloaded to your local staging directory. Would you like to proceed with the installation now?
+                    Windows Process Control Center <span class="app-version-display"></span> has been successfully
+                    downloaded to your local staging directory. Would you like to proceed with the installation now?
                   </div>
                   <div class="modal-actions">
                     <button id="dismissInstallBtn" class="secondary-button" type="button">Do not install</button>
@@ -682,4 +708,5 @@
   <input type="file" id="importFileInput" accept=".json,application/json" class="hidden">
   <script src="app.js"></script>
 </body>
+
 </html>

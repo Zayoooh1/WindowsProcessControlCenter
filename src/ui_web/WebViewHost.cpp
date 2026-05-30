@@ -257,6 +257,9 @@ namespace wpcc
                     case WebMessageType::DownloadUpdate:
                         HandleDownloadUpdate(messageJson);
                         break;
+                    case WebMessageType::OpenExternalUrl:
+                        HandleOpenExternalUrl(messageJson);
+                        break;
                     default:
                         SendError("Unsupported frontend message.");
                         break;
@@ -818,6 +821,15 @@ namespace wpcc
 
         const std::wstring response = m_bridge.BuildExecutableChosenMessage(success, cancelled, path, fileName, iconDataUrl);
         m_webView->PostWebMessageAsJson(response.c_str());
+    }
+
+    void WebViewHost::HandleOpenExternalUrl(std::wstring_view messageJson)
+    {
+        auto request = m_bridge.ParseOpenExternalUrlRequest(messageJson);
+        if (!request.url.empty())
+        {
+            ::ShellExecuteA(NULL, "open", request.url.c_str(), NULL, NULL, SW_SHOWNORMAL);
+        }
     }
     void WebViewHost::SendError(std::string_view message)
     {

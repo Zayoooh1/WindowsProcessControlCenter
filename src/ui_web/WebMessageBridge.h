@@ -28,6 +28,12 @@ namespace wpcc
         ApplyProfile,
         ExecuteInstaller,
         DownloadUpdate,
+        OpenExternalUrl,
+    };
+
+    struct OpenExternalUrlRequest
+    {
+        std::string url;
     };
 
     struct SetCpuPriorityRequest
@@ -79,6 +85,8 @@ namespace wpcc
         std::string ParseApplyProfileRequest(std::wstring_view messageJson) const;
         std::wstring ParseExecuteInstallerRequest(std::wstring_view messageJson) const;
         std::wstring ParseDownloadUpdateUrl(std::wstring_view messageJson) const;
+        OpenExternalUrlRequest ParseOpenExternalUrlRequest(std::wstring_view messageJson) const;
+
         std::wstring BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes, const std::vector<AutoApplyLog>& autoApplyLogs) const;
         std::wstring BuildDownloadCompleteMessage(bool success, std::wstring_view filePath, std::wstring_view errorMessage) const;
         std::wstring BuildDownloadProgressMessage(uint32_t downloadedBytes, uint32_t totalBytes) const;

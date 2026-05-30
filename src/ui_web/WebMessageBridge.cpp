@@ -99,6 +99,12 @@ namespace wpcc
             return WebMessageType::DownloadUpdate;
         }
 
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"OpenExternalUrl\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::OpenExternalUrl;
+        }
+
         return WebMessageType::Unknown;
     }
 
@@ -169,6 +175,13 @@ namespace wpcc
         request.expectedName = ExtractString(messageJson, L"expectedName");
         request.executablePath = ExtractString(messageJson, L"exePath");
         request.preference = ExtractString(messageJson, L"preference");
+        return request;
+    }
+
+    OpenExternalUrlRequest WebMessageBridge::ParseOpenExternalUrlRequest(std::wstring_view messageJson) const
+    {
+        OpenExternalUrlRequest request{};
+        request.url = ExtractString(messageJson, L"url");
         return request;
     }
 

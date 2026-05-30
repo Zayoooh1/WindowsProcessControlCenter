@@ -58,6 +58,7 @@ namespace wpcc
         void HandleApplyProfile(std::wstring_view messageJson);
         void HandleExecuteInstaller(std::wstring_view messageJson);
         void HandleDownloadUpdate(std::wstring_view messageJson);
+        void HandleOpenExternalUrl(std::wstring_view messageJson);
         void SendError(std::string_view message);
         void ShowInitializationError(std::wstring_view message) const;
 

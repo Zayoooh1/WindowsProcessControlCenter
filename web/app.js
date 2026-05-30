@@ -1,7 +1,7 @@
 const SETTINGS_STORAGE_KEY = "wpcc.settings";
 const VALID_UPDATE_INTERVALS = ["3d", "weekly", "monthly"];
 const UPDATE_STATE_KEY = "wpcc.updateState";
-const CURRENT_VERSION = "0.1.7";
+const CURRENT_VERSION = "0.1.8";
 
 const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
@@ -63,6 +63,7 @@ const state = {
 };
 
 const elements = {
+  buyMeACoffeeBtn: document.getElementById("buy-me-coffee-btn"),
   dashboardNavButton: document.getElementById("dashboardNavButton"),
   processesNavButton: document.getElementById("processesNavButton"),
   settingsNavButton: document.getElementById("settingsNavButton"),
@@ -2564,6 +2565,14 @@ window.chrome?.webview?.addEventListener("message", handleHostMessage);
 bindUi(elements.refreshButton, "click", requestProcesses, "refreshButton");
 bindUi(elements.dashboardRefreshButton, "click", requestProcesses, "dashboardRefreshButton");
 bindUi(elements.quickRefreshButton, "click", requestProcesses, "quickRefreshButton");
+
+bindUi(elements.buyMeACoffeeBtn, "click", () => {
+  postToHost({
+    type: "OpenExternalUrl",
+    url: "https://buymeacoffee.com/zayo"
+  });
+}, "buy-me-coffee-btn");
+
 bindUi(elements.colPriorityHeader, "click", () => handleHeaderClick("priority"), "colPriorityHeader");
 bindUi(elements.colGpuHeader, "click", () => handleHeaderClick("gpu"), "colGpuHeader");
 bindUi(elements.dashboardNavButton, "click", () => setActiveView("dashboard"), "dashboardNavButton");
@@ -3029,6 +3038,8 @@ function renderAutoApplyLogs(logs) {
     elements.autoApplyContent.appendChild(row);
   });
 }
+
+
 
 
 
