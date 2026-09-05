@@ -4,6 +4,8 @@
 
 #include <string>
 #include <string_view>
+#include <mutex>
+#include <unordered_map>
 
 namespace wpcc
 {
@@ -22,5 +24,11 @@ namespace wpcc
         static std::wstring PreferenceToRegistryValue(const std::string& preference);
         static std::string PreferenceToDisplayName(const std::string& preference);
         static bool EqualsIgnoreCase(std::string_view left, std::string_view right);
+        void CachePreference(const std::string& executablePath, const std::string& preference) const;
+        void InvalidateCachedPreference(const std::string& executablePath) const;
+        static std::string CacheKey(std::string_view executablePath);
+
+        static std::mutex s_cacheMutex;
+        static std::unordered_map<std::string, std::string> s_preferenceCache;
     };
 }

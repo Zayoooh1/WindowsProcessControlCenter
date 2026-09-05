@@ -186,6 +186,12 @@ namespace
 
         return WideToUtf8(std::wstring_view(pathBuffer.data(), size));
     }
+
+    std::string ExecutableNameFromPath(std::string_view path)
+    {
+        const size_t separator = path.find_last_of("\\\\/");
+        return std::string(separator == std::string_view::npos ? path : path.substr(separator + 1));
+    }
 }
 
 namespace wpcc
@@ -256,5 +262,78 @@ namespace wpcc
         });
 
         return processes;
+    }
+
+    std::vector<ProcessInfo> ProcessProvider::LoadProcessNames() const
+    {
+        std::vector<ProcessInfo> processes;
+        UniqueHandle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
+        if (!snapshot.IsValid())
+        {
+            return processes;
+        }
+
+        PROCESSENTRY32W entry{};
+        entry.dwSize = sizeof(entry);
+        if (!Process32FirstW(snapshot.Get(), &entry))
+        {
+            return processes;
+        }
+
+        do
+        {
+            ProcessInfo process{};
+            process.pid = entry.th32ProcessID;
+            process.name = WideToUtf8(entry.szExeFile);
+            processes.push_back(std::move(process));
+        } while (Process32NextW(snapshot.Get(), &entry));
+
+        return processes;
+    }
+
+    ProcessInfo ProcessProvider::GetProcess(unsigned long pid) const
+    {
+        ProcessInfo process{};
+        process.pid = pid;
+        process.cpuPriority = "Unknown";
+        process.accessStatus = "Unknown";
+
+        if (pid <= 4)
+        {
+            process.name = pid == 4 ? "System" : "Unknown";
+            process.accessStatus = "Protected/System";
+            process.likelyRequiresAdmin = true;
+            return process;
+        }
+
+        UniqueHandle processHandle(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
+        if (!processHandle.IsValid())
+        {
+            const DWORD errorCode = GetLastError();
+            process.accessError = FormatWin32Error(errorCode);
+            process.likelyRequiresAdmin = errorCode == ERROR_ACCESS_DENIED;
+            process.accessStatus = errorCode == ERROR_ACCESS_DENIED ? "Access denied" : "Unknown";
+            return process;
+        }
+
+        process.accessStatus = "Accessible";
+        process.executablePath = QueryExecutablePath(processHandle.Get());
+        process.name = ExecutableNameFromPath(process.executablePath);
+        if (process.name.empty())
+        {
+            process.name = "Unknown";
+        }
+
+        const DWORD priorityClass = GetPriorityClass(processHandle.Get());
+        if (priorityClass == 0)
+        {
+            process.accessError = FormatWin32Error(GetLastError());
+        }
+        else
+        {
+            process.cpuPriority = PriorityClassToText(priorityClass);
+        }
+
+        return process;
     }
 }

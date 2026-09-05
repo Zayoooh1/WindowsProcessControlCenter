@@ -82,12 +82,10 @@ namespace wpcc
         }
 
         const ProcessProvider provider;
-        const std::vector<ProcessInfo> processes = provider.LoadProcesses();
-        const auto processIt = std::find_if(processes.begin(), processes.end(), [pid](const ProcessInfo& process) {
-            return process.pid == pid;
-        });
+        const ProcessInfo process = provider.GetProcess(pid);
+        const ProcessInfo* processIt = &process;
 
-        if (processIt == processes.end())
+        if (process.accessStatus == "Unknown")
         {
             result.message = "The process is no longer running.";
             result.win32ErrorCode = ERROR_NOT_FOUND;
@@ -159,12 +157,10 @@ namespace wpcc
         }
 
         const ProcessProvider provider;
-        const std::vector<ProcessInfo> processes = provider.LoadProcesses();
-        const auto processIt = std::find_if(processes.begin(), processes.end(), [pid](const ProcessInfo& process) {
-            return process.pid == pid;
-        });
+        const ProcessInfo process = provider.GetProcess(pid);
+        const ProcessInfo* processIt = &process;
 
-        if (processIt == processes.end())
+        if (process.accessStatus == "Unknown")
         {
             result.message = "Process is no longer running.";
             result.win32ErrorCode = ERROR_NOT_FOUND;
@@ -264,12 +260,10 @@ namespace wpcc
         }
 
         const ProcessProvider provider;
-        const std::vector<ProcessInfo> processes = provider.LoadProcesses();
-        const auto processIt = std::find_if(processes.begin(), processes.end(), [pid](const ProcessInfo& process) {
-            return process.pid == pid;
-        });
+        const ProcessInfo process = provider.GetProcess(pid);
+        const ProcessInfo* processIt = &process;
 
-        if (processIt == processes.end())
+        if (process.accessStatus == "Unknown")
         {
             result.message = "Process is no longer running.";
             result.win32ErrorCode = ERROR_NOT_FOUND;
@@ -412,12 +406,10 @@ namespace wpcc
         }
 
         const ProcessProvider provider;
-        const std::vector<ProcessInfo> processes = provider.LoadProcesses();
-        const auto processIt = std::find_if(processes.begin(), processes.end(), [pid](const ProcessInfo& process) {
-            return process.pid == pid;
-        });
+        const ProcessInfo process = provider.GetProcess(pid);
+        const ProcessInfo* processIt = &process;
 
-        if (processIt == processes.end())
+        if (process.accessStatus == "Unknown")
         {
             m_frozenThreadsByPid.erase(frozenIt);
             result.message = "Process is no longer running.";

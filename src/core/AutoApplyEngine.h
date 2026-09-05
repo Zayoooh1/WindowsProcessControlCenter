@@ -28,6 +28,8 @@ namespace wpcc
         void Start();
         void Stop();
 
+        void SetProfiles(std::vector<Profile> profiles);
+
         std::vector<AutoApplyLog> GetLogs() const;
 
     private:
@@ -40,6 +42,7 @@ namespace wpcc
         bool m_running = false;
 
         std::deque<AutoApplyLog> m_logs;
+        std::vector<Profile> m_profiles;
         const size_t MAX_LOGS = 100;
         ProcessActions m_processActions;
     };

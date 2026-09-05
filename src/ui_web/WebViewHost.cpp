@@ -488,6 +488,10 @@ namespace wpcc
         }
 
         const ProfileSaveResult result = ProfileStore::SaveProfiles(profilesJson);
+        if (result.success && m_autoApplyEngine)
+        {
+            m_autoApplyEngine->SetProfiles(ProfileStore::ParseProfilesJson(profilesJson));
+        }
         const std::wstring response = m_bridge.BuildProfilesSavedMessage(result.success, result.warning);
         m_webView->PostWebMessageAsJson(response.c_str());
     }

@@ -79,6 +79,12 @@ namespace wpcc
 
     void AutoApplyEngine::Start()
     {
+        const ProfileLoadResult loadResult = ProfileStore::GetProfiles();
+        if (loadResult.success)
+        {
+            SetProfiles(ProfileStore::ParseProfilesJson(loadResult.jsonContent));
+        }
+
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_running)
         {
@@ -105,6 +111,15 @@ namespace wpcc
         {
             m_thread.join();
         }
+    }
+
+    void AutoApplyEngine::SetProfiles(std::vector<Profile> profiles)
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_profiles = std::move(profiles);
+        }
+        m_cv.notify_all();
     }
 
     std::vector<AutoApplyLog> AutoApplyEngine::GetLogs() const
@@ -145,11 +160,11 @@ namespace wpcc
                 }
             }
 
-            // Fetch profiles
-            ProfileLoadResult loadResult = ProfileStore::GetProfiles();
-            if (!loadResult.success) continue;
-
-            std::vector<Profile> profiles = ProfileStore::ParseProfilesJson(loadResult.jsonContent);
+            std::vector<Profile> profiles;
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                profiles = m_profiles;
+            }
             std::vector<Profile> activeProfiles;
             for (const auto& p : profiles)
             {

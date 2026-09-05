@@ -17,11 +17,24 @@ namespace
 
 namespace wpcc
 {
+    std::mutex GpuPreferenceManager::s_cacheMutex;
+    std::unordered_map<std::string, std::string> GpuPreferenceManager::s_preferenceCache;
+
     std::string GpuPreferenceManager::GetPreferenceForExecutablePath(const std::string& executablePath) const
     {
         if (!IsValidExecutablePath(executablePath))
         {
             return "Unknown";
+        }
+
+        const std::string cacheKey = CacheKey(executablePath);
+        {
+            std::lock_guard<std::mutex> lock(s_cacheMutex);
+            const auto cached = s_preferenceCache.find(cacheKey);
+            if (cached != s_preferenceCache.end())
+            {
+                return cached->second;
+            }
         }
 
         const std::wstring valueName = Utf8ToWide(executablePath);
@@ -38,6 +51,7 @@ namespace wpcc
 
         if (status == ERROR_FILE_NOT_FOUND)
         {
+            CachePreference(executablePath, "SystemDefault");
             return "SystemDefault";
         }
 
@@ -56,7 +70,9 @@ namespace wpcc
             buffer.resize(characterCount);
         }
 
-        return RegistryValueToPreference(buffer);
+        const std::string preference = RegistryValueToPreference(buffer);
+        CachePreference(executablePath, preference);
+        return preference;
     }
 
     ProcessActionResult GpuPreferenceManager::SetPreferenceForProcess(
@@ -90,12 +106,10 @@ namespace wpcc
         }
 
         const ProcessProvider provider;
-        const std::vector<ProcessInfo> processes = provider.LoadProcesses();
-        const auto processIt = std::find_if(processes.begin(), processes.end(), [pid](const ProcessInfo& process) {
-            return process.pid == pid;
-        });
+        const ProcessInfo process = provider.GetProcess(pid);
+        const ProcessInfo* processIt = &process;
 
-        if (processIt == processes.end())
+        if (process.accessStatus == "Unknown")
         {
             result.message = "Process is no longer running.";
             result.win32ErrorCode = ERROR_NOT_FOUND;
@@ -168,6 +182,8 @@ namespace wpcc
 
             closeKey();
             result.success = true;
+            InvalidateCachedPreference(executablePath);
+            result.currentPreference = GetPreferenceForExecutablePath(executablePath);
             result.currentPreference = "SystemDefault";
             result.message = "GPU preference reset to System default.";
             return result;
@@ -192,6 +208,8 @@ namespace wpcc
         }
 
         result.success = true;
+        InvalidateCachedPreference(executablePath);
+        result.currentPreference = GetPreferenceForExecutablePath(executablePath);
         result.currentPreference = preference;
         result.message = "GPU preference set to " + PreferenceToDisplayName(preference) + ". Restart the target app to apply it.";
         return result;
@@ -332,4 +350,26 @@ namespace wpcc
             return std::tolower(lhs) == std::tolower(rhs);
         });
     }
+    void GpuPreferenceManager::CachePreference(const std::string& executablePath, const std::string& preference) const
+    {
+
+        std::lock_guard<std::mutex> lock(s_cacheMutex);
+        s_preferenceCache.insert_or_assign(CacheKey(executablePath), preference);
+    }
+
+
+    void GpuPreferenceManager::InvalidateCachedPreference(const std::string& executablePath) const
+    {
+        std::lock_guard<std::mutex> lock(s_cacheMutex);
+        s_preferenceCache.erase(CacheKey(executablePath));
+    }
+    std::string GpuPreferenceManager::CacheKey(std::string_view executablePath)
+    {
+        std::string key(executablePath);
+        std::transform(key.begin(), key.end(), key.begin(), [](unsigned char value) {
+            return static_cast<char>(std::tolower(value));
+        });
+        return key;
+    }
+
 }
