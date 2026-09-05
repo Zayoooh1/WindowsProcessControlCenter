@@ -14,6 +14,7 @@ namespace wpcc
     {
         Unknown,
         RefreshProcesses,
+        GetProcessDetails,
         SetCpuPriority,
         TerminateProcess,
         FreezeProcess,
@@ -80,6 +81,7 @@ namespace wpcc
         FreezeProcessRequest ParseFreezeProcessRequest(std::wstring_view messageJson) const;
         ResumeProcessRequest ParseResumeProcessRequest(std::wstring_view messageJson) const;
         SetGpuPreferenceRequest ParseSetGpuPreferenceRequest(std::wstring_view messageJson) const;
+        unsigned long ParseProcessDetailsRequest(std::wstring_view messageJson) const;
         std::string ParseSaveProfilesRequest(std::wstring_view messageJson) const;
         std::string ParseSaveSettingsRequest(std::wstring_view messageJson) const;
         std::string ParseApplyProfileRequest(std::wstring_view messageJson) const;
@@ -88,6 +90,7 @@ namespace wpcc
         OpenExternalUrlRequest ParseOpenExternalUrlRequest(std::wstring_view messageJson) const;
 
         std::wstring BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes, const std::vector<AutoApplyLog>& autoApplyLogs) const;
+        std::wstring BuildProcessDetailsMessage(const ProcessInfo& process) const;
         std::wstring BuildDownloadCompleteMessage(bool success, std::wstring_view filePath, std::wstring_view errorMessage) const;
         std::wstring BuildDownloadProgressMessage(uint32_t downloadedBytes, uint32_t totalBytes) const;
         std::wstring BuildActionResultMessage(std::string_view action, const ProcessActionResult& result) const;

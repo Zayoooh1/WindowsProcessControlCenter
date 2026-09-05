@@ -16,6 +16,12 @@ namespace wpcc
         }
 
         if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"getProcessDetails\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::GetProcessDetails;
+        }
+
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
             messageJson.find(L"\"setCpuPriority\"") != std::wstring_view::npos)
         {
             return WebMessageType::SetCpuPriority;
@@ -178,6 +184,11 @@ namespace wpcc
         return request;
     }
 
+    unsigned long WebMessageBridge::ParseProcessDetailsRequest(std::wstring_view messageJson) const
+    {
+        return ExtractUnsignedLong(messageJson, L"pid");
+    }
+
     OpenExternalUrlRequest WebMessageBridge::ParseOpenExternalUrlRequest(std::wstring_view messageJson) const
     {
         OpenExternalUrlRequest request{};
@@ -229,6 +240,21 @@ namespace wpcc
         }
 
         json << L"]}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildProcessDetailsMessage(const ProcessInfo& process) const
+    {
+        std::wostringstream json;
+        json << L"{\"type\":\"processDetails\",\"pid\":" << process.pid << L",\"details\":{";
+        json << L"\"name\":\"" << EscapeJson(process.name) << L"\",";
+        json << L"\"path\":\"" << EscapeJson(process.executablePath) << L"\",";
+        json << L"\"cpuPriority\":\"" << EscapeJson(process.cpuPriority) << L"\",";
+        json << L"\"gpuPreference\":\"" << EscapeJson(process.gpuPreference) << L"\",";
+        json << L"\"isFrozenByApp\":" << (process.isFrozenByApp ? L"true" : L"false") << L",";
+        json << L"\"adminNeeded\":" << (process.likelyRequiresAdmin ? L"true" : L"false") << L",";
+        json << L"\"accessStatus\":\"" << EscapeJson(process.accessStatus) << L"\",";
+        json << L"\"accessError\":\"" << EscapeJson(process.accessError) << L"\"}}";
         return json.str();
     }
 

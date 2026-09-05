@@ -31,6 +31,7 @@ const state = {
   processes: [],
   filtered: [],
   selectedPid: null,
+  detailsLoadingPid: null,
   query: "",
   pendingPriorityPid: null,
   pendingTerminatePid: null,
@@ -694,6 +695,7 @@ function handleHostMessage(event) {
     elements.dashboardRefreshButton.disabled = false;
     elements.quickRefreshButton.disabled = false;
     state.processes = Array.isArray(message.processes) ? message.processes : [];
+    state.detailsLoadingPid = null;
     if (!state.processes.some((process) => process.pid === state.selectedPid)) {
       state.selectedPid = state.processes[0]?.pid ?? null;
     }
@@ -710,6 +712,17 @@ function handleHostMessage(event) {
       renderAutoApplyLogs(message.autoApplyLogs);
     }
     
+    return;
+  }
+
+  if (message.type === "processDetails" && Number.isFinite(message.pid) && message.details && typeof message.details === "object") {
+    if (message.pid !== state.selectedPid) return;
+    const process = state.processes.find((item) => item.pid === message.pid);
+    if (!process) return;
+    Object.assign(process, message.details, { detailsLoaded: true });
+    state.detailsLoadingPid = null;
+    renderRows();
+    renderDetails();
     return;
   }
 
@@ -1648,6 +1661,16 @@ function renderDetails() {
   if (!selected) {
     elements.detailsContent.className = "details-content empty-details";
     elements.detailsContent.textContent = "Select a process to inspect its details.";
+    return;
+  }
+
+  if (!selected.detailsLoaded) {
+    elements.detailsContent.className = "details-content empty-details";
+    elements.detailsContent.textContent = "Loading process details...";
+    if (state.detailsLoadingPid !== selected.pid) {
+      state.detailsLoadingPid = selected.pid;
+      postToHost({ type: "getProcessDetails", pid: selected.pid });
+    }
     return;
   }
 

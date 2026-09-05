@@ -48,6 +48,7 @@ namespace wpcc
         void SendProcessSnapshot();
         void PostProcessUpdate(unsigned long pid, std::string_view fieldsJson);
         void PostProcessRemoved(unsigned long pid);
+        void HandleGetProcessDetails(std::wstring_view messageJson);
         void HandleSetCpuPriority(std::wstring_view messageJson);
         void HandleTerminateProcess(std::wstring_view messageJson);
         void HandleFreezeProcess(std::wstring_view messageJson);

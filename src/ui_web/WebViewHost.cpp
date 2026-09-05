@@ -214,6 +214,9 @@ namespace wpcc
                     case WebMessageType::RefreshProcesses:
                         SendProcessSnapshot();
                         break;
+                    case WebMessageType::GetProcessDetails:
+                        HandleGetProcessDetails(messageJson);
+                        break;
                     case WebMessageType::SetCpuPriority:
                         HandleSetCpuPriority(messageJson);
                         break;
@@ -317,11 +320,10 @@ namespace wpcc
     {
         try
         {
-            std::vector<ProcessInfo> processes = m_processProvider.LoadProcesses();
+            std::vector<ProcessInfo> processes = m_processProvider.LoadProcessNames();
             for (ProcessInfo& process : processes)
             {
                 process.isFrozenByApp = m_processActions.IsFrozenByApp(process.pid);
-                process.gpuPreference = m_gpuPreferenceManager.GetPreferenceForExecutablePath(process.executablePath);
             }
             std::vector<AutoApplyLog> logs;
             if (m_autoApplyEngine)
@@ -358,6 +360,24 @@ namespace wpcc
 
         const std::wstring message = L"{\"type\":\"processRemoved\",\"pid\":" + std::to_wstring(pid) + L"}";
         m_webView->PostWebMessageAsJson(message.c_str());
+    }
+
+    void WebViewHost::HandleGetProcessDetails(std::wstring_view messageJson)
+    {
+        const unsigned long pid = m_bridge.ParseProcessDetailsRequest(messageJson);
+        if (pid == 0 || !m_webView)
+        {
+            return;
+        }
+
+        ProcessInfo process = m_processProvider.GetProcess(pid);
+        process.isFrozenByApp = m_processActions.IsFrozenByApp(pid);
+        if (!process.executablePath.empty())
+        {
+            process.gpuPreference = m_gpuPreferenceManager.GetPreferenceForExecutablePath(process.executablePath);
+        }
+        const std::wstring response = m_bridge.BuildProcessDetailsMessage(process);
+        m_webView->PostWebMessageAsJson(response.c_str());
     }
 
     void WebViewHost::HandleSetCpuPriority(std::wstring_view messageJson)
