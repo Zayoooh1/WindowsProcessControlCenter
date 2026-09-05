@@ -29,6 +29,19 @@ const PROCESS_ROW_HEIGHT = 44;
 const COMPACT_PROCESS_ROW_HEIGHT = 34;
 const PROCESS_ROW_OVERSCAN = 6;
 let virtualScrollFrame = null;
+let virtualRowsRenderForced = false;
+let virtualRowsAllowPoolTrim = false;
+const PROCESS_ROW_POOL_BUFFER = 2;
+const virtualRows = {
+  pool: [],
+  topSpacer: null,
+  bottomSpacer: null,
+  emptyRow: null,
+  lastStartIndex: -1,
+  lastEndIndex: -1,
+  lastRowHeight: 0,
+  lastFiltered: null,
+};
 
 const state = {
   activeView: initialSettingsState.settings.startScreen,
@@ -754,7 +767,7 @@ function handleHostMessage(event) {
     state.processes = state.processes.filter((process) => process.pid !== message.pid);
     state.filtered = state.filtered.filter((process) => process.pid !== message.pid);
     if (state.selectedPid === message.pid) state.selectedPid = state.filtered[0]?.pid ?? null;
-    renderRows();
+    renderRows({ force: true });
     renderDetails();
     renderTerminateModal();
     elements.processCount.textContent = `${state.processes.length} processes`;
@@ -978,7 +991,7 @@ function applyFilter() {
 
   updateHeaderIndicators();
   renderDashboard();
-  renderRows();
+  renderRows({ force: true });
   renderDetails();
   elements.processCount.textContent = `${state.processes.length} processes`;
   elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
@@ -1003,7 +1016,7 @@ function render() {
   renderActiveView();
   renderDashboard();
   renderSettings();
-  renderRows();
+  renderRows({ force: true });
   renderDetails();
   renderTerminateModal();
   renderFreezeModal();
@@ -1603,19 +1616,25 @@ function actionLabel(action) {
   return labels[action] || action || "Unknown action";
 }
 
-function renderRows() {
+function renderRows({ force = false, allowPoolTrim = false } = {}) {
+  ensureVirtualRowsStructure();
+
   if (state.filtered.length === 0) {
-    elements.processRows.replaceChildren();
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 8;
-    cell.className = "empty-cell";
-    cell.textContent = state.processes.length === 0 ? "No process snapshot loaded." : "No processes match the current search.";
-    row.appendChild(cell);
-    elements.processRows.appendChild(row);
+    for (const row of virtualRows.pool) resetPooledProcessRow(row);
+    setVirtualSpacerHeight(virtualRows.topSpacer, 0);
+    setVirtualSpacerHeight(virtualRows.bottomSpacer, 0);
+    virtualRows.emptyRow.hidden = false;
+    virtualRows.emptyRow.firstElementChild.textContent = state.processes.length === 0
+      ? "No process snapshot loaded."
+      : "No processes match the current search.";
+    virtualRows.lastStartIndex = -1;
+    virtualRows.lastEndIndex = -1;
+    virtualRows.lastRowHeight = 0;
+    virtualRows.lastFiltered = state.filtered;
     return;
   }
 
+  virtualRows.emptyRow.hidden = true;
   const rowHeight = state.settings.compactProcessTable ? COMPACT_PROCESS_ROW_HEIGHT : PROCESS_ROW_HEIGHT;
   const viewportHeight = elements.processTableViewport?.clientHeight || rowHeight * 12;
   const scrollTop = elements.processTableViewport?.scrollTop || 0;
@@ -1623,41 +1642,149 @@ function renderRows() {
   const maxStart = Math.max(0, state.filtered.length - visibleCount);
   const startIndex = Math.min(maxStart, Math.max(0, Math.floor(scrollTop / rowHeight) - PROCESS_ROW_OVERSCAN));
   const endIndex = Math.min(state.filtered.length, startIndex + visibleCount + PROCESS_ROW_OVERSCAN * 2);
-  const fragment = document.createDocumentFragment();
 
-  if (startIndex > 0) fragment.appendChild(createVirtualSpacer(startIndex * rowHeight));
-  for (let index = startIndex; index < endIndex; ++index) {
-    const row = document.createElement("tr");
-    populateProcessRow(row, state.filtered[index]);
-    fragment.appendChild(row);
+  if (!force
+    && startIndex === virtualRows.lastStartIndex
+    && endIndex === virtualRows.lastEndIndex
+    && rowHeight === virtualRows.lastRowHeight
+    && state.filtered === virtualRows.lastFiltered) {
+    return;
   }
-  if (endIndex < state.filtered.length) fragment.appendChild(createVirtualSpacer((state.filtered.length - endIndex) * rowHeight));
-  elements.processRows.replaceChildren(fragment);
+
+  const requiredRows = endIndex - startIndex;
+  ensurePooledProcessRows(requiredRows);
+  if (allowPoolTrim) trimPooledProcessRows(Math.min(state.filtered.length, requiredRows + PROCESS_ROW_POOL_BUFFER));
+
+  setVirtualSpacerHeight(virtualRows.topSpacer, startIndex * rowHeight);
+  setVirtualSpacerHeight(virtualRows.bottomSpacer, (state.filtered.length - endIndex) * rowHeight);
+  for (let index = 0; index < virtualRows.pool.length; ++index) {
+    const process = state.filtered[startIndex + index];
+    if (process) populateProcessRow(virtualRows.pool[index], process);
+    else resetPooledProcessRow(virtualRows.pool[index]);
+  }
+
+  virtualRows.lastStartIndex = startIndex;
+  virtualRows.lastEndIndex = endIndex;
+  virtualRows.lastRowHeight = rowHeight;
+  virtualRows.lastFiltered = state.filtered;
+}
+
+function ensureVirtualRowsStructure() {
+  if (virtualRows.topSpacer) return;
+
+  virtualRows.topSpacer = createVirtualSpacer();
+  virtualRows.bottomSpacer = createVirtualSpacer();
+  virtualRows.emptyRow = document.createElement("tr");
+  const emptyCell = document.createElement("td");
+  emptyCell.colSpan = 8;
+  emptyCell.className = "empty-cell";
+  virtualRows.emptyRow.appendChild(emptyCell);
+  virtualRows.emptyRow.hidden = true;
+  elements.processRows.replaceChildren(virtualRows.topSpacer, virtualRows.emptyRow, virtualRows.bottomSpacer);
+}
+
+function ensurePooledProcessRows(requiredRows) {
+  while (virtualRows.pool.length < requiredRows) {
+    const row = createPooledProcessRow();
+    virtualRows.pool.push(row);
+    elements.processRows.insertBefore(row, virtualRows.bottomSpacer);
+  }
+}
+
+function trimPooledProcessRows(maximumRows) {
+  while (virtualRows.pool.length > maximumRows) {
+    virtualRows.pool.pop().remove();
+  }
+}
+
+function createPooledProcessRow() {
+  const row = document.createElement("tr");
+  const runtime = badgeCell("", "neutral", "col-runtime");
+  const priority = badgeCell("", "neutral", "col-priority");
+  const gpu = badgeCell("", "neutral", "col-gpu");
+  const admin = badgeCell("", "neutral", "col-admin");
+  const access = badgeCell("", "neutral", "col-access");
+  row.processCells = {
+    pid: textCell("", "col-pid pid-cell"),
+    name: textCell("", "col-process"),
+    path: pathCell(""),
+    runtime: runtime.firstElementChild,
+    priority: priority.firstElementChild,
+    gpu: gpu.firstElementChild,
+    admin: admin.firstElementChild,
+    access: access.firstElementChild,
+  };
+  row.append(
+    row.processCells.pid,
+    row.processCells.name,
+    row.processCells.path,
+    runtime,
+    priority,
+    gpu,
+    admin,
+    access
+  );
+  resetPooledProcessRow(row);
+  return row;
+}
+
+function resetPooledProcessRow(row) {
+  row.hidden = true;
+  row.className = "";
+  row.removeAttribute("data-pid");
+  row.removeAttribute("aria-selected");
+  row.removeAttribute("title");
+  const cells = row.processCells;
+  if (!cells) return;
+  cells.pid.textContent = "";
+  cells.name.textContent = "";
+  cells.path.textContent = "";
+  cells.path.removeAttribute("title");
+  for (const badgeElement of [cells.runtime, cells.priority, cells.gpu, cells.admin, cells.access]) {
+    badgeElement.className = "badge neutral";
+    badgeElement.textContent = "";
+    badgeElement.removeAttribute("title");
+  }
 }
 
 function populateProcessRow(row, process) {
+  const cells = row.processCells;
+  row.hidden = false;
   row.dataset.pid = String(process.pid);
   row.className = process.pid === state.selectedPid ? "selected" : "";
-  row.replaceChildren(
-    textCell(process.pid, "col-pid pid-cell"),
-    textCell(process.name || "Unknown", "col-process"),
-    pathCell(process.path || "Unavailable"),
-    badgeCell(runtimeLabel(process), runtimeTone(process), "col-runtime"),
-    badgeCell(process.cpuPriority || "Unknown", priorityTone(process.cpuPriority), "col-priority"),
-    badgeCell(gpuPreferenceLabel(process.gpuPreference), gpuPreferenceTone(process.gpuPreference), "col-gpu"),
-    badgeCell(process.adminNeeded ? "Likely" : "No", process.adminNeeded ? "warning" : "neutral", "col-admin"),
-    badgeCell(process.accessStatus || "Unknown", accessTone(process.accessStatus), "col-access")
-  );
+  row.setAttribute("aria-selected", process.pid === state.selectedPid ? "true" : "false");
+  row.removeAttribute("title");
+  cells.pid.textContent = process.pid;
+  cells.name.textContent = process.name || "Unknown";
+  const path = process.path || "Unavailable";
+  cells.path.textContent = path;
+  cells.path.title = path;
+  updatePooledBadge(cells.runtime, runtimeLabel(process), runtimeTone(process));
+  updatePooledBadge(cells.priority, process.cpuPriority || "Unknown", priorityTone(process.cpuPriority));
+  updatePooledBadge(cells.gpu, gpuPreferenceLabel(process.gpuPreference), gpuPreferenceTone(process.gpuPreference));
+  updatePooledBadge(cells.admin, process.adminNeeded ? "Likely" : "No", process.adminNeeded ? "warning" : "neutral");
+  updatePooledBadge(cells.access, process.accessStatus || "Unknown", accessTone(process.accessStatus));
 }
 
-function createVirtualSpacer(height) {
+function updatePooledBadge(element, label, tone) {
+  element.className = `badge ${tone}`;
+  element.textContent = label;
+  element.removeAttribute("title");
+}
+
+function createVirtualSpacer() {
   const row = document.createElement("tr");
   row.className = "virtual-spacer-row";
   const cell = document.createElement("td");
   cell.colSpan = 8;
-  cell.style.height = `${height}px`;
   row.appendChild(cell);
+  row.hidden = true;
   return row;
+}
+
+function setVirtualSpacerHeight(row, height) {
+  row.hidden = height <= 0;
+  row.firstElementChild.style.height = `${height}px`;
 }
 
 function updateVisibleProcessRow(pid) {
@@ -1667,11 +1794,17 @@ function updateVisibleProcessRow(pid) {
   if (process) populateProcessRow(row, process);
 }
 
-function scheduleVirtualRowsRender() {
+function scheduleVirtualRowsRender(force = false, allowPoolTrim = false) {
+  virtualRowsRenderForced ||= force;
+  virtualRowsAllowPoolTrim ||= allowPoolTrim;
   if (virtualScrollFrame !== null) return;
   virtualScrollFrame = requestAnimationFrame(() => {
     virtualScrollFrame = null;
-    renderRows();
+    const renderForced = virtualRowsRenderForced;
+    const trimPool = virtualRowsAllowPoolTrim;
+    virtualRowsRenderForced = false;
+    virtualRowsAllowPoolTrim = false;
+    renderRows({ force: renderForced, allowPoolTrim: trimPool });
   });
 }
 
@@ -2676,11 +2809,11 @@ elements.processRows.addEventListener("click", (event) => {
     state.detailsPanelOpen = true;
     elements.processesView.classList.remove("details-collapsed");
   }
-  renderRows();
+  renderRows({ force: true });
   renderDetails();
 });
-elements.processTableViewport?.addEventListener("scroll", scheduleVirtualRowsRender, { passive: true });
-window.addEventListener("resize", scheduleVirtualRowsRender, { passive: true });
+elements.processTableViewport?.addEventListener("scroll", () => scheduleVirtualRowsRender(), { passive: true });
+window.addEventListener("resize", () => scheduleVirtualRowsRender(true, true), { passive: true });
 bindUi(elements.refreshButton, "click", requestProcesses, "refreshButton");
 bindUi(elements.dashboardRefreshButton, "click", requestProcesses, "dashboardRefreshButton");
 bindUi(elements.quickRefreshButton, "click", requestProcesses, "quickRefreshButton");
