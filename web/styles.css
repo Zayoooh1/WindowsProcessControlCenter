@@ -1055,6 +1055,19 @@ tbody tr.selected {
   background: #2c3948;
 }
 
+.virtual-spacer-row,
+.virtual-spacer-row:hover {
+  background: transparent;
+  cursor: default;
+  transform: none !important;
+  transition: none !important;
+}
+
+.virtual-spacer-row td {
+  padding: 0 !important;
+  border: 0 !important;
+}
+
 .path-cell {
   color: var(--muted);
 }

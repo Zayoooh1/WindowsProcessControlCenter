@@ -25,6 +25,10 @@ const initialSettingsState = loadSettings();
 const initialProfilesState = loadProfiles();
 let autoRefreshTimer = null;
 let snapshotDebounceTimer = null;
+const PROCESS_ROW_HEIGHT = 44;
+const COMPACT_PROCESS_ROW_HEIGHT = 34;
+const PROCESS_ROW_OVERSCAN = 6;
+let virtualScrollFrame = null;
 
 const state = {
   activeView: initialSettingsState.settings.startScreen,
@@ -112,6 +116,7 @@ const elements = {
   autoApplyContent: document.getElementById("autoApplyContent"),
   searchInput: document.getElementById("searchInput"),
   processRows: document.getElementById("processRows"),
+  processTableViewport: document.getElementById("processRows")?.closest(".table-wrap"),
   detailsContent: document.getElementById("detailsContent"),
   detailsPanel: document.getElementById("detailsPanel"),
   toggleDetailsBtn: document.getElementById("toggleDetailsBtn"),
@@ -721,7 +726,7 @@ function handleHostMessage(event) {
     if (!process) return;
     Object.assign(process, message.details, { detailsLoaded: true });
     state.detailsLoadingPid = null;
-    renderRows();
+    updateVisibleProcessRow(message.pid);
     renderDetails();
     return;
   }
@@ -737,7 +742,7 @@ function handleHostMessage(event) {
     if (requiresTableResort) {
       applyFilter(false);
     } else {
-      renderRows();
+      updateVisibleProcessRow(message.pid);
       if (state.selectedPid === message.pid) renderDetails();
       renderFreezeModal();
       elements.processCount.textContent = `${state.processes.length} processes`;
@@ -961,6 +966,14 @@ function applyFilter(renderAll = true) {
 
   if (!state.filtered.some((process) => process.pid === state.selectedPid)) {
     state.selectedPid = state.filtered[0]?.pid ?? null;
+  }
+
+  if (elements.processTableViewport) {
+    const rowHeight = state.settings.compactProcessTable ? COMPACT_PROCESS_ROW_HEIGHT : PROCESS_ROW_HEIGHT;
+    const maximumScrollTop = Math.max(0, state.filtered.length * rowHeight - elements.processTableViewport.clientHeight);
+    if (elements.processTableViewport.scrollTop > maximumScrollTop) {
+      elements.processTableViewport.scrollTop = maximumScrollTop;
+    }
   }
 
   if (renderAll) {
@@ -1606,52 +1619,63 @@ function renderRows() {
     return;
   }
 
-  const existingRows = Array.from(elements.processRows.children);
-  const rowsByPid = new Map();
-  for (const row of existingRows) {
-    if (row.dataset.pid) rowsByPid.set(row.dataset.pid, row);
-    else row.remove();
-  }
-
+  const rowHeight = state.settings.compactProcessTable ? COMPACT_PROCESS_ROW_HEIGHT : PROCESS_ROW_HEIGHT;
+  const viewportHeight = elements.processTableViewport?.clientHeight || rowHeight * 12;
+  const scrollTop = elements.processTableViewport?.scrollTop || 0;
+  const visibleCount = Math.ceil(viewportHeight / rowHeight);
+  const maxStart = Math.max(0, state.filtered.length - visibleCount);
+  const startIndex = Math.min(maxStart, Math.max(0, Math.floor(scrollTop / rowHeight) - PROCESS_ROW_OVERSCAN));
+  const endIndex = Math.min(state.filtered.length, startIndex + visibleCount + PROCESS_ROW_OVERSCAN * 2);
   const fragment = document.createDocumentFragment();
 
-  for (const process of state.filtered) {
-    const pidStr = String(process.pid);
-    let row = rowsByPid.get(pidStr);
-
-    if (row) {
-      rowsByPid.delete(pidStr);
-      row.className = process.pid === state.selectedPid ? "selected" : "";
-      row.replaceChildren();
-    } else {
-      row = document.createElement("tr");
-      row.dataset.pid = pidStr;
-      row.className = process.pid === state.selectedPid ? "selected" : "";
-      row.addEventListener("click", () => {
-        state.selectedPid = process.pid;
-        if (!state.detailsPanelOpen) {
-          state.detailsPanelOpen = true;
-        }
-        render();
-      });
-    }
-
-    row.appendChild(textCell(process.pid, "col-pid pid-cell"));
-    row.appendChild(textCell(process.name || "Unknown", "col-process"));
-    row.appendChild(pathCell(process.path || "Unavailable"));
-    row.appendChild(badgeCell(runtimeLabel(process), runtimeTone(process), "col-runtime"));
-    row.appendChild(badgeCell(process.cpuPriority || "Unknown", priorityTone(process.cpuPriority), "col-priority"));
-    row.appendChild(badgeCell(gpuPreferenceLabel(process.gpuPreference), gpuPreferenceTone(process.gpuPreference), "col-gpu"));
-    row.appendChild(badgeCell(process.adminNeeded ? "Likely" : "No", process.adminNeeded ? "warning" : "neutral", "col-admin"));
-    row.appendChild(badgeCell(process.accessStatus || "Unknown", accessTone(process.accessStatus), "col-access"));
+  if (startIndex > 0) fragment.appendChild(createVirtualSpacer(startIndex * rowHeight));
+  for (let index = startIndex; index < endIndex; ++index) {
+    const row = document.createElement("tr");
+    populateProcessRow(row, state.filtered[index]);
     fragment.appendChild(row);
   }
-
-  for (const row of rowsByPid.values()) {
-    row.remove();
-  }
-
+  if (endIndex < state.filtered.length) fragment.appendChild(createVirtualSpacer((state.filtered.length - endIndex) * rowHeight));
   elements.processRows.replaceChildren(fragment);
+}
+
+function populateProcessRow(row, process) {
+  row.dataset.pid = String(process.pid);
+  row.className = process.pid === state.selectedPid ? "selected" : "";
+  row.replaceChildren(
+    textCell(process.pid, "col-pid pid-cell"),
+    textCell(process.name || "Unknown", "col-process"),
+    pathCell(process.path || "Unavailable"),
+    badgeCell(runtimeLabel(process), runtimeTone(process), "col-runtime"),
+    badgeCell(process.cpuPriority || "Unknown", priorityTone(process.cpuPriority), "col-priority"),
+    badgeCell(gpuPreferenceLabel(process.gpuPreference), gpuPreferenceTone(process.gpuPreference), "col-gpu"),
+    badgeCell(process.adminNeeded ? "Likely" : "No", process.adminNeeded ? "warning" : "neutral", "col-admin"),
+    badgeCell(process.accessStatus || "Unknown", accessTone(process.accessStatus), "col-access")
+  );
+}
+
+function createVirtualSpacer(height) {
+  const row = document.createElement("tr");
+  row.className = "virtual-spacer-row";
+  const cell = document.createElement("td");
+  cell.colSpan = 8;
+  cell.style.height = `${height}px`;
+  row.appendChild(cell);
+  return row;
+}
+
+function updateVisibleProcessRow(pid) {
+  const row = elements.processRows.querySelector(`tr[data-pid="${pid}"]`);
+  if (!row) return;
+  const process = state.processes.find((item) => item.pid === pid);
+  if (process) populateProcessRow(row, process);
+}
+
+function scheduleVirtualRowsRender() {
+  if (virtualScrollFrame !== null) return;
+  virtualScrollFrame = requestAnimationFrame(() => {
+    virtualScrollFrame = null;
+    renderRows();
+  });
 }
 
 function renderDetails() {
@@ -2646,6 +2670,20 @@ function bindUi(element, eventName, handler, debugName) {
 }
 
 window.chrome?.webview?.addEventListener("message", handleHostMessage);
+elements.processRows.addEventListener("click", (event) => {
+  if (!(event.target instanceof Element)) return;
+  const row = event.target.closest("tr[data-pid]");
+  if (!row || !elements.processRows.contains(row)) return;
+  state.selectedPid = Number(row.dataset.pid);
+  if (!state.detailsPanelOpen) {
+    state.detailsPanelOpen = true;
+    elements.processesView.classList.remove("details-collapsed");
+  }
+  renderRows();
+  renderDetails();
+});
+elements.processTableViewport?.addEventListener("scroll", scheduleVirtualRowsRender, { passive: true });
+window.addEventListener("resize", scheduleVirtualRowsRender, { passive: true });
 bindUi(elements.refreshButton, "click", requestProcesses, "refreshButton");
 bindUi(elements.dashboardRefreshButton, "click", requestProcesses, "dashboardRefreshButton");
 bindUi(elements.quickRefreshButton, "click", requestProcesses, "quickRefreshButton");
