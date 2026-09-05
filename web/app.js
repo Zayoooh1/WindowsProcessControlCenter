@@ -1642,14 +1642,16 @@ function renderDashboard() {
   const stats = getDashboardStats();
   elements.dashboardSummary.textContent = state.processes.length === 0
     ? "Waiting for the first process snapshot."
-    : `${stats.total} processes in the current snapshot, ${stats.accessible} accessible for guarded controls, ${stats.notChecked} not checked.`;
+    : `${stats.total} processes in the current snapshot, ${stats.accessible} accessible, ${stats.restrictedOrInaccessible} restricted or inaccessible.`;
 
   elements.dashboardStats.replaceChildren(
+    statCard("Process Load Estimate", stats.processLoadEstimate.level, stats.processLoadEstimate.description, stats.processLoadEstimate.tone),
     statCard("Total processes", stats.total, "All processes in the latest snapshot"),
     statCard("Accessible", stats.accessible, "Processes reporting accessible status", "success"),
-    statCard("Protected / denied", stats.protectedDenied, "Protected or explicitly denied", "warning"),
+    statCard("Restricted / inaccessible", stats.restrictedOrInaccessible, "Protected or access-denied processes", "warning"),
+    statCard("Favorites running", stats.favoriteTargetsRunning, "Unique favorite app targets in this snapshot", "success"),
     statCard("Not checked", stats.notChecked, "Access has not been queried in the fast snapshot", "neutral"),
-    statCard("Frozen by app", stats.frozenByApp, "Processes suspended by this WPCC session", "warning"),
+    statCard("Frozen by WPCC", stats.frozenByApp, "Processes suspended by this WPCC session", "warning"),
     statCard("Non-normal priority", stats.nonNormalPriority, "Priority differs from Normal and is known", "neutral"),
     statCard("GPU preferences", stats.gpuPreferences, "Per-app GPU preference differs from system default", "neutral"),
   );
@@ -1658,7 +1660,8 @@ function renderDashboard() {
 }
 
 function getDashboardStats() {
-  return state.processes.reduce((stats, process) => {
+  const favoriteTargetsRunning = new Set();
+  const stats = state.processes.reduce((stats, process) => {
     const accessStatus = String(process.accessStatus || "Unknown");
     const cpuPriority = String(process.cpuPriority || "Unknown");
     const gpuPreference = String(process.gpuPreference || "Unknown");
@@ -1667,9 +1670,13 @@ function getDashboardStats() {
     if (accessStatus === "Accessible" || accessStatus === "Limited access") {
       stats.accessible += 1;
     } else if (accessStatus === "Protected/System" || accessStatus === "Access denied") {
-      stats.protectedDenied += 1;
+      stats.restrictedOrInaccessible += 1;
     } else if (accessStatus === "Not checked") {
       stats.notChecked += 1;
+    }
+
+    if (isFavoriteProcess(process)) {
+      favoriteTargetsRunning.add(normalizeFavoriteTargetName(process.name));
     }
 
     if (process.isFrozenByApp === true) {
@@ -1688,12 +1695,42 @@ function getDashboardStats() {
   }, {
     total: 0,
     accessible: 0,
-    protectedDenied: 0,
+    restrictedOrInaccessible: 0,
     notChecked: 0,
     frozenByApp: 0,
     nonNormalPriority: 0,
     gpuPreferences: 0,
   });
+
+  stats.favoriteTargetsRunning = favoriteTargetsRunning.size;
+  stats.processLoadEstimate = getProcessLoadEstimate(stats.total);
+  return stats;
+}
+
+function getProcessLoadEstimate(totalProcesses) {
+  const description = `Estimated from ${totalProcesses} running processes only. CPU and memory utilization are not measured yet.`;
+
+  if (totalProcesses >= 200) {
+    return {
+      level: "High",
+      tone: "warning",
+      description,
+    };
+  }
+
+  if (totalProcesses >= 100) {
+    return {
+      level: "Moderate",
+      tone: "neutral",
+      description,
+    };
+  }
+
+  return {
+    level: "Low",
+    tone: "success",
+    description,
+  };
 }
 
 function statCard(label, value, hint, tone = "neutral") {
