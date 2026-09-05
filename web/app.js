@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS = {
   showPidColumn: true,
   startWithWindows: false,
   minimizeToTray: false,
+  favorites: [],
 };
 
 const VALID_AUTO_REFRESH_INTERVALS = ["off", "5s", "15s", "30s", "60s"];
@@ -73,6 +74,7 @@ const state = {
   freezeModalProcess: null,
   actionResult: null,
   settings: initialSettingsState.settings,
+  favoriteTargets: new Set(initialSettingsState.settings.favorites),
   settingsStorageAvailable: initialSettingsState.storageAvailable,
   settingsStorageWarning: initialSettingsState.warning,
   resetSettingsModalOpen: false,
@@ -219,7 +221,52 @@ function normalizeSettings(value) {
       : "off",
     startWithWindows: Boolean(source.startWithWindows),
     minimizeToTray: Boolean(source.minimizeToTray),
+    favorites: normalizeFavoriteTargets(source.favorites),
   };
+}
+
+function normalizeFavoriteTargetName(value) {
+  if (typeof value !== "string") return "";
+
+  let normalized = value.trim().toLowerCase();
+  if (normalized.length > 260) return "";
+  if (normalized.endsWith(".exe")) normalized = normalized.slice(0, -4);
+
+  return normalized.length > 0 && normalized !== "unknown" ? normalized : "";
+}
+
+function normalizeFavoriteTargets(value) {
+  if (!Array.isArray(value)) return [];
+
+  return [...new Set(value.map(normalizeFavoriteTargetName).filter(Boolean))].sort();
+}
+
+function isFavoriteTargetName(processName) {
+  const canonicalTargetName = normalizeFavoriteTargetName(processName);
+  return canonicalTargetName !== "" && state.favoriteTargets.has(canonicalTargetName);
+}
+
+function isFavoriteProcess(process) {
+  return isFavoriteTargetName(process.name);
+}
+
+function toggleFavoriteTarget(targetName) {
+  const normalizedTargetName = normalizeFavoriteTargetName(targetName);
+  if (!normalizedTargetName) return;
+
+  if (state.favoriteTargets.has(normalizedTargetName)) {
+    state.favoriteTargets.delete(normalizedTargetName);
+  } else {
+    state.favoriteTargets.add(normalizedTargetName);
+  }
+
+  state.settings = normalizeSettings({
+    ...state.settings,
+    favorites: [...state.favoriteTargets],
+  });
+  state.favoriteTargets = new Set(state.settings.favorites);
+  saveSettings();
+  applyFilter();
 }
 
 function saveSettings() {
@@ -906,6 +953,7 @@ function handleHostMessage(event) {
   if (message.type === "settingsLoaded") {
     if (message.success && message.settings && typeof message.settings === "object") {
       state.settings = normalizeSettings(message.settings);
+      state.favoriteTargets = new Set(state.settings.favorites);
       state.settingsStorageAvailable = true;
       state.settingsStorageWarning = "";
     } else if (message.warning) {
@@ -913,7 +961,7 @@ function handleHostMessage(event) {
     } else if (!message.success) {
       state.settingsStorageWarning = "Failed to load settings from native storage.";
     }
-    render();
+    applyFilter();
     restartAutoRefresh();
     runAutoUpdateCheckIfNeeded();
     return;
@@ -1026,9 +1074,19 @@ function applyFilter() {
       })
     : [...state.processes];
 
-  if (state.sortColumn && state.sortDirection !== "none") {
-    const dirMultiplier = state.sortDirection === "asc" ? 1 : -1;
+  if (!state.sortColumn || state.sortDirection === "none") {
+    const favoriteProcesses = [];
+    const normalProcesses = [];
+    for (const process of state.filtered) {
+      (isFavoriteProcess(process) ? favoriteProcesses : normalProcesses).push(process);
+    }
+    state.filtered = favoriteProcesses.concat(normalProcesses);
+  } else {
     state.filtered.sort((a, b) => {
+      const favoriteDifference = Number(isFavoriteProcess(b)) - Number(isFavoriteProcess(a));
+      if (favoriteDifference !== 0) return favoriteDifference;
+
+      const dirMultiplier = state.sortDirection === "asc" ? 1 : -1;
       if (state.sortColumn === "pid") {
         return ((a.pid || 0) - (b.pid || 0)) * dirMultiplier;
       }
@@ -1786,6 +1844,22 @@ function trimPooledProcessRows(maximumRows) {
 
 function createPooledProcessRow() {
   const row = document.createElement("tr");
+  const nameCell = textCell("", "col-process favorite-process-cell");
+  const favoriteButton = document.createElement("button");
+  favoriteButton.type = "button";
+  favoriteButton.className = "favorite-toggle";
+  favoriteButton.hidden = true;
+  favoriteButton.disabled = true;
+  favoriteButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleFavoriteTarget(row.favoriteTargetName);
+  });
+  const name = document.createElement("span");
+  name.className = "process-name";
+  const nameContent = document.createElement("div");
+  nameContent.className = "process-name-content";
+  nameContent.append(favoriteButton, name);
+  nameCell.replaceChildren(nameContent);
   const runtime = badgeCell("", "neutral", "col-runtime");
   const priority = badgeCell("", "neutral", "col-priority");
   const gpu = badgeCell("", "neutral", "col-gpu");
@@ -1793,7 +1867,8 @@ function createPooledProcessRow() {
   const access = badgeCell("", "neutral", "col-access");
   row.processCells = {
     pid: textCell("", "col-pid pid-cell"),
-    name: textCell("", "col-process"),
+    name,
+    favoriteButton,
     path: pathCell(""),
     runtime: runtime.firstElementChild,
     priority: priority.firstElementChild,
@@ -1803,7 +1878,7 @@ function createPooledProcessRow() {
   };
   row.append(
     row.processCells.pid,
-    row.processCells.name,
+    nameCell,
     row.processCells.path,
     runtime,
     priority,
@@ -1821,10 +1896,17 @@ function resetPooledProcessRow(row) {
   row.removeAttribute("data-pid");
   row.removeAttribute("aria-selected");
   row.removeAttribute("title");
+  row.favoriteTargetName = "";
   const cells = row.processCells;
   if (!cells) return;
   cells.pid.textContent = "";
   cells.name.textContent = "";
+  cells.favoriteButton.hidden = true;
+  cells.favoriteButton.disabled = true;
+  cells.favoriteButton.classList.remove("is-favorite");
+  cells.favoriteButton.removeAttribute("aria-label");
+  cells.favoriteButton.removeAttribute("aria-pressed");
+  cells.favoriteButton.removeAttribute("title");
   cells.path.textContent = "";
   cells.path.removeAttribute("title");
   for (const badgeElement of [cells.runtime, cells.priority, cells.gpu, cells.admin, cells.access]) {
@@ -1842,8 +1924,18 @@ function populateProcessRow(row, process) {
   row.className = process.pid === state.selectedPid ? "selected" : "";
   row.setAttribute("aria-selected", process.pid === state.selectedPid ? "true" : "false");
   row.removeAttribute("title");
+  const favoriteTargetName = normalizeFavoriteTargetName(process.name);
+  const isFavorite = Boolean(favoriteTargetName) && isFavoriteProcess(process);
+  row.favoriteTargetName = favoriteTargetName;
   cells.pid.textContent = process.pid;
   cells.name.textContent = process.name || "Unknown";
+  cells.favoriteButton.hidden = !favoriteTargetName;
+  cells.favoriteButton.disabled = !favoriteTargetName;
+  cells.favoriteButton.textContent = isFavorite ? "★" : "☆";
+  cells.favoriteButton.classList.toggle("is-favorite", Boolean(isFavorite));
+  cells.favoriteButton.setAttribute("aria-label", isFavorite ? "Remove from favorites" : "Add to favorites");
+  cells.favoriteButton.setAttribute("aria-pressed", isFavorite ? "true" : "false");
+  cells.favoriteButton.title = isFavorite ? "Remove from favorites" : "Add to favorites";
   const path = hasDetails ? (process.path || "Unavailable") : "Loading…";
   cells.path.textContent = path;
   cells.path.title = path;
@@ -2779,8 +2871,10 @@ function resetSettingsToDefaults() {
   }
 
   state.settings = { ...DEFAULT_SETTINGS };
+  state.favoriteTargets = new Set(state.settings.favorites);
   state.resetSettingsModalOpen = false;
-  render();
+  saveSettings();
+  applyFilter();
 }
 
 function modalInfoLine(label, value, title) {

@@ -989,6 +989,48 @@ body.compact-process-table td {
   width: 140px;
 }
 
+.process-name-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.process-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.favorite-toggle {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: var(--subtle);
+  background: transparent;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.favorite-toggle:hover {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+
+.favorite-toggle.is-favorite {
+  color: var(--warning);
+}
+
+body.compact-process-table .favorite-toggle {
+  width: 20px;
+  height: 20px;
+  font-size: 15px;
+}
+
 .col-path {
   width: auto;
 }
