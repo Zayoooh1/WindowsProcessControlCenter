@@ -154,8 +154,7 @@ const elements = {
   profileCancelButton: document.getElementById("profileCancelButton"),
   profileSaveButton: document.getElementById("profileSaveButton"),
   deleteProfileModal: document.getElementById("deleteProfileModal"),
-  colPriorityHeader: document.querySelector("th.col-priority"),
-  colGpuHeader: document.querySelector("th.col-gpu"),
+  sortableHeaders: Array.from(document.querySelectorAll("th.clickable-header")),
   deleteProfileNameDisplay: document.getElementById("deleteProfileNameDisplay"),
   deleteProfileTargetDisplay: document.getElementById("deleteProfileTargetDisplay"),
   deleteProfileCancelButton: document.getElementById("deleteProfileCancelButton"),
@@ -516,7 +515,7 @@ function applyProfile(profileId) {
   }
 
   state.profilesState.applyingProfileId = profileId;
-  render();
+  renderProfiles();
 
   postToHost({
     type: "applyProfile",
@@ -740,7 +739,7 @@ function handleHostMessage(event) {
       (message.fields.gpuPreference && state.sortColumn === "gpu") ||
       (Object.hasOwn(message.fields, "isFrozenByApp") && state.sortColumn === "runtime");
     if (requiresTableResort) {
-      applyFilter(false);
+      applyFilter();
     } else {
       updateVisibleProcessRow(message.pid);
       if (state.selectedPid === message.pid) renderDetails();
@@ -820,6 +819,8 @@ function handleHostMessage(event) {
       state.settingsStorageWarning = "Failed to load settings from native storage.";
     }
     render();
+    restartAutoRefresh();
+    runAutoUpdateCheckIfNeeded();
     return;
   }
 
@@ -848,8 +849,7 @@ function handleHostMessage(event) {
   if (message.type === "profileApplied") {
     state.profilesState.applyingProfileId = null;
     showStatus(message.message || "Profile applied.", Boolean(message.success));
-    requestProcesses();
-    render();
+    renderProfiles();
     return;
   }
 
@@ -920,7 +920,7 @@ function handleHostMessage(event) {
   }
 }
 
-function applyFilter(renderAll = true) {
+function applyFilter() {
   const query = state.query.trim().toLowerCase();
   state.filtered = query
     ? state.processes.filter((process) => {
@@ -976,18 +976,16 @@ function applyFilter(renderAll = true) {
     }
   }
 
-  if (renderAll) {
-    render();
-  } else {
-    renderRows();
-    renderDetails();
-    elements.processCount.textContent = `${state.processes.length} processes`;
-    elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
-  }
+  updateHeaderIndicators();
+  renderDashboard();
+  renderRows();
+  renderDetails();
+  elements.processCount.textContent = `${state.processes.length} processes`;
+  elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
 }
 
 function updateHeaderIndicators() {
-  document.querySelectorAll("th.clickable-header").forEach(th => {
+  elements.sortableHeaders.forEach(th => {
     th.classList.remove("sort-asc", "sort-desc");
     if (th.dataset.sort === state.sortColumn) {
       if (state.sortDirection === "asc") th.classList.add("sort-asc");
@@ -1177,8 +1175,6 @@ async function checkForUpdates(manual = false) {
       headers: { Accept: "application/vnd.github.v3+json" },
       signal: abort.signal,
     });
-    clearTimeout(timeout);
-
     if (!resp.ok) {
       // Provide a friendly message for 404 which commonly means no public release
       if (resp.status === 404) {
@@ -1278,7 +1274,6 @@ async function checkForUpdates(manual = false) {
       renderUpdateStatus();
     }
   } catch (e) {
-    clearTimeout(timeout);
     if (e && e.name === 'AbortError') {
       elements.updateStatusArea.textContent = 'Update check timed out.';
     } else {
@@ -1286,6 +1281,8 @@ async function checkForUpdates(manual = false) {
     }
     updateState.lastCheckedAt = new Date().toISOString();
     saveUpdateState(updateState);
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -1794,7 +1791,7 @@ function cpuPrioritySection(process) {
 
     state.pendingPriorityPid = process.pid;
     state.actionResult = null;
-    render();
+    renderDetails();
     postToHost({
       type: "setCpuPriority",
       pid: process.pid,
@@ -1886,7 +1883,7 @@ function gpuPreferenceSection(process) {
   applyButton.addEventListener("click", () => {
     state.pendingGpuPid = process.pid;
     state.actionResult = null;
-    render();
+    renderDetails();
     postToHost({
       type: "setGpuPreference",
       pid: process.pid,
@@ -1899,7 +1896,7 @@ function gpuPreferenceSection(process) {
   resetButton.addEventListener("click", () => {
     state.pendingGpuPid = process.pid;
     state.actionResult = null;
-    render();
+    renderDetails();
     postToHost({
       type: "setGpuPreference",
       pid: process.pid,
@@ -1949,7 +1946,7 @@ function terminateSection(process) {
   button.addEventListener("click", () => {
     state.actionResult = null;
     state.terminateModalProcess = process;
-    render();
+    renderTerminateModal();
   });
   container.appendChild(button);
   renderActionResult(container, process.pid, "terminateProcess");
@@ -1997,7 +1994,7 @@ function freezeResumeSection(process) {
   freezeButton.addEventListener("click", () => {
     state.actionResult = null;
     state.freezeModalProcess = process;
-    render();
+    renderFreezeModal();
   });
 
   const resumeButton = document.createElement("button");
@@ -2008,7 +2005,7 @@ function freezeResumeSection(process) {
   resumeButton.addEventListener("click", () => {
     state.pendingResumePid = process.pid;
     state.actionResult = null;
-    render();
+    renderDetails();
     postToHost({
       type: "resumeProcess",
       pid: process.pid,
@@ -2695,8 +2692,6 @@ bindUi(elements.buyMeACoffeeBtn, "click", () => {
   });
 }, "buy-me-coffee-btn");
 
-bindUi(elements.colPriorityHeader, "click", () => handleHeaderClick("priority"), "colPriorityHeader");
-bindUi(elements.colGpuHeader, "click", () => handleHeaderClick("gpu"), "colGpuHeader");
 bindUi(elements.dashboardNavButton, "click", () => setActiveView("dashboard"), "dashboardNavButton");
 bindUi(elements.processesNavButton, "click", () => setActiveView("processes"), "processesNavButton");
 bindUi(elements.settingsNavButton, "click", () => setActiveView("settings"), "settingsNavButton");
@@ -2841,46 +2836,6 @@ function populateRunningProcessPicker() {
     opt.textContent = proc.name + (proc.path ? ` (${proc.path})` : "");
     picker.appendChild(opt);
   }
-}
-
-function updateHeaderIndicators() {
-  const priorityTh = elements.colPriorityHeader;
-  const gpuTh = elements.colGpuHeader;
-  if (!priorityTh || !gpuTh) return;
-
-  priorityTh.textContent = "CPU Priority";
-  gpuTh.textContent = "GPU Preference";
-
-  if (state.sortColumn === "priority") {
-    if (state.sortDirection === "asc") {
-      priorityTh.textContent = "CPU Priority ▲";
-    } else if (state.sortDirection === "desc") {
-      priorityTh.textContent = "CPU Priority ▼";
-    }
-  } else if (state.sortColumn === "gpu") {
-    if (state.sortDirection === "asc") {
-      gpuTh.textContent = "GPU Preference ▲";
-    } else if (state.sortDirection === "desc") {
-      gpuTh.textContent = "GPU Preference ▼";
-    }
-  }
-}
-
-function handleHeaderClick(column) {
-  if (state.sortColumn !== column) {
-    state.sortColumn = column;
-    state.sortDirection = "asc";
-  } else {
-    if (state.sortDirection === "asc") {
-      state.sortDirection = "desc";
-    } else if (state.sortDirection === "desc") {
-      state.sortDirection = "none";
-      state.sortColumn = null;
-    } else {
-      state.sortDirection = "asc";
-    }
-  }
-  applyFilter();
 }
 
 function mapPriorityToValue(priority) {
@@ -3090,12 +3045,7 @@ bindUi(elements.deleteProfilesButton, "click", handleBulkDeleteClick, "deletePro
 bindUi(elements.exportProfilesButton, "click", exportProfiles, "exportProfilesButton");
 bindUi(elements.importProfilesButton, "click", importProfiles, "importProfilesButton");
 bindUi(elements.importFileInput, "change", handleImportFile, "importFileInput");
-bindUi(elements.searchInput, "input", (e) => {
-  state.query = e.target.value;
-  applyFilter();
-}, "searchInput");
-
-document.querySelectorAll("th.clickable-header").forEach(th => {
+elements.sortableHeaders.forEach(th => {
   th.addEventListener("click", () => {
     const col = th.dataset.sort;
     if (!col) return;
@@ -3128,8 +3078,6 @@ render();
 requestProcesses();
 requestNativeSettings();
 requestNativeProfiles();
-restartAutoRefresh();
-runAutoUpdateCheckIfNeeded();
 
 
 

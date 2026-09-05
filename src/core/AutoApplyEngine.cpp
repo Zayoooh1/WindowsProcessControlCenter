@@ -58,6 +58,15 @@ namespace
         return false;
     }
 
+    void NormalizeComparisonValue(std::string& value)
+    {
+        value.erase(std::remove(value.begin(), value.end(), ' '), value.end());
+        for (char& character : value)
+        {
+            character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+        }
+    }
+
     std::string CurrentTimestamp()
     {
         SYSTEMTIME st;
@@ -118,6 +127,7 @@ namespace wpcc
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_profiles = std::move(profiles);
+            ++m_profilesRevision;
         }
         m_cv.notify_all();
     }
@@ -152,26 +162,27 @@ namespace wpcc
 
         while (true)
         {
+            std::vector<Profile> activeProfiles;
+            std::size_t profilesRevision = 0;
             {
                 std::unique_lock<std::mutex> lock(m_mutex);
-                if (m_cv.wait_for(lock, std::chrono::seconds(5), [this]() { return !m_running; }))
+                m_cv.wait(lock, [this]() {
+                    return !m_running || std::any_of(m_profiles.begin(), m_profiles.end(), [](const Profile& profile) {
+                        return profile.autoApply;
+                    });
+                });
+
+                if (!m_running)
                 {
                     break;
                 }
-            }
 
-            std::vector<Profile> profiles;
-            {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                profiles = m_profiles;
+                activeProfiles.reserve(m_profiles.size());
+                std::copy_if(m_profiles.begin(), m_profiles.end(), std::back_inserter(activeProfiles), [](const Profile& profile) {
+                    return profile.autoApply;
+                });
+                profilesRevision = m_profilesRevision;
             }
-            std::vector<Profile> activeProfiles;
-            for (const auto& p : profiles)
-            {
-                if (p.autoApply) activeProfiles.push_back(p);
-            }
-
-            if (activeProfiles.empty()) continue;
 
             // Fetch processes
             std::vector<ProcessInfo> processes = processProvider.LoadProcesses();
@@ -206,13 +217,8 @@ namespace wpcc
                                 // We check if it differs.
                                 std::string currentNorm = process.cpuPriority;
                                 std::string targetNorm = profile.cpuPriority;
-                                // Simple normalization for comparison
-                                auto normalize = [](std::string& s) {
-                                    s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
-                                    for(auto& c: s) c = std::tolower(c);
-                                };
-                                normalize(currentNorm);
-                                normalize(targetNorm);
+                                NormalizeComparisonValue(currentNorm);
+                                NormalizeComparisonValue(targetNorm);
 
                                 if (currentNorm != targetNorm)
                                 {
@@ -234,15 +240,11 @@ namespace wpcc
                         if (profile.gpuPreference != "DoNotChange" && !profile.gpuPreference.empty())
                         {
                             process.gpuPreference = gpuManager.GetPreferenceForExecutablePath(process.executablePath);
-                            
+
                             std::string currentNorm = process.gpuPreference;
                             std::string targetNorm = profile.gpuPreference;
-                            auto normalize = [](std::string& s) {
-                                s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
-                                for(auto& c: s) c = std::tolower(c);
-                            };
-                            normalize(currentNorm);
-                            normalize(targetNorm);
+                            NormalizeComparisonValue(currentNorm);
+                            NormalizeComparisonValue(targetNorm);
 
                             if (currentNorm != targetNorm)
                             {
@@ -259,6 +261,19 @@ namespace wpcc
                             }
                         }
                     }
+                }
+            }
+
+            // Keep the established five-second cadence while active, but react
+            // immediately when profiles change or the application is stopping.
+            std::unique_lock<std::mutex> lock(m_mutex);
+            if (m_cv.wait_for(lock, std::chrono::seconds(5), [this, profilesRevision]() {
+                return !m_running || m_profilesRevision != profilesRevision;
+            }))
+            {
+                if (!m_running)
+                {
+                    break;
                 }
             }
         }

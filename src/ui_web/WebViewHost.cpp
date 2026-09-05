@@ -62,7 +62,11 @@ namespace
             return S_OK;
         }
         HRESULT STDMETHODCALLTYPE OnStopBinding(HRESULT, LPCWSTR) override { return E_NOTIMPL; }
-        HRESULT STDMETHODCALLTYPE GetBindInfo(DWORD* grfBINDF, BINDINFO* pbindinfo) override { return E_NOTIMPL; }
+        HRESULT STDMETHODCALLTYPE GetBindInfo(DWORD* grfBINDF, BINDINFO* pbindinfo) override {
+            (void)grfBINDF;
+            (void)pbindinfo;
+            return E_NOTIMPL;
+        }
         HRESULT STDMETHODCALLTYPE OnDataAvailable(DWORD, DWORD, FORMATETC*, STGMEDIUM*) override { return E_NOTIMPL; }
         HRESULT STDMETHODCALLTYPE OnObjectAvailable(REFIID, IUnknown*) override { return E_NOTIMPL; }
 

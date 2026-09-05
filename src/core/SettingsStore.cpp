@@ -4,7 +4,6 @@
 #include <ShlObj.h>
 
 #include <fstream>
-#include <cstdlib>
 #include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
@@ -21,12 +20,18 @@ namespace wpcc
             return path / L"settings.json";
         }
 
-        const char* appData = std::getenv("APPDATA");
-        if (appData)
+        const DWORD requiredLength = GetEnvironmentVariableW(L"APPDATA", nullptr, 0);
+        if (requiredLength > 0)
         {
-            std::filesystem::path path(appData);
-            path /= "WindowsProcessControlCenter";
-            return path / "settings.json";
+            std::wstring appData(requiredLength, L'\0');
+            const DWORD actualLength = GetEnvironmentVariableW(L"APPDATA", appData.data(), requiredLength);
+            if (actualLength > 0 && actualLength < requiredLength)
+            {
+                appData.resize(actualLength);
+                std::filesystem::path path(appData);
+                path /= L"WindowsProcessControlCenter";
+                return path / L"settings.json";
+            }
         }
 
         return {};

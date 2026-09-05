@@ -40,6 +40,7 @@ namespace wpcc
         std::condition_variable m_cv;
         mutable std::mutex m_mutex;
         bool m_running = false;
+        std::size_t m_profilesRevision = 0;
 
         std::deque<AutoApplyLog> m_logs;
         std::vector<Profile> m_profiles;
