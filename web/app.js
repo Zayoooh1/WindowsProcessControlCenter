@@ -713,13 +713,45 @@ function handleHostMessage(event) {
     return;
   }
 
+  if (message.type === "processUpdated" && Number.isFinite(message.pid) && message.fields && typeof message.fields === "object") {
+    const process = state.processes.find((item) => item.pid === message.pid);
+    if (!process) return;
+
+    Object.assign(process, message.fields);
+    const requiresTableResort = (message.fields.cpuPriority && state.sortColumn === "priority") ||
+      (message.fields.gpuPreference && state.sortColumn === "gpu") ||
+      (Object.hasOwn(message.fields, "isFrozenByApp") && state.sortColumn === "runtime");
+    if (requiresTableResort) {
+      applyFilter(false);
+    } else {
+      renderRows();
+      if (state.selectedPid === message.pid) renderDetails();
+      renderFreezeModal();
+      elements.processCount.textContent = `${state.processes.length} processes`;
+      elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
+    }
+    return;
+  }
+
+  if (message.type === "processRemoved" && Number.isFinite(message.pid)) {
+    state.processes = state.processes.filter((process) => process.pid !== message.pid);
+    state.filtered = state.filtered.filter((process) => process.pid !== message.pid);
+    if (state.selectedPid === message.pid) state.selectedPid = state.filtered[0]?.pid ?? null;
+    renderRows();
+    renderDetails();
+    renderTerminateModal();
+    elements.processCount.textContent = `${state.processes.length} processes`;
+    elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
+    return;
+  }
+
   if (message.type === "actionResult" && message.action === "setCpuPriority") {
     elements.refreshButton.disabled = false;
     elements.dashboardRefreshButton.disabled = false;
     elements.quickRefreshButton.disabled = false;
     state.pendingPriorityPid = null;
     state.actionResult = message;
-    render();
+    if (!message.success) renderDetails();
     return;
   }
 
@@ -731,7 +763,7 @@ function handleHostMessage(event) {
     state.terminateModalProcess = null;
     state.actionResult = message;
     showStatus(message.message || "End process action completed.", Boolean(message.success));
-    render();
+    if (!message.success) renderDetails();
     return;
   }
 
@@ -744,7 +776,7 @@ function handleHostMessage(event) {
     state.freezeModalProcess = null;
     state.actionResult = message;
     showStatus(message.message || "Process runtime action completed.", Boolean(message.success));
-    render();
+    if (!message.success) renderDetails();
     return;
   }
 
@@ -755,7 +787,7 @@ function handleHostMessage(event) {
     state.pendingGpuPid = null;
     state.actionResult = message;
     showStatus(message.message || "GPU preference action completed.", Boolean(message.success));
-    render();
+    if (!message.success) renderDetails();
     return;
   }
 
@@ -870,7 +902,7 @@ function handleHostMessage(event) {
   }
 }
 
-function applyFilter() {
+function applyFilter(renderAll = true) {
   const query = state.query.trim().toLowerCase();
   state.filtered = query
     ? state.processes.filter((process) => {
@@ -918,7 +950,14 @@ function applyFilter() {
     state.selectedPid = state.filtered[0]?.pid ?? null;
   }
 
-  render();
+  if (renderAll) {
+    render();
+  } else {
+    renderRows();
+    renderDetails();
+    elements.processCount.textContent = `${state.processes.length} processes`;
+    elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
+  }
 }
 
 function updateHeaderIndicators() {

@@ -337,6 +337,29 @@ namespace wpcc
         }
     }
 
+    void WebViewHost::PostProcessUpdate(unsigned long pid, std::string_view fieldsJson)
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        const std::wstring message = L"{\"type\":\"processUpdated\",\"pid\":" + std::to_wstring(pid) +
+            L",\"fields\":" + std::wstring(fieldsJson.begin(), fieldsJson.end()) + L"}";
+        m_webView->PostWebMessageAsJson(message.c_str());
+    }
+
+    void WebViewHost::PostProcessRemoved(unsigned long pid)
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        const std::wstring message = L"{\"type\":\"processRemoved\",\"pid\":" + std::to_wstring(pid) + L"}";
+        m_webView->PostWebMessageAsJson(message.c_str());
+    }
+
     void WebViewHost::HandleSetCpuPriority(std::wstring_view messageJson)
     {
         const SetCpuPriorityRequest request = m_bridge.ParseSetCpuPriorityRequest(messageJson);
@@ -350,7 +373,7 @@ namespace wpcc
 
         if (result.success)
         {
-            SendProcessSnapshot();
+            PostProcessUpdate(result.pid, std::string("{\"cpuPriority\":\"") + request.priority + "\"}");
         }
     }
 
@@ -367,7 +390,7 @@ namespace wpcc
 
         if (result.success)
         {
-            SendProcessSnapshot();
+            PostProcessRemoved(result.pid);
         }
     }
 
@@ -384,7 +407,7 @@ namespace wpcc
 
         if (result.success)
         {
-            SendProcessSnapshot();
+            PostProcessUpdate(result.pid, "{\"isFrozenByApp\":true}");
         }
     }
 
@@ -401,7 +424,7 @@ namespace wpcc
 
         if (result.success)
         {
-            SendProcessSnapshot();
+            PostProcessUpdate(result.pid, "{\"isFrozenByApp\":false}");
         }
     }
 
@@ -418,7 +441,7 @@ namespace wpcc
 
         if (result.success)
         {
-            SendProcessSnapshot();
+            PostProcessUpdate(result.pid, std::string("{\"gpuPreference\":\"") + result.currentPreference + "\"}");
         }
     }
 

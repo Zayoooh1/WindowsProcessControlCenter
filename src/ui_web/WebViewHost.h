@@ -14,6 +14,7 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <functional>
 
 namespace wpcc
@@ -45,6 +46,8 @@ namespace wpcc
         void ConfigureWebView();
         void NavigateToFrontend();
         void SendProcessSnapshot();
+        void PostProcessUpdate(unsigned long pid, std::string_view fieldsJson);
+        void PostProcessRemoved(unsigned long pid);
         void HandleSetCpuPriority(std::wstring_view messageJson);
         void HandleTerminateProcess(std::wstring_view messageJson);
         void HandleFreezeProcess(std::wstring_view messageJson);
