@@ -187,10 +187,24 @@ namespace
         return WideToUtf8(std::wstring_view(pathBuffer.data(), size));
     }
 
-    std::string ExecutableNameFromPath(std::string_view path)
+    std::string ClassifyOpenProcessFailure(DWORD errorCode, bool systemLikeProcess)
     {
-        const size_t separator = path.find_last_of("\\\\/");
-        return std::string(separator == std::string_view::npos ? path : path.substr(separator + 1));
+        if (systemLikeProcess)
+        {
+            return "Protected/System";
+        }
+
+        if (errorCode == ERROR_ACCESS_DENIED)
+        {
+            return "Access denied";
+        }
+
+        if (errorCode == ERROR_INVALID_PARAMETER || errorCode == ERROR_NOT_FOUND)
+        {
+            return "Exited/race";
+        }
+
+        return "Unknown/error";
     }
 }
 
@@ -230,7 +244,7 @@ namespace wpcc
                 const DWORD errorCode = GetLastError();
                 process.accessError = FormatWin32Error(errorCode);
                 process.likelyRequiresAdmin = errorCode == ERROR_ACCESS_DENIED || systemLikeProcess;
-                process.accessStatus = systemLikeProcess ? "Protected/System" : (errorCode == ERROR_ACCESS_DENIED ? "Access denied" : "Unknown");
+                process.accessStatus = ClassifyOpenProcessFailure(errorCode, systemLikeProcess);
             }
             else
             {
@@ -280,13 +294,23 @@ namespace wpcc
             return processes;
         }
 
+        std::unordered_map<unsigned long, std::string> processNameCache;
+        processNameCache.reserve(256);
+
         do
         {
             ProcessInfo process{};
             process.pid = entry.th32ProcessID;
             process.name = WideToUtf8(entry.szExeFile);
+            process.accessStatus = "Not checked";
+            processNameCache.emplace(process.pid, process.name);
             processes.push_back(std::move(process));
         } while (Process32NextW(snapshot.Get(), &entry));
+
+        {
+            std::lock_guard lock(m_processNameCacheMutex);
+            m_processNameCache = std::move(processNameCache);
+        }
 
         return processes;
     }
@@ -295,6 +319,14 @@ namespace wpcc
     {
         ProcessInfo process{};
         process.pid = pid;
+        {
+            std::lock_guard lock(m_processNameCacheMutex);
+            const auto cachedName = m_processNameCache.find(pid);
+            if (cachedName != m_processNameCache.end())
+            {
+                process.name = cachedName->second;
+            }
+        }
         process.cpuPriority = "Unknown";
         process.accessStatus = "Unknown";
 
@@ -312,22 +344,27 @@ namespace wpcc
             const DWORD errorCode = GetLastError();
             process.accessError = FormatWin32Error(errorCode);
             process.likelyRequiresAdmin = errorCode == ERROR_ACCESS_DENIED;
-            process.accessStatus = errorCode == ERROR_ACCESS_DENIED ? "Access denied" : "Unknown";
+            process.accessStatus = ClassifyOpenProcessFailure(errorCode, false);
             return process;
         }
 
         process.accessStatus = "Accessible";
         process.executablePath = QueryExecutablePath(processHandle.Get());
-        process.name = ExecutableNameFromPath(process.executablePath);
+        if (process.executablePath.empty())
+        {
+            process.accessStatus = "Limited access";
+        }
         if (process.name.empty())
         {
             process.name = "Unknown";
+            process.accessStatus = "Limited access";
         }
 
         const DWORD priorityClass = GetPriorityClass(processHandle.Get());
         if (priorityClass == 0)
         {
             process.accessError = FormatWin32Error(GetLastError());
+            process.accessStatus = "Limited access";
         }
         else
         {

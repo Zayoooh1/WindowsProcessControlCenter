@@ -1526,12 +1526,13 @@ function renderDashboard() {
   const stats = getDashboardStats();
   elements.dashboardSummary.textContent = state.processes.length === 0
     ? "Waiting for the first process snapshot."
-    : `${stats.total} processes in the current snapshot, ${stats.accessible} accessible for guarded controls.`;
+    : `${stats.total} processes in the current snapshot, ${stats.accessible} accessible for guarded controls, ${stats.notChecked} not checked.`;
 
   elements.dashboardStats.replaceChildren(
     statCard("Total processes", stats.total, "All processes in the latest snapshot"),
     statCard("Accessible", stats.accessible, "Processes reporting accessible status", "success"),
-    statCard("Protected / denied", stats.protectedDenied, "Protected, denied, or otherwise unavailable", "warning"),
+    statCard("Protected / denied", stats.protectedDenied, "Protected or explicitly denied", "warning"),
+    statCard("Not checked", stats.notChecked, "Access has not been queried in the fast snapshot", "neutral"),
     statCard("Frozen by app", stats.frozenByApp, "Processes suspended by this WPCC session", "warning"),
     statCard("Non-normal priority", stats.nonNormalPriority, "Priority differs from Normal and is known", "neutral"),
     statCard("GPU preferences", stats.gpuPreferences, "Per-app GPU preference differs from system default", "neutral"),
@@ -1547,10 +1548,12 @@ function getDashboardStats() {
     const gpuPreference = String(process.gpuPreference || "Unknown");
 
     stats.total += 1;
-    if (accessStatus === "Accessible") {
+    if (accessStatus === "Accessible" || accessStatus === "Limited access") {
       stats.accessible += 1;
-    } else {
+    } else if (accessStatus === "Protected/System" || accessStatus === "Access denied") {
       stats.protectedDenied += 1;
+    } else if (accessStatus === "Not checked") {
+      stats.notChecked += 1;
     }
 
     if (process.isFrozenByApp === true) {
@@ -1570,6 +1573,7 @@ function getDashboardStats() {
     total: 0,
     accessible: 0,
     protectedDenied: 0,
+    notChecked: 0,
     frozenByApp: 0,
     nonNormalPriority: 0,
     gpuPreferences: 0,
