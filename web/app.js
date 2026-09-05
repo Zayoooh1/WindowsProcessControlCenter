@@ -25,9 +25,12 @@ const initialSettingsState = loadSettings();
 const initialProfilesState = loadProfiles();
 let autoRefreshTimer = null;
 let snapshotDebounceTimer = null;
+let visibleDetailsHydrationTimer = null;
 const PROCESS_ROW_HEIGHT = 44;
 const COMPACT_PROCESS_ROW_HEIGHT = 34;
 const PROCESS_ROW_OVERSCAN = 6;
+const VISIBLE_DETAILS_HYDRATION_DELAY_MS = 75;
+const MAX_VISIBLE_DETAILS_REQUESTS_PER_HYDRATION = 8;
 let virtualScrollFrame = null;
 let virtualRowsRenderForced = false;
 let virtualRowsAllowPoolTrim = false;
@@ -48,7 +51,9 @@ const state = {
   processes: [],
   filtered: [],
   selectedPid: null,
-  detailsLoadingPid: null,
+  processDetailsCache: new Map(),
+  pendingProcessDetails: new Set(),
+  snapshotVersion: 0,
   query: "",
   pendingPriorityPid: null,
   pendingTerminatePid: null,
@@ -711,8 +716,21 @@ function handleHostMessage(event) {
     elements.refreshButton.disabled = false;
     elements.dashboardRefreshButton.disabled = false;
     elements.quickRefreshButton.disabled = false;
-    state.processes = Array.isArray(message.processes) ? message.processes : [];
-    state.detailsLoadingPid = null;
+    clearTimeout(visibleDetailsHydrationTimer);
+    visibleDetailsHydrationTimer = null;
+    state.snapshotVersion += 1;
+    const snapshotProcesses = Array.isArray(message.processes) ? message.processes : [];
+    const livePids = new Set(snapshotProcesses.map((process) => process.pid));
+    for (const pid of state.processDetailsCache.keys()) {
+      if (!livePids.has(pid)) state.processDetailsCache.delete(pid);
+    }
+    for (const pid of state.pendingProcessDetails) {
+      if (!livePids.has(pid)) state.pendingProcessDetails.delete(pid);
+    }
+    state.processes = snapshotProcesses.map((process) => {
+      const cached = state.processDetailsCache.get(process.pid);
+      return cached ? Object.assign(process, cached.details, { detailsLoaded: true }) : process;
+    });
     if (!state.processes.some((process) => process.pid === state.selectedPid)) {
       state.selectedPid = state.processes[0]?.pid ?? null;
     }
@@ -733,13 +751,15 @@ function handleHostMessage(event) {
   }
 
   if (message.type === "processDetails" && Number.isFinite(message.pid) && message.details && typeof message.details === "object") {
-    if (message.pid !== state.selectedPid) return;
+    state.pendingProcessDetails.delete(message.pid);
     const process = state.processes.find((item) => item.pid === message.pid);
     if (!process) return;
-    Object.assign(process, message.details, { detailsLoaded: true });
-    state.detailsLoadingPid = null;
+    const details = { ...message.details };
+    state.processDetailsCache.set(message.pid, { details, snapshotVersion: state.snapshotVersion });
+    Object.assign(process, details, { detailsLoaded: true });
     updateVisibleProcessRow(message.pid);
-    renderDetails();
+    if (message.pid === state.selectedPid) renderDetails();
+    if (isProcessVisible(message.pid)) scheduleVisibleProcessDetailsHydration();
     return;
   }
 
@@ -748,6 +768,8 @@ function handleHostMessage(event) {
     if (!process) return;
 
     Object.assign(process, message.fields);
+    const cached = state.processDetailsCache.get(message.pid);
+    if (cached) Object.assign(cached.details, message.fields);
     const requiresTableResort = (message.fields.cpuPriority && state.sortColumn === "priority") ||
       (message.fields.gpuPreference && state.sortColumn === "gpu") ||
       (Object.hasOwn(message.fields, "isFrozenByApp") && state.sortColumn === "runtime");
@@ -764,6 +786,8 @@ function handleHostMessage(event) {
   }
 
   if (message.type === "processRemoved" && Number.isFinite(message.pid)) {
+    state.processDetailsCache.delete(message.pid);
+    state.pendingProcessDetails.delete(message.pid);
     state.processes = state.processes.filter((process) => process.pid !== message.pid);
     state.filtered = state.filtered.filter((process) => process.pid !== message.pid);
     if (state.selectedPid === message.pid) state.selectedPid = state.filtered[0]?.pid ?? null;
@@ -1667,6 +1691,7 @@ function renderRows({ force = false, allowPoolTrim = false } = {}) {
   virtualRows.lastEndIndex = endIndex;
   virtualRows.lastRowHeight = rowHeight;
   virtualRows.lastFiltered = state.filtered;
+  scheduleVisibleProcessDetailsHydration();
 }
 
 function ensureVirtualRowsStructure() {
@@ -1749,6 +1774,7 @@ function resetPooledProcessRow(row) {
 
 function populateProcessRow(row, process) {
   const cells = row.processCells;
+  const hasDetails = Boolean(process.detailsLoaded);
   row.hidden = false;
   row.dataset.pid = String(process.pid);
   row.className = process.pid === state.selectedPid ? "selected" : "";
@@ -1756,14 +1782,14 @@ function populateProcessRow(row, process) {
   row.removeAttribute("title");
   cells.pid.textContent = process.pid;
   cells.name.textContent = process.name || "Unknown";
-  const path = process.path || "Unavailable";
+  const path = hasDetails ? (process.path || "Unavailable") : "Loading…";
   cells.path.textContent = path;
   cells.path.title = path;
   updatePooledBadge(cells.runtime, runtimeLabel(process), runtimeTone(process));
-  updatePooledBadge(cells.priority, process.cpuPriority || "Unknown", priorityTone(process.cpuPriority));
-  updatePooledBadge(cells.gpu, gpuPreferenceLabel(process.gpuPreference), gpuPreferenceTone(process.gpuPreference));
-  updatePooledBadge(cells.admin, process.adminNeeded ? "Likely" : "No", process.adminNeeded ? "warning" : "neutral");
-  updatePooledBadge(cells.access, process.accessStatus || "Unknown", accessTone(process.accessStatus));
+  updatePooledBadge(cells.priority, hasDetails ? (process.cpuPriority || "Unknown") : "Loading…", hasDetails ? priorityTone(process.cpuPriority) : "neutral");
+  updatePooledBadge(cells.gpu, hasDetails ? gpuPreferenceLabel(process.gpuPreference) : "Loading…", hasDetails ? gpuPreferenceTone(process.gpuPreference) : "neutral");
+  updatePooledBadge(cells.admin, hasDetails ? (process.adminNeeded ? "Likely" : "No") : "Loading…", hasDetails && process.adminNeeded ? "warning" : "neutral");
+  updatePooledBadge(cells.access, hasDetails ? (process.accessStatus || "Unknown") : "Loading…", hasDetails ? accessTone(process.accessStatus) : "neutral");
 }
 
 function updatePooledBadge(element, label, tone) {
@@ -1794,6 +1820,40 @@ function updateVisibleProcessRow(pid) {
   if (process) populateProcessRow(row, process);
 }
 
+function isProcessVisible(pid) {
+  return elements.processRows.querySelector(`tr[data-pid="${pid}"]`) !== null;
+}
+
+function isProcessDetailsCurrent(pid) {
+  return state.processDetailsCache.get(pid)?.snapshotVersion === state.snapshotVersion;
+}
+
+function requestProcessDetails(pid) {
+  if (state.pendingProcessDetails.has(pid) || isProcessDetailsCurrent(pid)) return;
+  if (!state.processes.some((process) => process.pid === pid)) return;
+  state.pendingProcessDetails.add(pid);
+  postToHost({ type: "getProcessDetails", pid });
+}
+
+function scheduleVisibleProcessDetailsHydration() {
+  if (state.activeView !== "processes") return;
+  clearTimeout(visibleDetailsHydrationTimer);
+  visibleDetailsHydrationTimer = setTimeout(() => {
+    visibleDetailsHydrationTimer = null;
+    hydrateVisibleProcessDetails();
+  }, VISIBLE_DETAILS_HYDRATION_DELAY_MS);
+}
+
+function hydrateVisibleProcessDetails() {
+  if (state.pendingProcessDetails.size >= MAX_VISIBLE_DETAILS_REQUESTS_PER_HYDRATION) return;
+  for (let index = virtualRows.lastStartIndex; index < virtualRows.lastEndIndex; ++index) {
+    const process = state.filtered[index];
+    if (!process || isProcessDetailsCurrent(process.pid) || state.pendingProcessDetails.has(process.pid)) continue;
+    requestProcessDetails(process.pid);
+    if (state.pendingProcessDetails.size >= MAX_VISIBLE_DETAILS_REQUESTS_PER_HYDRATION) break;
+  }
+}
+
 function scheduleVirtualRowsRender(force = false, allowPoolTrim = false) {
   virtualRowsRenderForced ||= force;
   virtualRowsAllowPoolTrim ||= allowPoolTrim;
@@ -1821,12 +1881,11 @@ function renderDetails() {
   if (!selected.detailsLoaded) {
     elements.detailsContent.className = "details-content empty-details loading-details";
     elements.detailsContent.textContent = "Loading process details...";
-    if (state.detailsLoadingPid !== selected.pid) {
-      state.detailsLoadingPid = selected.pid;
-      postToHost({ type: "getProcessDetails", pid: selected.pid });
-    }
+    requestProcessDetails(selected.pid);
     return;
   }
+
+  if (!isProcessDetailsCurrent(selected.pid)) requestProcessDetails(selected.pid);
 
   elements.detailsContent.className = "details-content";
   elements.detailsContent.appendChild(section("Basic information", [

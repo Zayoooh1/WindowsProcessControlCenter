@@ -369,7 +369,7 @@ namespace wpcc
     void WebViewHost::HandleGetProcessDetails(std::wstring_view messageJson)
     {
         const unsigned long pid = m_bridge.ParseProcessDetailsRequest(messageJson);
-        if (pid == 0 || !m_webView)
+        if (!m_webView)
         {
             return;
         }
