@@ -83,7 +83,38 @@ namespace wpcc
         m_hwnd = hwnd;
         m_autoApplyEngine = autoApplyEngine;
 
-        const std::filesystem::path userDataFolder = GetExecutableDirectory() / L"WebView2UserData";
+        std::array<wchar_t, MAX_PATH> localAppData{};
+        std::filesystem::path userDataFolder;
+
+        if (SUCCEEDED(SHGetFolderPathW(
+                nullptr,
+                CSIDL_LOCAL_APPDATA,
+                nullptr,
+                SHGFP_TYPE_CURRENT,
+                localAppData.data())))
+        {
+            userDataFolder =
+                std::filesystem::path(localAppData.data()) /
+                L"WindowsProcessControlCenter" /
+                L"WebView2";
+        }
+        else
+        {
+            userDataFolder =
+                std::filesystem::temp_directory_path() /
+                L"WindowsProcessControlCenter" /
+                L"WebView2";
+        }
+
+        std::error_code userDataError;
+        std::filesystem::create_directories(userDataFolder, userDataError);
+        if (userDataError)
+        {
+            ShowInitializationError(
+                L"Failed to create WebView2 user data directory: " +
+                userDataFolder.wstring());
+            return false;
+        }
         const HRESULT result = CreateCoreWebView2EnvironmentWithOptions(
             nullptr,
             userDataFolder.c_str(),
