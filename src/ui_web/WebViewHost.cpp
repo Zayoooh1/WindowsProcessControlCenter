@@ -216,7 +216,7 @@ namespace wpcc
                     switch (messageType)
                     {
                     case WebMessageType::RefreshProcesses:
-                        SendProcessSnapshot();
+                        RefreshProcesses();
                         break;
                     case WebMessageType::GetProcessDetails:
                         HandleGetProcessDetails(messageJson);
@@ -317,7 +317,43 @@ namespace wpcc
 
     void WebViewHost::RefreshProcesses()
     {
+        if (m_snapshotInFlight)
+        {
+            m_pendingRefresh = true;
+            return;
+        }
+
+        if (m_snapshotRequestPosted)
+        {
+            return;
+        }
+
+        m_snapshotRequestPosted = true;
+        if (!PostMessageW(m_hwnd, RefreshSnapshotWindowMessage, 0, 0))
+        {
+            m_snapshotRequestPosted = false;
+            ProcessRefreshRequest();
+        }
+    }
+
+    void WebViewHost::ProcessRefreshRequest()
+    {
+        m_snapshotRequestPosted = false;
+        if (m_snapshotInFlight)
+        {
+            m_pendingRefresh = true;
+            return;
+        }
+
+        m_snapshotInFlight = true;
         SendProcessSnapshot();
+        m_snapshotInFlight = false;
+
+        if (m_pendingRefresh)
+        {
+            m_pendingRefresh = false;
+            RefreshProcesses();
+        }
     }
 
     void WebViewHost::SendProcessSnapshot()
@@ -636,7 +672,7 @@ namespace wpcc
         );
         m_webView->PostWebMessageAsJson(response.c_str());
 
-        SendProcessSnapshot();
+        RefreshProcesses();
     }
 
     void WebViewHost::HandleExecuteInstaller(std::wstring_view messageJson)

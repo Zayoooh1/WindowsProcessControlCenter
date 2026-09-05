@@ -114,6 +114,13 @@ namespace wpcc
             }
             handled = true;
             return 0;
+        case WebViewHost::RefreshSnapshotWindowMessage:
+            if (m_webViewHost)
+            {
+                m_webViewHost->ProcessRefreshRequest();
+            }
+            handled = true;
+            return 0;
         case WebViewHost::WM_DOWNLOAD_COMPLETE:
             if (m_webViewHost)
             {
