@@ -1960,7 +1960,7 @@ body.reduced-motion *::after {
   justify-content: center;
   font-size: 16px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 150ms var(--motion-ease), border-color 150ms var(--motion-ease), color 150ms var(--motion-ease), transform 150ms var(--motion-ease);
   padding: 0;
   box-sizing: border-box;
 }
@@ -2387,4 +2387,44 @@ body.reduced-motion *::after {
   /* Silnik Chromium idealnie dopasuje wektor wewnątrz ramki */
   cursor: pointer;
   display: block;
+}
+
+/* Lightweight motion: composited transforms and opacity only. */
+:root { --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+button, .switch-track, .setting-select, .priority-select {
+  transition: transform 140ms var(--motion-ease), background-color 140ms var(--motion-ease), border-color 140ms var(--motion-ease), color 140ms var(--motion-ease), opacity 140ms var(--motion-ease);
+}
+
+button:not(:disabled):hover { transform: translateY(-1px); }
+button:not(:disabled):active { transform: scale(0.98); }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid rgba(167, 139, 250, 0.9);
+  outline-offset: 2px;
+}
+button:disabled { opacity: 0.58; cursor: not-allowed; }
+
+.switch-thumb { transition: transform 160ms var(--motion-ease); }
+.switch-control input:checked + .switch-track .switch-thumb { transform: translateX(18px); }
+
+.modal-backdrop { animation: modal-overlay-in 200ms var(--motion-ease) both; }
+.modal-backdrop .confirm-modal { animation: modal-panel-in 200ms var(--motion-ease) both; }
+@keyframes modal-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-panel-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+.toast-container { position: fixed; right: 20px; bottom: 20px; z-index: 300; display: grid; gap: 8px; width: min(360px, calc(100vw - 40px)); pointer-events: none; }
+.toast { opacity: 0; transform: translateY(8px); padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: #242036; color: var(--text); box-shadow: 0 10px 24px rgba(0,0,0,.22); transition: opacity 200ms var(--motion-ease), transform 200ms var(--motion-ease); }
+.toast-visible { opacity: 1; transform: translateY(0); animation: toast-in 200ms var(--motion-ease) both; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.toast-success { border-color: rgba(74, 222, 128, .42); }
+.toast-error { border-color: rgba(248, 113, 113, .52); }
+.toast-warning { border-color: rgba(251, 191, 36, .52); }
+
+#processRows tr { transition: background-color 120ms var(--motion-ease), transform 120ms var(--motion-ease), opacity 140ms var(--motion-ease); }
+#processRows tr:hover { transform: translateX(2px); }
+.details-content.loading-details { animation: details-loading-pulse 1.2s ease-in-out infinite alternate; }
+@keyframes details-loading-pulse { from { opacity: .64; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
 }

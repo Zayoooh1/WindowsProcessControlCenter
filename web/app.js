@@ -1665,7 +1665,7 @@ function renderDetails() {
   }
 
   if (!selected.detailsLoaded) {
-    elements.detailsContent.className = "details-content empty-details";
+    elements.detailsContent.className = "details-content empty-details loading-details";
     elements.detailsContent.textContent = "Loading process details...";
     if (state.detailsLoadingPid !== selected.pid) {
       state.detailsLoadingPid = selected.pid;
@@ -2589,6 +2589,28 @@ function showError(message) {
 function showStatus(message, success) {
   elements.errorBanner.textContent = message;
   elements.errorBanner.className = `error-banner ${success ? "success" : "error"}`;
+  showToast(message, success ? "success" : "error");
+}
+
+function showToast(message, type = "info", duration = 3200) {
+  let container = document.getElementById("toastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toastContainer";
+    container.className = "toast-container";
+    container.setAttribute("aria-live", "polite");
+    document.body.appendChild(container);
+  }
+
+  while (container.children.length >= 3) container.firstElementChild.remove();
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type} toast-visible`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.remove("toast-visible");
+    toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+  }, duration);
 }
 
 function hideError() {
