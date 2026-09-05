@@ -48,6 +48,7 @@ namespace wpcc
         void ConfigureWebView();
         void NavigateToFrontend();
         void SendProcessSnapshot();
+        void HandleGetSystemMetrics();
         void PostProcessUpdate(unsigned long pid, std::string_view fieldsJson);
         void PostProcessRemoved(unsigned long pid);
         void HandleGetProcessDetails(std::wstring_view messageJson);
@@ -92,5 +93,9 @@ namespace wpcc
         bool m_snapshotRequestPosted = false;
         bool m_snapshotInFlight = false;
         bool m_pendingRefresh = false;
+        unsigned long long m_previousSystemIdleTime = 0;
+        unsigned long long m_previousSystemKernelTime = 0;
+        unsigned long long m_previousSystemUserTime = 0;
+        bool m_hasPreviousSystemTimes = false;
     };
 }

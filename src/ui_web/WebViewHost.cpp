@@ -20,6 +20,14 @@ using Microsoft::WRL::Callback;
 
 namespace
 {
+    unsigned long long FileTimeToUnsignedLongLong(const FILETIME& fileTime)
+    {
+        ULARGE_INTEGER value{};
+        value.LowPart = fileTime.dwLowDateTime;
+        value.HighPart = fileTime.dwHighDateTime;
+        return value.QuadPart;
+    }
+
     std::wstring Quote(std::wstring_view value)
     {
         return L"\"" + std::wstring(value) + L"\"";
@@ -249,6 +257,9 @@ namespace wpcc
                     case WebMessageType::RefreshProcesses:
                         RefreshProcesses();
                         break;
+                    case WebMessageType::GetSystemMetrics:
+                        HandleGetSystemMetrics();
+                        break;
                     case WebMessageType::GetProcessDetails:
                         HandleGetProcessDetails(messageJson);
                         break;
@@ -469,6 +480,78 @@ namespace wpcc
         {
             PostProcessUpdate(result.pid, std::string("{\"cpuPriority\":\"") + request.priority + "\"}");
         }
+    }
+
+    void WebViewHost::HandleGetSystemMetrics()
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        bool cpuUsageKnown = false;
+        double cpuUsagePercent = 0.0;
+        FILETIME idleTime{};
+        FILETIME kernelTime{};
+        FILETIME userTime{};
+        if (GetSystemTimes(&idleTime, &kernelTime, &userTime))
+        {
+            const unsigned long long idle = FileTimeToUnsignedLongLong(idleTime);
+            const unsigned long long kernel = FileTimeToUnsignedLongLong(kernelTime);
+            const unsigned long long user = FileTimeToUnsignedLongLong(userTime);
+
+            if (m_hasPreviousSystemTimes &&
+                idle >= m_previousSystemIdleTime &&
+                kernel >= m_previousSystemKernelTime &&
+                user >= m_previousSystemUserTime)
+            {
+                const unsigned long long idleDelta = idle - m_previousSystemIdleTime;
+                const unsigned long long kernelDelta = kernel - m_previousSystemKernelTime;
+                const unsigned long long userDelta = user - m_previousSystemUserTime;
+                const unsigned long long totalDelta = kernelDelta + userDelta;
+                if (totalDelta > 0)
+                {
+                    cpuUsagePercent = std::clamp(
+                        (1.0 - static_cast<double>(idleDelta) / static_cast<double>(totalDelta)) * 100.0,
+                        0.0,
+                        100.0);
+                    cpuUsageKnown = true;
+                }
+            }
+
+            m_previousSystemIdleTime = idle;
+            m_previousSystemKernelTime = kernel;
+            m_previousSystemUserTime = user;
+            m_hasPreviousSystemTimes = true;
+        }
+
+        bool memoryUsageKnown = false;
+        double memoryUsagePercent = 0.0;
+        unsigned long long memoryUsedBytes = 0;
+        unsigned long long memoryTotalBytes = 0;
+        MEMORYSTATUSEX memoryStatus{};
+        memoryStatus.dwLength = sizeof(memoryStatus);
+        if (GlobalMemoryStatusEx(&memoryStatus) &&
+            memoryStatus.ullTotalPhys > 0 &&
+            memoryStatus.ullAvailPhys <= memoryStatus.ullTotalPhys)
+        {
+            memoryTotalBytes = memoryStatus.ullTotalPhys;
+            memoryUsedBytes = memoryStatus.ullTotalPhys - memoryStatus.ullAvailPhys;
+            memoryUsagePercent = std::clamp(
+                static_cast<double>(memoryUsedBytes) / static_cast<double>(memoryTotalBytes) * 100.0,
+                0.0,
+                100.0);
+            memoryUsageKnown = true;
+        }
+
+        const std::wstring response = m_bridge.BuildSystemMetricsMessage(
+            cpuUsageKnown,
+            cpuUsagePercent,
+            memoryUsageKnown,
+            memoryUsagePercent,
+            memoryUsedBytes,
+            memoryTotalBytes);
+        m_webView->PostWebMessageAsJson(response.c_str());
     }
 
     void WebViewHost::HandleSetCpuAffinity(std::wstring_view messageJson)

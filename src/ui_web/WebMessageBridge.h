@@ -14,6 +14,7 @@ namespace wpcc
     {
         Unknown,
         RefreshProcesses,
+        GetSystemMetrics,
         GetProcessDetails,
         SetCpuPriority,
         SetCpuAffinity,
@@ -101,6 +102,13 @@ namespace wpcc
 
         std::wstring BuildProcessSnapshotMessage(const std::vector<ProcessInfo>& processes, const std::vector<AutoApplyLog>& autoApplyLogs) const;
         std::wstring BuildProcessDetailsMessage(const ProcessInfo& process) const;
+        std::wstring BuildSystemMetricsMessage(
+            bool cpuUsageKnown,
+            double cpuUsagePercent,
+            bool memoryUsageKnown,
+            double memoryUsagePercent,
+            unsigned long long memoryUsedBytes,
+            unsigned long long memoryTotalBytes) const;
         std::wstring BuildDownloadCompleteMessage(bool success, std::wstring_view filePath, std::wstring_view errorMessage) const;
         std::wstring BuildDownloadProgressMessage(uint32_t downloadedBytes, uint32_t totalBytes) const;
         std::wstring BuildActionResultMessage(std::string_view action, const ProcessActionResult& result) const;

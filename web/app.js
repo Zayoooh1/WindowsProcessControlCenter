@@ -22,9 +22,18 @@ const DEFAULT_SETTINGS = {
 };
 
 const VALID_AUTO_REFRESH_INTERVALS = ["off", "5s", "15s", "30s", "60s"];
+const SYSTEM_METRICS_INTERVAL_MS = 2000;
+const BINARY_MEMORY_UNITS = [
+  { divisor: 1024n ** 4n, label: "TB" },
+  { divisor: 1024n ** 3n, label: "GB" },
+  { divisor: 1024n ** 2n, label: "MB" },
+  { divisor: 1024n, label: "KB" },
+  { divisor: 1n, label: "B" },
+];
 const initialSettingsState = loadSettings();
 const initialProfilesState = loadProfiles();
 let autoRefreshTimer = null;
+let systemMetricsTimer = null;
 let snapshotDebounceTimer = null;
 let visibleDetailsHydrationTimer = null;
 const PROCESS_ROW_HEIGHT = 44;
@@ -60,6 +69,16 @@ const state = {
   confirmedAffinityRequestVersions: new Map(),
   snapshotVersion: 0,
   query: "",
+  systemMetrics: {
+    cpuUsageKnown: false,
+    cpuUsagePercent: null,
+    memoryUsageKnown: false,
+    memoryUsagePercent: null,
+    memoryUsedBytes: null,
+    memoryTotalBytes: null,
+  },
+  systemMetricsRequestPending: false,
+  systemMetricsCpuBaselinePending: false,
   pendingPriorityPid: null,
   pendingTerminatePid: null,
   pendingFreezePid: null,
@@ -761,10 +780,77 @@ function restartAutoRefresh() {
   }
 }
 
+function requestSystemMetrics() {
+  if (state.activeView !== "dashboard" || state.systemMetricsRequestPending || !window.chrome?.webview) {
+    return;
+  }
+
+  state.systemMetricsRequestPending = true;
+  try {
+    window.chrome.webview.postMessage({ type: "getSystemMetrics" });
+  } catch {
+    state.systemMetricsRequestPending = false;
+  }
+}
+
+function startSystemMetricsLoop() {
+  if (systemMetricsTimer !== null || state.activeView !== "dashboard") return;
+
+  state.systemMetricsCpuBaselinePending = true;
+  requestSystemMetrics();
+  systemMetricsTimer = setInterval(requestSystemMetrics, SYSTEM_METRICS_INTERVAL_MS);
+}
+
+function stopSystemMetricsLoop() {
+  if (systemMetricsTimer === null) return;
+
+  clearInterval(systemMetricsTimer);
+  systemMetricsTimer = null;
+}
+
+function syncSystemMetricsLoop() {
+  if (state.activeView === "dashboard") {
+    startSystemMetricsLoop();
+  } else {
+    stopSystemMetricsLoop();
+  }
+}
+
 function handleHostMessage(event) {
   const message = event.data;
   if (!message || typeof message.type !== "string") {
     showError("Received an invalid backend message.");
+    return;
+  }
+
+  if (message.type === "systemMetrics") {
+    state.systemMetricsRequestPending = false;
+    const suppressCpuForBaseline = state.systemMetricsCpuBaselinePending;
+    state.systemMetricsCpuBaselinePending = false;
+    const cpuUsageKnown = !suppressCpuForBaseline &&
+      message.cpuUsageKnown === true &&
+      Number.isFinite(message.cpuUsagePercent) &&
+      message.cpuUsagePercent >= 0 &&
+      message.cpuUsagePercent <= 100;
+    const memoryUsageKnown = message.memoryUsageKnown === true &&
+      Number.isFinite(message.memoryUsagePercent) &&
+      message.memoryUsagePercent >= 0 &&
+      message.memoryUsagePercent <= 100 &&
+      typeof message.memoryUsedBytes === "string" &&
+      /^\d+$/.test(message.memoryUsedBytes) &&
+      typeof message.memoryTotalBytes === "string" &&
+      /^\d+$/.test(message.memoryTotalBytes);
+
+    state.systemMetrics = {
+      cpuUsageKnown,
+      cpuUsagePercent: cpuUsageKnown ? message.cpuUsagePercent : null,
+      memoryUsageKnown,
+      memoryUsagePercent: memoryUsageKnown ? message.memoryUsagePercent : null,
+      memoryUsedBytes: memoryUsageKnown ? message.memoryUsedBytes : null,
+      memoryTotalBytes: memoryUsageKnown ? message.memoryTotalBytes : null,
+    };
+
+    if (state.activeView === "dashboard") renderDashboard();
     return;
   }
 
@@ -1185,6 +1271,7 @@ function renderActiveView() {
   elements.settingsNavButton.classList.toggle("active", settingsActive);
   elements.aboutNavButton.classList.toggle("active", aboutActive);
   elements.rulesNavButton.classList.toggle("active", rulesActive);
+  syncSystemMetricsLoop();
 }
 
 function applySettingsEffects() {
@@ -1640,11 +1727,15 @@ function showUpdateModal(release) {
 
 function renderDashboard() {
   const stats = getDashboardStats();
+  const metrics = state.systemMetrics;
   elements.dashboardSummary.textContent = state.processes.length === 0
     ? "Waiting for the first process snapshot."
     : `${stats.total} processes in the current snapshot, ${stats.accessible} accessible, ${stats.restrictedOrInaccessible} restricted or inaccessible.`;
 
   elements.dashboardStats.replaceChildren(
+    statCard("CPU Usage", formatSystemMetricPercent(metrics.cpuUsagePercent, metrics.cpuUsageKnown), "Total system CPU utilization"),
+    statCard("Memory Usage", formatSystemMetricPercent(metrics.memoryUsagePercent, metrics.memoryUsageKnown), "Physical memory currently in use"),
+    statCard("Memory", formatMemoryUsage(metrics), "Used physical memory / total physical memory"),
     statCard("Process Load Estimate", stats.processLoadEstimate.level, stats.processLoadEstimate.description, stats.processLoadEstimate.tone),
     statCard("Total processes", stats.total, "All processes in the latest snapshot"),
     statCard("Accessible", stats.accessible, "Processes reporting accessible status", "success"),
@@ -1657,6 +1748,38 @@ function renderDashboard() {
   );
 
   renderLastAction();
+}
+
+function formatSystemMetricPercent(value, known) {
+  return known && Number.isFinite(value) ? `${value.toFixed(1)}%` : "—";
+}
+
+function formatMemoryUsage(metrics) {
+  if (!metrics.memoryUsageKnown) return "—";
+
+  const used = formatBinaryBytes(metrics.memoryUsedBytes);
+  const total = formatBinaryBytes(metrics.memoryTotalBytes);
+  return used && total ? `${used} / ${total}` : "—";
+}
+
+function formatBinaryBytes(decimalBytes) {
+  if (typeof decimalBytes !== "string" || !/^\d+$/.test(decimalBytes)) return "";
+
+  let bytes;
+  try {
+    bytes = BigInt(decimalBytes);
+  } catch {
+    return "";
+  }
+
+  for (const unit of BINARY_MEMORY_UNITS) {
+    if (bytes < unit.divisor && unit.divisor !== 1n) continue;
+
+    const tenths = (bytes * 10n + unit.divisor / 2n) / unit.divisor;
+    return `${tenths / 10n}.${tenths % 10n} ${unit.label}`;
+  }
+
+  return "";
 }
 
 function getDashboardStats() {

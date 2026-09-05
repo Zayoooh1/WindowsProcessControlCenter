@@ -3,7 +3,9 @@
 #include <Windows.h>
 
 #include <cwchar>
+#include <iomanip>
 #include <limits>
+#include <locale>
 #include <sstream>
 
 namespace wpcc
@@ -14,6 +16,12 @@ namespace wpcc
             messageJson.find(L"\"refreshProcesses\"") != std::wstring_view::npos)
         {
             return WebMessageType::RefreshProcesses;
+        }
+
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"getSystemMetrics\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::GetSystemMetrics;
         }
 
         if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
@@ -276,6 +284,45 @@ namespace wpcc
         json << L"\"adminNeeded\":" << (process.likelyRequiresAdmin ? L"true" : L"false") << L",";
         json << L"\"accessStatus\":\"" << EscapeJson(process.accessStatus) << L"\",";
         json << L"\"accessError\":\"" << EscapeJson(process.accessError) << L"\"}}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildSystemMetricsMessage(
+        bool cpuUsageKnown,
+        double cpuUsagePercent,
+        bool memoryUsageKnown,
+        double memoryUsagePercent,
+        unsigned long long memoryUsedBytes,
+        unsigned long long memoryTotalBytes) const
+    {
+        std::wostringstream json;
+        json.imbue(std::locale::classic());
+        json << L"{\"type\":\"systemMetrics\",";
+        json << L"\"cpuUsageKnown\":" << (cpuUsageKnown ? L"true" : L"false") << L",";
+        json << L"\"cpuUsagePercent\":";
+        if (cpuUsageKnown)
+        {
+            json << std::fixed << std::setprecision(1) << cpuUsagePercent;
+        }
+        else
+        {
+            json << L"null";
+        }
+
+        json << L",\"memoryUsageKnown\":" << (memoryUsageKnown ? L"true" : L"false") << L",";
+        json << L"\"memoryUsagePercent\":";
+        if (memoryUsageKnown)
+        {
+            json << std::fixed << std::setprecision(1) << memoryUsagePercent;
+            json << L",\"memoryUsedBytes\":\"" << memoryUsedBytes << L"\"";
+            json << L",\"memoryTotalBytes\":\"" << memoryTotalBytes << L"\"";
+        }
+        else
+        {
+            json << L"null,\"memoryUsedBytes\":null,\"memoryTotalBytes\":null";
+        }
+
+        json << L"}";
         return json.str();
     }
 
