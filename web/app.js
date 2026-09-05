@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = {
 
 const VALID_AUTO_REFRESH_INTERVALS = ["off", "5s", "15s", "30s", "60s"];
 const SYSTEM_METRICS_INTERVAL_MS = 2000;
+const SYSTEM_METRICS_HISTORY_LIMIT = 30;
 const BINARY_MEMORY_UNITS = [
   { divisor: 1024n ** 4n, label: "TB" },
   { divisor: 1024n ** 3n, label: "GB" },
@@ -76,6 +77,10 @@ const state = {
     memoryUsagePercent: null,
     memoryUsedBytes: null,
     memoryTotalBytes: null,
+  },
+  systemMetricsHistory: {
+    cpu: [],
+    memory: [],
   },
   systemMetricsRequestPending: false,
   systemMetricsCpuBaselinePending: false,
@@ -849,6 +854,9 @@ function handleHostMessage(event) {
       memoryUsedBytes: memoryUsageKnown ? message.memoryUsedBytes : null,
       memoryTotalBytes: memoryUsageKnown ? message.memoryTotalBytes : null,
     };
+
+    if (cpuUsageKnown) appendSystemMetricSample(state.systemMetricsHistory.cpu, message.cpuUsagePercent);
+    if (memoryUsageKnown) appendSystemMetricSample(state.systemMetricsHistory.memory, message.memoryUsagePercent);
 
     if (state.activeView === "dashboard") renderDashboard();
     return;
@@ -1733,8 +1741,8 @@ function renderDashboard() {
     : `${stats.total} processes in the current snapshot, ${stats.accessible} accessible, ${stats.restrictedOrInaccessible} restricted or inaccessible.`;
 
   elements.dashboardStats.replaceChildren(
-    statCard("CPU Usage", formatSystemMetricPercent(metrics.cpuUsagePercent, metrics.cpuUsageKnown), "Total system CPU utilization"),
-    statCard("Memory Usage", formatSystemMetricPercent(metrics.memoryUsagePercent, metrics.memoryUsageKnown), "Physical memory currently in use"),
+    metricStatCard("CPU Usage", formatSystemMetricPercent(metrics.cpuUsagePercent, metrics.cpuUsageKnown), "Total system CPU utilization", state.systemMetricsHistory.cpu, "cpu"),
+    metricStatCard("Memory Usage", formatSystemMetricPercent(metrics.memoryUsagePercent, metrics.memoryUsageKnown), "Physical memory currently in use", state.systemMetricsHistory.memory, "memory"),
     statCard("Memory", formatMemoryUsage(metrics), "Used physical memory / total physical memory"),
     statCard("Process Load Estimate", stats.processLoadEstimate.level, stats.processLoadEstimate.description, stats.processLoadEstimate.tone),
     statCard("Total processes", stats.total, "All processes in the latest snapshot"),
@@ -1748,6 +1756,65 @@ function renderDashboard() {
   );
 
   renderLastAction();
+}
+
+function appendSystemMetricSample(history, value) {
+  if (!Number.isFinite(value)) return;
+
+  history.push(Math.min(100, Math.max(0, value)));
+  if (history.length > SYSTEM_METRICS_HISTORY_LIMIT) {
+    history.splice(0, history.length - SYSTEM_METRICS_HISTORY_LIMIT);
+  }
+}
+
+function metricStatCard(label, value, hint, history, metricName) {
+  const card = statCard(label, value, hint);
+  card.classList.add("metric-stat-card");
+  card.appendChild(createMetricSparkline(label, history, metricName));
+  return card;
+}
+
+function createMetricSparkline(label, history, metricName) {
+  const svgNamespace = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNamespace, "svg");
+  svg.classList.add("metric-sparkline", `metric-sparkline-${metricName}`);
+  svg.setAttribute("viewBox", "0 0 100 32");
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", `${label} history, fixed range from 0 to 100 percent`);
+
+  const guide = document.createElementNS(svgNamespace, "line");
+  guide.classList.add("metric-sparkline-guide");
+  guide.setAttribute("x1", "0");
+  guide.setAttribute("y1", "16");
+  guide.setAttribute("x2", "100");
+  guide.setAttribute("y2", "16");
+  svg.appendChild(guide);
+
+  const points = getMetricSparklinePoints(history);
+  if (points) {
+    const line = document.createElementNS(svgNamespace, "polyline");
+    line.classList.add("metric-sparkline-line");
+    line.setAttribute("points", points);
+    svg.appendChild(line);
+  }
+
+  return svg;
+}
+
+function getMetricSparklinePoints(history) {
+  if (!Array.isArray(history)) return "";
+
+  const validSamples = history.filter(Number.isFinite);
+  if (validSamples.length < 2) return "";
+
+  const lastIndex = validSamples.length - 1;
+  return validSamples.map((sample, index) => {
+    const value = Math.min(100, Math.max(0, sample));
+    const x = index / lastIndex * 100;
+    const y = 32 - value / 100 * 32;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(" ");
 }
 
 function formatSystemMetricPercent(value, known) {
