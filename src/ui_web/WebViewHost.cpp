@@ -255,6 +255,9 @@ namespace wpcc
                     case WebMessageType::SetCpuPriority:
                         HandleSetCpuPriority(messageJson);
                         break;
+                    case WebMessageType::SetCpuAffinity:
+                        HandleSetCpuAffinity(messageJson);
+                        break;
                     case WebMessageType::TerminateProcess:
                         HandleTerminateProcess(messageJson);
                         break;
@@ -466,6 +469,93 @@ namespace wpcc
         {
             PostProcessUpdate(result.pid, std::string("{\"cpuPriority\":\"") + request.priority + "\"}");
         }
+    }
+
+    void WebViewHost::HandleSetCpuAffinity(std::wstring_view messageJson)
+    {
+        const SetCpuAffinityRequest request = m_bridge.ParseSetCpuAffinityRequest(messageJson);
+        ProcessActionResult result{};
+        result.pid = request.pid;
+
+        const auto postConfirmedAffinityUpdate = [this](unsigned long pid) {
+            const ProcessInfo process = m_processProvider.GetProcess(pid);
+            const std::string fields =
+                std::string("{\"cpuAffinityMask\":\"") + std::to_string(process.cpuAffinityMask) +
+                "\",\"systemAffinityMask\":\"" + std::to_string(process.systemAffinityMask) +
+                "\",\"cpuAffinityKnown\":" + (process.cpuAffinityKnown ? "true" : "false") + "}";
+            PostProcessUpdate(pid, fields);
+        };
+
+        if (!request.validMask)
+        {
+            result.message = "Invalid CPU affinity mask.";
+        }
+        else if (!request.applyToFamily)
+        {
+            result = m_processActions.SetCpuAffinity(request.pid, request.affinityMask);
+            if (result.success)
+            {
+                postConfirmedAffinityUpdate(result.pid);
+            }
+        }
+        else
+        {
+            const ProcessInfo selectedProcess = m_processProvider.GetProcess(request.pid);
+            if (selectedProcess.name.empty() || selectedProcess.name == "Unknown")
+            {
+                result.message = "Could not identify the selected process family.";
+            }
+            else
+            {
+                std::vector<unsigned long> targetPids = m_processProvider.GetCachedProcessIdsMatchingName(selectedProcess.name);
+                if (std::find(targetPids.begin(), targetPids.end(), request.pid) == targetPids.end())
+                {
+                    targetPids.push_back(request.pid);
+                }
+
+                unsigned long updated = 0;
+                unsigned long failed = 0;
+                unsigned long lastErrorCode = 0;
+                for (unsigned long targetPid : targetPids)
+                {
+                    const ProcessActionResult targetResult = m_processActions.SetCpuAffinity(targetPid, request.affinityMask);
+                    if (targetResult.success)
+                    {
+                        ++updated;
+                        postConfirmedAffinityUpdate(targetPid);
+                    }
+                    else
+                    {
+                        ++failed;
+                        lastErrorCode = targetResult.win32ErrorCode;
+                    }
+                }
+
+                if (updated == 0)
+                {
+                    result.message = "CPU affinity could not be applied to any family processes.";
+                    result.win32ErrorCode = lastErrorCode;
+                }
+                else if (failed == 0)
+                {
+                    result.success = true;
+                    result.message = "CPU affinity applied to " + std::to_string(updated) + (updated == 1 ? " family process." : " family processes.");
+                }
+                else
+                {
+                    result.success = true;
+                    result.message = "CPU affinity applied to " + std::to_string(updated) + " process" + (updated == 1 ? "; " : "es; ") + std::to_string(failed) + (failed == 1 ? " failed." : " failed.");
+                    result.win32ErrorCode = lastErrorCode;
+                }
+            }
+        }
+
+        if (m_webView)
+        {
+            const std::wstring actionResult = m_bridge.BuildActionResultMessage("setCpuAffinity", result);
+            m_webView->PostWebMessageAsJson(actionResult.c_str());
+        }
+
     }
 
     void WebViewHost::HandleTerminateProcess(std::wstring_view messageJson)

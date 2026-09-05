@@ -16,6 +16,7 @@ namespace wpcc
         RefreshProcesses,
         GetProcessDetails,
         SetCpuPriority,
+        SetCpuAffinity,
         TerminateProcess,
         FreezeProcess,
         ResumeProcess,
@@ -42,6 +43,14 @@ namespace wpcc
         unsigned long pid = 0;
         std::string priority;
         bool confirmRealtime = false;
+    };
+
+    struct SetCpuAffinityRequest
+    {
+        unsigned long pid = 0;
+        unsigned long long affinityMask = 0;
+        bool validMask = false;
+        bool applyToFamily = false;
     };
 
     struct TerminateProcessRequest
@@ -77,6 +86,7 @@ namespace wpcc
     public:
         WebMessageType ParseMessageType(std::wstring_view messageJson) const;
         SetCpuPriorityRequest ParseSetCpuPriorityRequest(std::wstring_view messageJson) const;
+        SetCpuAffinityRequest ParseSetCpuAffinityRequest(std::wstring_view messageJson) const;
         TerminateProcessRequest ParseTerminateProcessRequest(std::wstring_view messageJson) const;
         FreezeProcessRequest ParseFreezeProcessRequest(std::wstring_view messageJson) const;
         ResumeProcessRequest ParseResumeProcessRequest(std::wstring_view messageJson) const;
@@ -105,6 +115,7 @@ namespace wpcc
 
     private:
         static unsigned long ExtractUnsignedLong(std::wstring_view json, std::wstring_view key);
+        static bool TryParseCpuAffinityMask(std::wstring_view json, unsigned long long& affinityMask);
         static bool ExtractBool(std::wstring_view json, std::wstring_view key);
         static std::string ExtractString(std::wstring_view json, std::wstring_view key);
         static std::wstring EscapeJson(std::string_view value);

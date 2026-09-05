@@ -10,6 +10,11 @@ namespace wpcc
         std::string name;
         std::string executablePath;
         std::string cpuPriority;
+        unsigned long long cpuAffinityMask = 0;
+        unsigned long long systemAffinityMask = 0;
+        bool cpuAffinityKnown = false;
+        unsigned long long performanceCoreMask = 0;
+        bool performanceCoreMaskKnown = false;
         std::string gpuPreference = "Unknown";
         std::string accessStatus;
         std::string accessError;

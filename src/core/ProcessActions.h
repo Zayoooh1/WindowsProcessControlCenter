@@ -37,6 +37,7 @@ namespace wpcc
     {
     public:
         ProcessActionResult SetCpuPriority(unsigned long pid, const std::string& priority, bool confirmRealtime) const;
+        ProcessActionResult SetCpuAffinity(unsigned long pid, unsigned long long affinityMask) const;
         ApplyProfileResult ApplyProfile(const Profile& profile) const;
         ProcessActionResult TerminateProcessByPid(unsigned long pid, const std::string& expectedName, const std::string& confirmation) const;
         ProcessActionResult FreezeProcessByPid(unsigned long pid, const std::string& expectedName, const std::string& confirmation);

@@ -1245,6 +1245,112 @@ tbody tr.selected {
   gap: 10px;
 }
 
+.cpu-affinity-section {
+  gap: 10px;
+}
+
+.affinity-cpu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 7px;
+  max-height: 184px;
+  overflow-y: auto;
+  padding: 2px 3px 2px 0;
+  scrollbar-color: #514069 #171d26;
+}
+
+.affinity-cpu-option {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  gap: 8px;
+  padding: 0 9px;
+  border: 1px solid rgba(137, 104, 185, 0.32);
+  border-radius: 8px;
+  color: var(--text);
+  background: rgba(45, 35, 65, 0.42);
+  cursor: pointer;
+}
+
+.affinity-cpu-option:hover {
+  border-color: rgba(168, 128, 221, 0.58);
+  background: rgba(57, 43, 82, 0.58);
+}
+
+.affinity-cpu-option input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.affinity-cpu-option:has(input:disabled) {
+  cursor: default;
+  color: #7b8797;
+  border-color: var(--border-soft);
+  background: #202733;
+}
+
+.affinity-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  gap: 7px;
+}
+
+.affinity-actions .secondary-button {
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.affinity-unavailable {
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  padding: 10px 11px;
+  color: var(--muted);
+  background: rgba(37, 46, 58, 0.62);
+}
+
+.affinity-family-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 1px solid rgba(137, 104, 185, 0.28);
+  border-radius: 9px;
+  background: rgba(45, 35, 65, 0.30);
+  cursor: pointer;
+}
+
+.affinity-family-toggle > span {
+  display: grid;
+  gap: 3px;
+}
+
+.affinity-family-toggle strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.affinity-family-toggle small {
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.affinity-family-toggle input {
+  width: 34px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.affinity-family-toggle:has(input:disabled) {
+  cursor: default;
+  opacity: 0.68;
+}
+
 .gpu-preference-section {
   gap: 10px;
 }

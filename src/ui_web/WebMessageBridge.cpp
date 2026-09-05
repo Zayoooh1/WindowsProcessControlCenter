@@ -3,6 +3,7 @@
 #include <Windows.h>
 
 #include <cwchar>
+#include <limits>
 #include <sstream>
 
 namespace wpcc
@@ -25,6 +26,12 @@ namespace wpcc
             messageJson.find(L"\"setCpuPriority\"") != std::wstring_view::npos)
         {
             return WebMessageType::SetCpuPriority;
+        }
+
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"setCpuAffinity\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::SetCpuAffinity;
         }
 
         if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
@@ -120,6 +127,15 @@ namespace wpcc
         request.pid = ExtractUnsignedLong(messageJson, L"pid");
         request.priority = ExtractString(messageJson, L"priority");
         request.confirmRealtime = ExtractBool(messageJson, L"confirmRealtime");
+        return request;
+    }
+
+    SetCpuAffinityRequest WebMessageBridge::ParseSetCpuAffinityRequest(std::wstring_view messageJson) const
+    {
+        SetCpuAffinityRequest request{};
+        request.pid = ExtractUnsignedLong(messageJson, L"pid");
+        request.validMask = TryParseCpuAffinityMask(messageJson, request.affinityMask);
+        request.applyToFamily = ExtractBool(messageJson, L"applyToFamily");
         return request;
     }
 
@@ -250,6 +266,11 @@ namespace wpcc
         json << L"\"name\":\"" << EscapeJson(process.name) << L"\",";
         json << L"\"path\":\"" << EscapeJson(process.executablePath) << L"\",";
         json << L"\"cpuPriority\":\"" << EscapeJson(process.cpuPriority) << L"\",";
+        json << L"\"cpuAffinityMask\":\"" << process.cpuAffinityMask << L"\",";
+        json << L"\"systemAffinityMask\":\"" << process.systemAffinityMask << L"\",";
+        json << L"\"cpuAffinityKnown\":" << (process.cpuAffinityKnown ? L"true" : L"false") << L",";
+        json << L"\"performanceCoreMask\":\"" << process.performanceCoreMask << L"\",";
+        json << L"\"performanceCoreMaskKnown\":" << (process.performanceCoreMaskKnown ? L"true" : L"false") << L",";
         json << L"\"gpuPreference\":\"" << EscapeJson(process.gpuPreference) << L"\",";
         json << L"\"isFrozenByApp\":" << (process.isFrozenByApp ? L"true" : L"false") << L",";
         json << L"\"adminNeeded\":" << (process.likelyRequiresAdmin ? L"true" : L"false") << L",";
@@ -471,6 +492,60 @@ namespace wpcc
         const std::wstring value(json.substr(valueStart, valueEnd - valueStart));
         wchar_t* end = nullptr;
         return std::wcstoul(value.c_str(), &end, 10);
+    }
+
+    bool WebMessageBridge::TryParseCpuAffinityMask(std::wstring_view json, unsigned long long& affinityMask)
+    {
+        const size_t keyPos = json.find(L"\"affinityMask\"");
+        if (keyPos == std::wstring_view::npos)
+        {
+            return false;
+        }
+
+        const size_t colonPos = json.find(L":", keyPos + std::wstring_view(L"\"affinityMask\"").size());
+        if (colonPos == std::wstring_view::npos)
+        {
+            return false;
+        }
+
+        const size_t valueStart = json.find_first_not_of(L" \t\r\n", colonPos + 1);
+        if (valueStart == std::wstring_view::npos || json[valueStart] != L'\"')
+        {
+            return false;
+        }
+
+        unsigned long long parsedMask = 0;
+        bool hasDigit = false;
+        for (size_t index = valueStart + 1; index < json.size(); ++index)
+        {
+            const wchar_t character = json[index];
+            if (character == L'\"')
+            {
+                if (!hasDigit)
+                {
+                    return false;
+                }
+
+                affinityMask = parsedMask;
+                return true;
+            }
+
+            if (character < L'0' || character > L'9')
+            {
+                return false;
+            }
+
+            const unsigned long long digit = static_cast<unsigned long long>(character - L'0');
+            if (parsedMask > (std::numeric_limits<unsigned long long>::max() - digit) / 10)
+            {
+                return false;
+            }
+
+            parsedMask = parsedMask * 10 + digit;
+            hasDigit = true;
+        }
+
+        return false;
     }
 
     bool WebMessageBridge::ExtractBool(std::wstring_view json, std::wstring_view key)

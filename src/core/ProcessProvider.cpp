@@ -5,8 +5,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
+#include <mutex>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace
 {
@@ -206,6 +209,124 @@ namespace
 
         return "Unknown/error";
     }
+
+    std::string NormalizeProcessName(std::string_view name)
+    {
+        std::string result(name);
+        result.erase(0, result.find_first_not_of(" \t\r\n"));
+        result.erase(result.find_last_not_of(" \t\r\n") + 1);
+        for (char& c : result)
+        {
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        }
+        return result;
+    }
+
+    struct PerformanceCoreTopology
+    {
+        bool known = false;
+        std::vector<DWORD_PTR> masksByGroup;
+    };
+
+    PerformanceCoreTopology DetectPerformanceCoreTopology()
+    {
+        DWORD bufferSize = 0;
+        if (GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &bufferSize) ||
+            GetLastError() != ERROR_INSUFFICIENT_BUFFER || bufferSize == 0)
+        {
+            return {};
+        }
+
+        std::vector<BYTE> buffer(bufferSize);
+        if (!GetLogicalProcessorInformationEx(
+                RelationProcessorCore,
+                reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(buffer.data()),
+                &bufferSize))
+        {
+            return {};
+        }
+
+        BYTE highestEfficiencyClass = 0;
+        bool foundCore = false;
+        const BYTE* current = buffer.data();
+        const BYTE* const end = buffer.data() + bufferSize;
+        while (current < end)
+        {
+            const auto* information = reinterpret_cast<const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*>(current);
+            if (information->Size == 0 || current + information->Size > end)
+            {
+                return {};
+            }
+
+            if (information->Relationship == RelationProcessorCore)
+            {
+                highestEfficiencyClass = foundCore
+                    ? std::max(highestEfficiencyClass, information->Processor.EfficiencyClass)
+                    : information->Processor.EfficiencyClass;
+                foundCore = true;
+            }
+
+            current += information->Size;
+        }
+
+        if (!foundCore)
+        {
+            return {};
+        }
+
+        PerformanceCoreTopology topology{};
+        current = buffer.data();
+        while (current < end)
+        {
+            const auto* information = reinterpret_cast<const SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*>(current);
+            if (information->Relationship == RelationProcessorCore &&
+                information->Processor.EfficiencyClass == highestEfficiencyClass)
+            {
+                for (WORD index = 0; index < information->Processor.GroupCount; ++index)
+                {
+                    const GROUP_AFFINITY& affinity = information->Processor.GroupMask[index];
+                    if (topology.masksByGroup.size() <= affinity.Group)
+                    {
+                        topology.masksByGroup.resize(static_cast<size_t>(affinity.Group) + 1, 0);
+                    }
+                    topology.masksByGroup[affinity.Group] |= static_cast<DWORD_PTR>(affinity.Mask);
+                }
+            }
+
+            current += information->Size;
+        }
+
+        topology.known = !topology.masksByGroup.empty();
+        return topology;
+    }
+
+    const PerformanceCoreTopology& GetPerformanceCoreTopology()
+    {
+        static std::once_flag initializationFlag;
+        static PerformanceCoreTopology topology;
+        std::call_once(initializationFlag, [] {
+            topology = DetectPerformanceCoreTopology();
+        });
+        return topology;
+    }
+
+    bool TryGetSingleProcessGroup(HANDLE processHandle, USHORT& processGroup)
+    {
+        if (GetActiveProcessorGroupCount() <= 1)
+        {
+            processGroup = 0;
+            return true;
+        }
+
+        // SetProcessAffinityMask remains a single-group operation in this app.
+        USHORT groupCount = 1;
+        if (!GetProcessGroupAffinity(processHandle, &groupCount, &processGroup) || groupCount != 1)
+        {
+            return false;
+        }
+
+        return true;
+    }
 }
 
 namespace wpcc
@@ -349,6 +470,29 @@ namespace wpcc
         }
 
         process.accessStatus = "Accessible";
+
+        DWORD_PTR processAffinityMask = 0;
+        DWORD_PTR systemAffinityMask = 0;
+        if (GetProcessAffinityMask(processHandle.Get(), &processAffinityMask, &systemAffinityMask))
+        {
+            process.cpuAffinityMask = static_cast<unsigned long long>(processAffinityMask);
+            process.systemAffinityMask = static_cast<unsigned long long>(systemAffinityMask);
+            process.cpuAffinityKnown = true;
+
+            USHORT processGroup = 0;
+            const PerformanceCoreTopology& topology = GetPerformanceCoreTopology();
+            if (topology.known && TryGetSingleProcessGroup(processHandle.Get(), processGroup) &&
+                processGroup < topology.masksByGroup.size())
+            {
+                const DWORD_PTR usablePerformanceMask = topology.masksByGroup[processGroup] & systemAffinityMask;
+                if (usablePerformanceMask != 0)
+                {
+                    process.performanceCoreMask = static_cast<unsigned long long>(usablePerformanceMask);
+                    process.performanceCoreMaskKnown = true;
+                }
+            }
+        }
+
         process.executablePath = QueryExecutablePath(processHandle.Get());
         if (process.executablePath.empty())
         {
@@ -372,5 +516,42 @@ namespace wpcc
         }
 
         return process;
+    }
+
+    std::vector<unsigned long> ProcessProvider::GetCachedProcessIdsMatchingName(std::string_view targetName) const
+    {
+        std::vector<unsigned long> pids;
+        std::lock_guard lock(m_processNameCacheMutex);
+        pids.reserve(m_processNameCache.size());
+        for (const auto& [pid, processName] : m_processNameCache)
+        {
+            if (MatchesProcessName(processName, targetName))
+            {
+                pids.push_back(pid);
+            }
+        }
+
+        std::sort(pids.begin(), pids.end());
+        return pids;
+    }
+
+    bool ProcessProvider::MatchesProcessName(std::string_view processName, std::string_view targetName)
+    {
+        const std::string normalizedProcessName = NormalizeProcessName(processName);
+        const std::string normalizedTargetName = NormalizeProcessName(targetName);
+        if (normalizedProcessName.empty() || normalizedTargetName.empty())
+        {
+            return false;
+        }
+        if (normalizedProcessName == normalizedTargetName)
+        {
+            return true;
+        }
+        if (normalizedTargetName.size() < 4 || normalizedTargetName.substr(normalizedTargetName.size() - 4) != ".exe")
+        {
+            return normalizedProcessName == normalizedTargetName + ".exe";
+        }
+
+        return false;
     }
 }

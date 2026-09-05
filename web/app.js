@@ -53,6 +53,10 @@ const state = {
   selectedPid: null,
   processDetailsCache: new Map(),
   pendingProcessDetails: new Set(),
+  processDetailsRequestVersions: new Map(),
+  nextProcessDetailsRequestVersion: 0,
+  confirmedAffinityByPid: new Map(),
+  confirmedAffinityRequestVersions: new Map(),
   snapshotVersion: 0,
   query: "",
   pendingPriorityPid: null,
@@ -60,6 +64,11 @@ const state = {
   pendingFreezePid: null,
   pendingResumePid: null,
   pendingGpuPid: null,
+  pendingAffinityPid: null,
+  affinityDraftMask: null,
+  affinityDraftPid: null,
+  affinityApplyToFamily: false,
+  affinityApplyToFamilyPid: null,
   terminateModalProcess: null,
   freezeModalProcess: null,
   actionResult: null,
@@ -727,6 +736,15 @@ function handleHostMessage(event) {
     for (const pid of state.pendingProcessDetails) {
       if (!livePids.has(pid)) state.pendingProcessDetails.delete(pid);
     }
+    for (const pid of state.processDetailsRequestVersions.keys()) {
+      if (!livePids.has(pid)) state.processDetailsRequestVersions.delete(pid);
+    }
+    for (const pid of state.confirmedAffinityByPid.keys()) {
+      if (!livePids.has(pid)) state.confirmedAffinityByPid.delete(pid);
+    }
+    for (const pid of state.confirmedAffinityRequestVersions.keys()) {
+      if (!livePids.has(pid)) state.confirmedAffinityRequestVersions.delete(pid);
+    }
     state.processes = snapshotProcesses.map((process) => {
       const cached = state.processDetailsCache.get(process.pid);
       return cached ? Object.assign(process, cached.details, { detailsLoaded: true }) : process;
@@ -751,14 +769,26 @@ function handleHostMessage(event) {
   }
 
   if (message.type === "processDetails" && Number.isFinite(message.pid) && message.details && typeof message.details === "object") {
+    const detailsRequestVersion = state.processDetailsRequestVersions.get(message.pid) ?? 0;
+    const confirmedAffinityRequestVersion = state.confirmedAffinityRequestVersions.get(message.pid);
+    const confirmedAffinity = state.confirmedAffinityByPid.get(message.pid);
     state.pendingProcessDetails.delete(message.pid);
     const process = state.processes.find((item) => item.pid === message.pid);
     if (!process) return;
     const details = { ...message.details };
+    if (confirmedAffinity && detailsRequestVersion <= confirmedAffinityRequestVersion) {
+      Object.assign(details, confirmedAffinity);
+    } else if (confirmedAffinity && detailsRequestVersion > confirmedAffinityRequestVersion) {
+      state.confirmedAffinityByPid.delete(message.pid);
+      state.confirmedAffinityRequestVersions.delete(message.pid);
+    }
     state.processDetailsCache.set(message.pid, { details, snapshotVersion: state.snapshotVersion });
     Object.assign(process, details, { detailsLoaded: true });
     updateVisibleProcessRow(message.pid);
-    if (message.pid === state.selectedPid) renderDetails();
+    if (message.pid === state.selectedPid) {
+      initializeAffinityDraft(process);
+      renderDetails();
+    }
     if (isProcessVisible(message.pid)) scheduleVisibleProcessDetailsHydration();
     return;
   }
@@ -770,6 +800,23 @@ function handleHostMessage(event) {
     Object.assign(process, message.fields);
     const cached = state.processDetailsCache.get(message.pid);
     if (cached) Object.assign(cached.details, message.fields);
+    const hasAffinityUpdate = Object.hasOwn(message.fields, "cpuAffinityMask") ||
+      Object.hasOwn(message.fields, "systemAffinityMask") ||
+      Object.hasOwn(message.fields, "cpuAffinityKnown");
+    if (hasAffinityUpdate) {
+      state.confirmedAffinityByPid.set(message.pid, {
+        cpuAffinityMask: process.cpuAffinityMask,
+        systemAffinityMask: process.systemAffinityMask,
+        cpuAffinityKnown: process.cpuAffinityKnown,
+      });
+      state.confirmedAffinityRequestVersions.set(
+        message.pid,
+        state.processDetailsRequestVersions.get(message.pid) ?? 0,
+      );
+    }
+    if (message.pid === state.selectedPid && hasAffinityUpdate) {
+      initializeAffinityDraft(process);
+    }
     const requiresTableResort = (message.fields.cpuPriority && state.sortColumn === "priority") ||
       (message.fields.gpuPreference && state.sortColumn === "gpu") ||
       (Object.hasOwn(message.fields, "isFrozenByApp") && state.sortColumn === "runtime");
@@ -788,6 +835,9 @@ function handleHostMessage(event) {
   if (message.type === "processRemoved" && Number.isFinite(message.pid)) {
     state.processDetailsCache.delete(message.pid);
     state.pendingProcessDetails.delete(message.pid);
+    state.processDetailsRequestVersions.delete(message.pid);
+    state.confirmedAffinityByPid.delete(message.pid);
+    state.confirmedAffinityRequestVersions.delete(message.pid);
     state.processes = state.processes.filter((process) => process.pid !== message.pid);
     state.filtered = state.filtered.filter((process) => process.pid !== message.pid);
     if (state.selectedPid === message.pid) state.selectedPid = state.filtered[0]?.pid ?? null;
@@ -841,6 +891,14 @@ function handleHostMessage(event) {
     state.pendingGpuPid = null;
     state.actionResult = message;
     showStatus(message.message || "GPU preference action completed.", Boolean(message.success));
+    if (!message.success) renderDetails();
+    return;
+  }
+
+  if (message.type === "actionResult" && message.action === "setCpuAffinity") {
+    state.pendingAffinityPid = null;
+    state.actionResult = message;
+    showStatus(message.message || "CPU affinity action completed.", Boolean(message.success));
     if (!message.success) renderDetails();
     return;
   }
@@ -1835,6 +1893,8 @@ function isProcessDetailsCurrent(pid) {
 function requestProcessDetails(pid) {
   if (state.pendingProcessDetails.has(pid) || isProcessDetailsCurrent(pid)) return;
   if (!state.processes.some((process) => process.pid === pid)) return;
+  state.nextProcessDetailsRequestVersion += 1;
+  state.processDetailsRequestVersions.set(pid, state.nextProcessDetailsRequestVersion);
   state.pendingProcessDetails.add(pid);
   postToHost({ type: "getProcessDetails", pid });
 }
@@ -1903,6 +1963,7 @@ function renderDetails() {
     badge(runtimeLabel(selected), runtimeTone(selected)),
   ]));
   elements.detailsContent.appendChild(cpuPrioritySection(selected));
+  elements.detailsContent.appendChild(cpuAffinitySection(selected));
   elements.detailsContent.appendChild(gpuPreferenceSection(selected));
   elements.detailsContent.appendChild(section("Access status", [
     badge(selected.accessStatus || "Unknown", accessTone(selected.accessStatus)),
@@ -2011,6 +2072,260 @@ function cpuPrioritySection(process) {
   container.appendChild(form);
   renderActionResult(container, process.pid);
   updateRealtimeUi();
+  return container;
+}
+
+function parseDecimalBigIntMask(value) {
+  if (typeof value !== "string" || !/^\d+$/.test(value)) {
+    return null;
+  }
+
+  try {
+    return BigInt(value);
+  } catch {
+    return null;
+  }
+}
+
+function getKnownAffinityMasks(process) {
+  if (process.cpuAffinityKnown !== true) {
+    return null;
+  }
+
+  const processMask = parseDecimalBigIntMask(process.cpuAffinityMask);
+  const systemMask = parseDecimalBigIntMask(process.systemAffinityMask);
+  if (processMask === null || systemMask === null) {
+    return null;
+  }
+
+  return { processMask, systemMask };
+}
+
+function getPerformanceCoreMask(process, systemMask) {
+  if (process.performanceCoreMaskKnown !== true) {
+    return null;
+  }
+
+  const performanceCoreMask = parseDecimalBigIntMask(process.performanceCoreMask);
+  if (performanceCoreMask === null || performanceCoreMask === 0n || (performanceCoreMask & ~systemMask) !== 0n) {
+    return null;
+  }
+
+  return performanceCoreMask;
+}
+
+function initializeAffinityDraft(process) {
+  const masks = getKnownAffinityMasks(process);
+  state.affinityDraftPid = process.pid;
+  state.affinityDraftMask = masks ? masks.processMask : null;
+}
+
+function getAffinityDraftMask(process, confirmedMask) {
+  if (state.affinityDraftPid !== process.pid || state.affinityDraftMask === null) {
+    state.affinityDraftPid = process.pid;
+    state.affinityDraftMask = confirmedMask;
+  }
+
+  return state.affinityDraftMask;
+}
+
+function getAffinityApplyToFamily(process) {
+  if (state.affinityApplyToFamilyPid !== process.pid) {
+    state.affinityApplyToFamilyPid = process.pid;
+    state.affinityApplyToFamily = false;
+  }
+
+  return state.affinityApplyToFamily;
+}
+
+function cpuAffinitySection(process) {
+  const container = document.createElement("section");
+  container.className = "detail-section cpu-affinity-section";
+
+  const heading = document.createElement("div");
+  heading.className = "section-label";
+  heading.textContent = "CPU affinity";
+  container.appendChild(heading);
+
+  const masks = getKnownAffinityMasks(process);
+  const unavailable = !masks || masks.systemMask === 0n;
+  const confirmedMask = masks?.processMask ?? 0n;
+  const systemMask = masks?.systemMask ?? 0n;
+  const performanceCoreMask = unavailable ? null : getPerformanceCoreMask(process, systemMask);
+  const draftMask = unavailable ? 0n : getAffinityDraftMask(process, confirmedMask);
+  const pending = state.pendingAffinityPid === process.pid;
+  const applyToFamily = getAffinityApplyToFamily(process);
+  const getCurrentDraftMask = () => state.affinityDraftPid === process.pid && typeof state.affinityDraftMask === "bigint"
+    ? state.affinityDraftMask
+    : confirmedMask;
+  let zeroMaskHint = null;
+  let applyButton = null;
+  const updateAffinityDraftUi = () => {
+    const currentMask = getCurrentDraftMask();
+    const currentDraftIsValid = !unavailable && currentMask !== 0n && (currentMask & ~systemMask) === 0n;
+    if (applyButton) applyButton.disabled = !currentDraftIsValid || pending;
+    if (zeroMaskHint) zeroMaskHint.hidden = unavailable || currentMask !== 0n;
+  };
+
+  if (unavailable) {
+    const unavailableMessage = document.createElement("div");
+    unavailableMessage.className = "affinity-unavailable";
+    unavailableMessage.textContent = "CPU affinity unavailable for this process.";
+    container.appendChild(unavailableMessage);
+  } else {
+    const cpuGrid = document.createElement("div");
+    cpuGrid.className = "affinity-cpu-grid";
+
+    let cpuIndex = 0;
+    for (let cpuBit = 1n; cpuBit <= systemMask; cpuBit <<= 1n) {
+      if ((systemMask & cpuBit) === 0n) {
+        cpuIndex += 1;
+        continue;
+      }
+
+      const option = document.createElement("label");
+      option.className = "affinity-cpu-option";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = (draftMask & cpuBit) !== 0n;
+      checkbox.disabled = pending;
+      checkbox.setAttribute("aria-label", `CPU ${cpuIndex}`);
+      checkbox.addEventListener("change", () => {
+        const currentMask = getCurrentDraftMask();
+        const nextMask = checkbox.checked ? (currentMask | cpuBit) : (currentMask & ~cpuBit);
+        state.affinityDraftPid = process.pid;
+        state.affinityDraftMask = nextMask;
+        state.actionResult = null;
+        renderActionResult(container, process.pid, "setCpuAffinity");
+        updateAffinityDraftUi();
+      });
+
+      const label = document.createElement("span");
+      label.textContent = `CPU ${cpuIndex}`;
+      option.appendChild(checkbox);
+      option.appendChild(label);
+      cpuGrid.appendChild(option);
+      cpuIndex += 1;
+    }
+
+    container.appendChild(cpuGrid);
+  }
+
+  const familyToggle = document.createElement("label");
+  familyToggle.className = "affinity-family-toggle";
+  const familyToggleText = document.createElement("span");
+  const familyToggleTitle = document.createElement("strong");
+  familyToggleTitle.textContent = "Apply to family";
+  const familyToggleDescription = document.createElement("small");
+  familyToggleDescription.textContent = "Applies to all instances sharing this app target";
+  familyToggleText.appendChild(familyToggleTitle);
+  familyToggleText.appendChild(familyToggleDescription);
+  const familyToggleInput = document.createElement("input");
+  familyToggleInput.type = "checkbox";
+  familyToggleInput.checked = applyToFamily;
+  familyToggleInput.disabled = unavailable || pending;
+  familyToggleInput.setAttribute("role", "switch");
+  familyToggleInput.addEventListener("change", () => {
+    state.affinityApplyToFamilyPid = process.pid;
+    state.affinityApplyToFamily = familyToggleInput.checked;
+  });
+  familyToggle.appendChild(familyToggleText);
+  familyToggle.appendChild(familyToggleInput);
+  container.appendChild(familyToggle);
+
+  const actions = document.createElement("div");
+  actions.className = "affinity-actions";
+  const selectAllButton = document.createElement("button");
+  selectAllButton.type = "button";
+  selectAllButton.className = "secondary-button";
+  selectAllButton.textContent = "Select all";
+  selectAllButton.disabled = unavailable || pending;
+  selectAllButton.addEventListener("click", () => {
+    state.affinityDraftPid = process.pid;
+    state.affinityDraftMask = systemMask;
+    state.actionResult = null;
+    renderDetails();
+  });
+
+  const deselectAllButton = document.createElement("button");
+  deselectAllButton.type = "button";
+  deselectAllButton.className = "secondary-button";
+  deselectAllButton.textContent = "Deselect all";
+  deselectAllButton.disabled = unavailable || pending;
+  deselectAllButton.addEventListener("click", () => {
+    state.affinityDraftPid = process.pid;
+    state.affinityDraftMask = 0n;
+    state.actionResult = null;
+    renderDetails();
+  });
+
+  const performanceCoresButton = document.createElement("button");
+  performanceCoresButton.type = "button";
+  performanceCoresButton.className = "secondary-button";
+  performanceCoresButton.textContent = "Performance cores";
+  performanceCoresButton.title = performanceCoreMask === null
+    ? "Performance-core information is unavailable on this system."
+    : "Select detected performance cores.";
+  performanceCoresButton.disabled = performanceCoreMask === null || pending;
+  performanceCoresButton.addEventListener("click", () => {
+    if (performanceCoreMask === null) {
+      return;
+    }
+
+    state.affinityDraftPid = process.pid;
+    state.affinityDraftMask = performanceCoreMask;
+    state.actionResult = null;
+    renderDetails();
+  });
+
+  const resetButton = document.createElement("button");
+  resetButton.type = "button";
+  resetButton.className = "secondary-button";
+  resetButton.textContent = "Reset";
+  resetButton.disabled = unavailable || pending;
+  resetButton.addEventListener("click", () => {
+    state.affinityDraftPid = process.pid;
+    state.affinityDraftMask = confirmedMask;
+    state.actionResult = null;
+    renderDetails();
+  });
+
+  actions.appendChild(selectAllButton);
+  actions.appendChild(deselectAllButton);
+  actions.appendChild(performanceCoresButton);
+  actions.appendChild(resetButton);
+  container.appendChild(actions);
+
+  zeroMaskHint = document.createElement("div");
+  zeroMaskHint.className = "priority-disabled-reason neutral-reason";
+  zeroMaskHint.textContent = "Select at least one logical CPU before applying.";
+  zeroMaskHint.hidden = unavailable || draftMask !== 0n;
+  container.appendChild(zeroMaskHint);
+
+  applyButton = document.createElement("button");
+  applyButton.type = "button";
+  applyButton.className = "apply-priority-button";
+  applyButton.textContent = pending ? "Applying..." : "Apply affinity";
+  applyButton.addEventListener("click", () => {
+    const currentMask = getCurrentDraftMask();
+    const currentDraftIsValid = !unavailable && currentMask !== 0n && (currentMask & ~systemMask) === 0n;
+    if (!currentDraftIsValid || state.selectedPid !== process.pid) {
+      return;
+    }
+
+    state.pendingAffinityPid = process.pid;
+    state.actionResult = null;
+    renderDetails();
+    postToHost({
+      type: "setCpuAffinity",
+      pid: process.pid,
+      affinityMask: currentMask.toString(),
+      applyToFamily: getAffinityApplyToFamily(process),
+    });
+  });
+  container.appendChild(applyButton);
+  updateAffinityDraftUi();
+  renderActionResult(container, process.pid, "setCpuAffinity");
   return container;
 }
 

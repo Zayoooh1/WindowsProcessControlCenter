@@ -133,6 +133,68 @@ namespace wpcc
         return result;
     }
 
+    ProcessActionResult ProcessActions::SetCpuAffinity(unsigned long pid, unsigned long long affinityMask) const
+    {
+        ProcessActionResult result{};
+        result.pid = pid;
+
+        if (pid == 0)
+        {
+            result.message = "PID 0 cannot be modified.";
+            return result;
+        }
+
+        if (affinityMask == 0)
+        {
+            result.message = "CPU affinity mask must not be zero.";
+            return result;
+        }
+
+        const DWORD_PTR requestedMask = static_cast<DWORD_PTR>(affinityMask);
+        if (static_cast<unsigned long long>(requestedMask) != affinityMask)
+        {
+            result.message = "CPU affinity mask contains processors unsupported by this build.";
+            return result;
+        }
+
+        UniqueHandle processHandle(OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
+        if (!processHandle.IsValid())
+        {
+            const DWORD errorCode = GetLastError();
+            result.win32ErrorCode = errorCode;
+            result.message = errorCode == ERROR_ACCESS_DENIED ? "Access denied. Administrator permissions may be required." : FormatWin32Error(errorCode);
+            return result;
+        }
+
+        DWORD_PTR processAffinityMask = 0;
+        DWORD_PTR systemAffinityMask = 0;
+        if (!GetProcessAffinityMask(processHandle.Get(), &processAffinityMask, &systemAffinityMask))
+        {
+            const DWORD errorCode = GetLastError();
+            result.win32ErrorCode = errorCode;
+            result.message = FormatWin32Error(errorCode);
+            return result;
+        }
+
+        if ((requestedMask & ~systemAffinityMask) != 0)
+        {
+            result.message = "CPU affinity mask includes processors that are not allowed for this process.";
+            return result;
+        }
+
+        if (!SetProcessAffinityMask(processHandle.Get(), requestedMask))
+        {
+            const DWORD errorCode = GetLastError();
+            result.win32ErrorCode = errorCode;
+            result.message = FormatWin32Error(errorCode);
+            return result;
+        }
+
+        result.success = true;
+        result.message = "CPU affinity changed successfully.";
+        return result;
+    }
+
     ProcessActionResult ProcessActions::TerminateProcessByPid(unsigned long pid, const std::string& expectedName, const std::string& confirmation) const
     {
         ProcessActionResult result{};
@@ -624,39 +686,11 @@ namespace wpcc
             return result;
         }
 
-        std::string NormalizeProcessName(std::string_view name)
-        {
-            std::string result(name);
-            result.erase(0, result.find_first_not_of(" \t\r\n"));
-            result.erase(result.find_last_not_of(" \t\r\n") + 1);
-            for (char& c : result)
-            {
-                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            }
-            return result;
-        }
-
         bool MatchProcessPath(std::string_view processPath, std::string_view targetPath)
         {
             std::string normProc = NormalizePath(processPath);
             std::string normTarget = NormalizePath(targetPath);
             return !normProc.empty() && !normTarget.empty() && normProc == normTarget;
-        }
-
-        bool MatchProcessName(std::string_view processName, std::string_view targetName)
-        {
-            std::string normProc = NormalizeProcessName(processName);
-            std::string normTarget = NormalizeProcessName(targetName);
-            if (normProc.empty() || normTarget.empty()) return false;
-            if (normProc == normTarget) return true;
-            if (normTarget.size() < 4 || normTarget.substr(normTarget.size() - 4) != ".exe")
-            {
-                if (normProc == normTarget + ".exe")
-                {
-                    return true;
-                }
-            }
-            return false;
         }
 
         std::string PriorityClassToFriendlyString(DWORD priorityClass)
@@ -728,7 +762,7 @@ namespace wpcc
             }
             else if (profile.matchMode == "name")
             {
-                isMatch = MatchProcessName(process.name, profile.targetProcessName);
+                isMatch = ProcessProvider::MatchesProcessName(process.name, profile.targetProcessName);
             }
 
             if (isMatch)
