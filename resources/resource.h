@@ -4,11 +4,11 @@
 
 #define VER_FILE_VERSION_MAJOR 0
 #define VER_FILE_VERSION_MINOR 1
-#define VER_FILE_VERSION_PATCH 8
+#define VER_FILE_VERSION_PATCH 12
 #define VER_FILE_VERSION_BUILD 0
 
-#define VER_FILE_VERSION_STR "0.1.11.0"
-#define VER_PRODUCT_VERSION_STR "0.1.11.0"
+#define VER_FILE_VERSION_STR "0.1.12.0"
+#define VER_PRODUCT_VERSION_STR "0.1.12.0"
 
 #define VER_COMPANY_NAME_STR "Windows Process Control Center"
 #define VER_PRODUCT_NAME_STR "Windows Process Control Center"

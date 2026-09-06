@@ -1,5 +1,5 @@
 #define MyAppName "Windows Process Control Center"
-#define MyAppVersion "0.1.11"
+#define MyAppVersion "0.1.12"
 #define MyAppPublisher "Windows Process Control Center"
 #define MyAppExeName "WindowsProcessControlCenter.exe"
 #define MyAppId "{{6FDC4703-94B6-4E3D-98B1-B22588940D1E}"
@@ -17,7 +17,7 @@ DefaultGroupName=Windows Process Control Center
 DisableProgramGroupPage=yes
 
 OutputDir=..\dist
-OutputBaseFilename=WindowsProcessControlCenter-v0.1.11-Setup
+OutputBaseFilename=WindowsProcessControlCenter-v0.1.12-Setup
 
 Compression=lzma2
 SolidCompression=yes
@@ -45,7 +45,7 @@ Name: "{group}\Windows Process Control Center"; Filename: "{app}\{#MyAppExeName}
 Name: "{autodesktop}\Windows Process Control Center"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch Windows Process Control Center"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch Windows Process Control Center"; Flags: nowait postinstall skipifsilent runascurrentuser
 
 [Code]
 function IsWebView2RuntimePresent(): Boolean;
