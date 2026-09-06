@@ -91,6 +91,18 @@ namespace wpcc
         }
 
         if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"getAutoruns\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::GetAutoruns;
+        }
+
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
+            messageJson.find(L"\"setAutorunEnabled\"") != std::wstring_view::npos)
+        {
+            return WebMessageType::SetAutorunEnabled;
+        }
+
+        if (messageJson.find(L"\"type\"") != std::wstring_view::npos &&
             messageJson.find(L"\"exportProfilesToFile\"") != std::wstring_view::npos)
         {
             return WebMessageType::ExportProfilesToFile;
@@ -205,6 +217,40 @@ namespace wpcc
         request.expectedName = ExtractString(messageJson, L"expectedName");
         request.executablePath = ExtractString(messageJson, L"exePath");
         request.preference = ExtractString(messageJson, L"preference");
+        return request;
+    }
+
+    SetAutorunEnabledRequest WebMessageBridge::ParseSetAutorunEnabledRequest(std::wstring_view messageJson) const
+    {
+        SetAutorunEnabledRequest request{};
+        request.id = ExtractString(messageJson, L"id");
+
+        const size_t keyPosition = messageJson.find(L"\"enabled\"");
+        if (keyPosition == std::wstring_view::npos)
+        {
+            return request;
+        }
+        const size_t colonPosition = messageJson.find(L':', keyPosition + std::wstring_view(L"\"enabled\"").size());
+        if (colonPosition == std::wstring_view::npos)
+        {
+            return request;
+        }
+        const size_t valuePosition = messageJson.find_first_not_of(L" \t\r\n", colonPosition + 1);
+        if (valuePosition == std::wstring_view::npos)
+        {
+            return request;
+        }
+
+        if (messageJson.substr(valuePosition, 4) == L"true")
+        {
+            request.enabled = true;
+            request.valid = !request.id.empty();
+        }
+        else if (messageJson.substr(valuePosition, 5) == L"false")
+        {
+            request.enabled = false;
+            request.valid = !request.id.empty();
+        }
         return request;
     }
 
@@ -425,6 +471,60 @@ namespace wpcc
             json << L",\"warning\":\"" << EscapeJson(WideToUtf8(warning)) << L"\"";
         }
 
+        json << L"}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildAutorunsSnapshotMessage(const AutorunScanResult& result) const
+    {
+        std::wostringstream json;
+        json << L"{\"type\":\"autorunsSnapshot\",\"entries\":[";
+        for (size_t index = 0; index < result.entries.size(); ++index)
+        {
+            const AutorunEntry& entry = result.entries[index];
+            if (index > 0)
+            {
+                json << L",";
+            }
+            json << L"{";
+            json << L"\"id\":\"" << EscapeJson(entry.id) << L"\",";
+            json << L"\"category\":\"logon\",";
+            json << L"\"sourceType\":\""
+                 << (entry.sourceType == AutorunSourceType::RegistryValue ? L"registryValue" : L"startupFolder")
+                 << L"\",";
+            json << L"\"entryName\":\"" << EscapeJson(WideToUtf8(entry.entryName)) << L"\",";
+            json << L"\"publisher\":\"—\",";
+            json << L"\"command\":\"" << EscapeJson(WideToUtf8(entry.command)) << L"\",";
+            json << L"\"imagePath\":\"" << EscapeJson(WideToUtf8(entry.imagePath)) << L"\",";
+            json << L"\"location\":\"" << EscapeJson(WideToUtf8(entry.location)) << L"\",";
+            json << L"\"user\":\"" << EscapeJson(WideToUtf8(entry.user)) << L"\",";
+            json << L"\"status\":\"" << EscapeJson(WideToUtf8(entry.status)) << L"\",";
+            json << L"\"enabled\":" << (entry.enabled ? L"true" : L"false") << L",";
+            json << L"\"requiresElevation\":" << (entry.requiresElevation ? L"true" : L"false");
+            json << L"}";
+        }
+        json << L"]";
+        if (!result.warning.empty())
+        {
+            json << L",\"warning\":\"" << EscapeJson(WideToUtf8(result.warning)) << L"\"";
+        }
+        json << L"}";
+        return json.str();
+    }
+
+    std::wstring WebMessageBridge::BuildAutorunActionResultMessage(const AutorunActionResult& result) const
+    {
+        std::wostringstream json;
+        json << L"{";
+        json << L"\"type\":\"autorunActionResult\",";
+        json << L"\"success\":" << (result.success ? L"true" : L"false") << L",";
+        json << L"\"id\":\"" << EscapeJson(result.id) << L"\",";
+        json << L"\"enabled\":" << (result.enabled ? L"true" : L"false") << L",";
+        json << L"\"message\":\"" << EscapeJson(result.message) << L"\"";
+        if (result.win32ErrorCode != 0)
+        {
+            json << L",\"win32ErrorCode\":" << result.win32ErrorCode;
+        }
         json << L"}";
         return json.str();
     }

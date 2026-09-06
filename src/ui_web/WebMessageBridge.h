@@ -3,6 +3,7 @@
 #include "core/ProcessActions.h"
 #include "core/ProcessInfo.h"
 #include "core/AutoApplyEngine.h"
+#include "core/AutorunProvider.h"
 
 #include <string>
 #include <string_view>
@@ -26,6 +27,8 @@ namespace wpcc
         SaveSettings,
         GetProfiles,
         SaveProfiles,
+        GetAutoruns,
+        SetAutorunEnabled,
         ExportProfilesToFile,
         ChooseExecutable,
         ApplyProfile,
@@ -82,6 +85,13 @@ namespace wpcc
         std::string preference;
     };
 
+    struct SetAutorunEnabledRequest
+    {
+        std::string id;
+        bool enabled = false;
+        bool valid = false;
+    };
+
     class WebMessageBridge
     {
     public:
@@ -92,6 +102,7 @@ namespace wpcc
         FreezeProcessRequest ParseFreezeProcessRequest(std::wstring_view messageJson) const;
         ResumeProcessRequest ParseResumeProcessRequest(std::wstring_view messageJson) const;
         SetGpuPreferenceRequest ParseSetGpuPreferenceRequest(std::wstring_view messageJson) const;
+        SetAutorunEnabledRequest ParseSetAutorunEnabledRequest(std::wstring_view messageJson) const;
         unsigned long ParseProcessDetailsRequest(std::wstring_view messageJson) const;
         std::string ParseSaveProfilesRequest(std::wstring_view messageJson) const;
         std::string ParseSaveSettingsRequest(std::wstring_view messageJson) const;
@@ -114,6 +125,8 @@ namespace wpcc
         std::wstring BuildActionResultMessage(std::string_view action, const ProcessActionResult& result) const;
         std::wstring BuildProfilesLoadedMessage(bool success, const std::string& profilesJson, std::wstring_view warning) const;
         std::wstring BuildProfilesSavedMessage(bool success, std::wstring_view warning) const;
+        std::wstring BuildAutorunsSnapshotMessage(const AutorunScanResult& result) const;
+        std::wstring BuildAutorunActionResultMessage(const AutorunActionResult& result) const;
         std::wstring BuildSettingsLoadedMessage(bool success, const std::string& settingsJson, std::wstring_view warning) const;
         std::wstring BuildSettingsSavedMessage(bool success, std::wstring_view warning) const;
         std::wstring BuildProfilesExportedMessage(bool success, bool cancelled, std::wstring_view warning) const;

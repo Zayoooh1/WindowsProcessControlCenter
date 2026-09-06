@@ -1298,6 +1298,152 @@ tbody tr.selected {
   background: #263140;
 }
 
+/* Autoruns */
+.autoruns-view {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--gap);
+}
+
+.autoruns-hero {
+  padding: var(--panel-padding);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background:
+    linear-gradient(135deg, rgba(55, 42, 91, 0.72), rgba(23, 29, 38, 0.94) 58%),
+    rgba(23, 29, 38, 0.94);
+}
+
+.autoruns-hero h2 {
+  font-size: 20px;
+}
+
+.autoruns-hero p {
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.autoruns-panel {
+  min-height: 0;
+  padding: var(--panel-padding);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  background: rgba(27, 34, 44, 0.94);
+}
+
+.autoruns-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.autoruns-categories {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: #171d26;
+}
+
+.autoruns-category {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.autoruns-category:hover,
+.autoruns-category.active {
+  color: var(--text);
+  background: var(--accent-soft);
+}
+
+.autoruns-search {
+  width: min(680px, 100%);
+}
+
+.autoruns-table-wrap {
+  margin-top: 14px;
+}
+
+.autoruns-table {
+  min-width: 1220px;
+}
+
+.autoruns-table tbody tr {
+  cursor: default;
+}
+
+.autoruns-enabled-column {
+  width: 72px;
+  text-align: center;
+}
+
+.autoruns-table td:first-child {
+  text-align: center;
+}
+
+.autoruns-entry-column {
+  width: 170px;
+}
+
+.autoruns-publisher-column {
+  width: 110px;
+}
+
+.autoruns-image-column {
+  width: 260px;
+}
+
+.autoruns-location-column {
+  width: 300px;
+}
+
+.autoruns-user-column {
+  width: 130px;
+}
+
+.autoruns-status-column {
+  width: 240px;
+}
+
+.autoruns-elevation-badge {
+  margin-left: 6px;
+  font-size: 11px;
+}
+
+.autoruns-enabled-toggle {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.autoruns-enabled-toggle:disabled,
+.autoruns-hero .primary-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+@media (max-height: 600px) {
+  .autoruns-hero {
+    padding: 10px var(--panel-padding);
+  }
+
+  .autoruns-hero h2 {
+    font-size: 15px;
+  }
+}
+
 .process-control-section {
   gap: 10px;
 }

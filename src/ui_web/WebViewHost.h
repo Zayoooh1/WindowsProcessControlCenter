@@ -5,6 +5,7 @@
 #include "core/ProcessProvider.h"
 #include "core/ProfileStore.h"
 #include "core/AutoApplyEngine.h"
+#include "core/AutorunProvider.h"
 #include "ui_web/WebMessageBridge.h"
 
 #include <Windows.h>
@@ -60,6 +61,8 @@ namespace wpcc
         void HandleSetGpuPreference(std::wstring_view messageJson);
         void HandleGetProfiles();
         void HandleSaveProfiles(std::wstring_view messageJson);
+        void HandleGetAutoruns();
+        void HandleSetAutorunEnabled(std::wstring_view messageJson);
         void HandleGetSettings();
         void HandleSaveSettings(std::wstring_view messageJson);
         void HandleExportProfilesToFile(std::wstring_view messageJson);
@@ -87,6 +90,7 @@ namespace wpcc
         ProcessProvider m_processProvider;
         ProcessActions m_processActions;
         GpuPreferenceManager m_gpuPreferenceManager;
+        AutorunProvider m_autorunProvider;
         AutoApplyEngine* m_autoApplyEngine = nullptr;
         WebMessageBridge m_bridge;
         std::function<void(bool, bool)> m_onSettingsChanged;

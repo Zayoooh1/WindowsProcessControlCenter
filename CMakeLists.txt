@@ -74,6 +74,8 @@ add_executable(WindowsProcessControlCenter WIN32
     src/core/ProfileStore.h
     src/core/SettingsStore.cpp
     src/core/SettingsStore.h
+    src/core/AutorunProvider.cpp
+    src/core/AutorunProvider.h
     src/core/ProcessProvider.cpp
     src/core/ProcessProvider.h
     src/platform/Win32Window.cpp

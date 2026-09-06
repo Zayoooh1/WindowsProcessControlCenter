@@ -90,6 +90,13 @@ const state = {
   pendingResumePid: null,
   pendingGpuPid: null,
   pendingAffinityPid: null,
+  autorunsEntries: [],
+  autorunsLoading: false,
+  autorunsQuery: "",
+  autorunsCategory: "everything",
+  autorunsRequested: false,
+  autorunsWarning: "",
+  pendingAutorunAction: null,
   affinityDraftMask: null,
   affinityDraftPid: null,
   affinityApplyToFamily: false,
@@ -124,11 +131,13 @@ const elements = {
   buyMeACoffeeBtn: document.getElementById("buy-me-coffee-btn"),
   dashboardNavButton: document.getElementById("dashboardNavButton"),
   processesNavButton: document.getElementById("processesNavButton"),
+  autorunsNavButton: document.getElementById("autorunsNavButton"),
   settingsNavButton: document.getElementById("settingsNavButton"),
   aboutNavButton: document.getElementById("aboutNavButton"),
   rulesNavButton: document.getElementById("rulesNavButton"),
   dashboardView: document.getElementById("dashboardView"),
   processesView: document.getElementById("processesView"),
+  autorunsView: document.getElementById("autorunsView"),
   settingsView: document.getElementById("settingsView"),
   aboutView: document.getElementById("aboutView"),
   rulesView: document.getElementById("rulesView"),
@@ -175,6 +184,12 @@ const elements = {
   toggleDetailsBtn: document.getElementById("toggleDetailsBtn"),
   closeDetailsButton: document.getElementById("closeDetailsButton"),
   errorBanner: document.getElementById("errorBanner"),
+  autorunsRefreshButton: document.getElementById("autorunsRefreshButton"),
+  autorunsSearchInput: document.getElementById("autorunsSearchInput"),
+  autorunsCount: document.getElementById("autorunsCount"),
+  autorunsRows: document.getElementById("autorunsRows"),
+  autorunsWarning: document.getElementById("autorunsWarning"),
+  autorunsCategoryButtons: Array.from(document.querySelectorAll("[data-autoruns-category]")),
   // Profiles Elements
   rulesStorageNotice: document.getElementById("rulesStorageNotice"),
   rulesActionsBar: document.getElementById("rulesActionsBar"),
@@ -785,6 +800,134 @@ function restartAutoRefresh() {
   }
 }
 
+function requestAutoruns() {
+  if (!window.chrome?.webview || state.autorunsLoading) return;
+  state.autorunsRequested = true;
+  state.autorunsLoading = true;
+  state.autorunsWarning = "";
+  renderAutoruns();
+  postToHost({ type: "getAutoruns", category: state.autorunsCategory });
+}
+
+function autorunStatusTone(status) {
+  if (status === "OK") return "success";
+  if (status === "Disabled by WPCC") return "neutral";
+  if (status === "File not found" || status === "Access limited") return "warning";
+  return "neutral";
+}
+
+function filteredAutoruns() {
+  const query = state.autorunsQuery.trim().toLowerCase();
+  return state.autorunsEntries.filter((entry) => {
+    if (state.autorunsCategory === "logon" && entry.category !== "logon") return false;
+    if (!query) return true;
+    return [
+      entry.entryName,
+      entry.publisher,
+      entry.command,
+      entry.imagePath,
+      entry.location,
+      entry.user,
+      entry.status,
+    ].some((value) => String(value ?? "").toLowerCase().includes(query));
+  });
+}
+
+function renderAutoruns() {
+  if (!elements.autorunsRows) return;
+
+  elements.autorunsRefreshButton.disabled = state.autorunsLoading || state.pendingAutorunAction !== null;
+  elements.autorunsCategoryButtons.forEach((button) => {
+    const active = button.dataset.autorunsCategory === state.autorunsCategory;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  elements.autorunsWarning.classList.toggle("hidden", !state.autorunsWarning);
+  elements.autorunsWarning.textContent = state.autorunsWarning;
+
+  const entries = filteredAutoruns();
+  elements.autorunsCount.textContent = entries.length === state.autorunsEntries.length
+    ? `${entries.length} ${entries.length === 1 ? "entry" : "entries"}`
+    : `${entries.length} shown from ${state.autorunsEntries.length}`;
+  elements.autorunsRows.replaceChildren();
+
+  if (state.autorunsLoading) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 7;
+    cell.className = "empty-cell";
+    cell.textContent = "Loading Logon autoruns...";
+    row.appendChild(cell);
+    elements.autorunsRows.appendChild(row);
+    return;
+  }
+
+  if (entries.length === 0) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 7;
+    cell.className = "empty-cell";
+    cell.textContent = state.autorunsQuery ? "No autorun entries match this filter." : "No Logon autorun entries found.";
+    row.appendChild(cell);
+    elements.autorunsRows.appendChild(row);
+    return;
+  }
+
+  for (const entry of entries) {
+    const row = document.createElement("tr");
+    row.dataset.autorunId = entry.id;
+
+    const enabledCell = document.createElement("td");
+    const enabledToggle = document.createElement("input");
+    enabledToggle.type = "checkbox";
+    enabledToggle.className = "autoruns-enabled-toggle";
+    enabledToggle.checked = entry.enabled === true;
+    enabledToggle.disabled = state.pendingAutorunAction !== null;
+    enabledToggle.setAttribute("aria-label", `${entry.enabled ? "Disable" : "Enable"} ${entry.entryName}`);
+    if (entry.requiresElevation) {
+      enabledToggle.title = "Changing this entry may require administrator privileges.";
+    }
+    enabledToggle.addEventListener("change", () => {
+      if (state.pendingAutorunAction !== null) return;
+      state.pendingAutorunAction = entry.id;
+      renderAutoruns();
+      postToHost({
+        type: "setAutorunEnabled",
+        id: entry.id,
+        enabled: !entry.enabled,
+      });
+    });
+    enabledCell.appendChild(enabledToggle);
+    row.appendChild(enabledCell);
+
+    const values = [entry.entryName, entry.publisher || "—", entry.imagePath, entry.location, entry.user];
+    for (const value of values) {
+      const cell = document.createElement("td");
+      cell.textContent = value || "—";
+      cell.title = value || "";
+      row.appendChild(cell);
+    }
+
+    const statusCell = document.createElement("td");
+    const statusBadge = document.createElement("span");
+    statusBadge.className = `badge ${autorunStatusTone(entry.status)}`;
+    statusBadge.textContent = entry.status || "Unresolved command";
+    if (entry.requiresElevation) {
+      statusBadge.title = "Changing this entry may require administrator privileges.";
+    }
+    statusCell.appendChild(statusBadge);
+    if (entry.requiresElevation) {
+      const elevationBadge = document.createElement("span");
+      elevationBadge.className = "badge warning autoruns-elevation-badge";
+      elevationBadge.textContent = "Admin to change";
+      elevationBadge.title = "Changing this entry may require administrator privileges.";
+      statusCell.appendChild(elevationBadge);
+    }
+    row.appendChild(statusCell);
+    elements.autorunsRows.appendChild(row);
+  }
+}
+
 function requestSystemMetrics() {
   if (state.activeView !== "dashboard" || state.systemMetricsRequestPending || !window.chrome?.webview) {
     return;
@@ -859,6 +1002,28 @@ function handleHostMessage(event) {
     if (memoryUsageKnown) appendSystemMetricSample(state.systemMetricsHistory.memory, message.memoryUsagePercent);
 
     if (state.activeView === "dashboard") renderDashboard();
+    return;
+  }
+
+  if (message.type === "autorunsSnapshot") {
+    state.autorunsLoading = false;
+    state.pendingAutorunAction = null;
+    state.autorunsEntries = Array.isArray(message.entries)
+      ? message.entries.filter((entry) => entry && typeof entry.id === "string")
+      : [];
+    state.autorunsWarning = typeof message.warning === "string" ? message.warning : "";
+    renderAutoruns();
+    return;
+  }
+
+  if (message.type === "autorunActionResult") {
+    state.pendingAutorunAction = null;
+    if (message.success) {
+      const entry = state.autorunsEntries.find((item) => item.id === message.id);
+      if (entry) entry.enabled = message.enabled === true;
+    }
+    showStatus(message.message || "Autoruns action completed.", Boolean(message.success));
+    renderAutoruns();
     return;
   }
 
@@ -1112,6 +1277,11 @@ function handleHostMessage(event) {
     elements.refreshButton.disabled = false;
     elements.dashboardRefreshButton.disabled = false;
     elements.quickRefreshButton.disabled = false;
+    if (state.activeView === "autoruns") {
+      state.autorunsLoading = false;
+      state.pendingAutorunAction = null;
+      renderAutoruns();
+    }
     showError(message.message || "Unknown backend error.");
     return;
   }
@@ -1256,6 +1426,7 @@ function render() {
   renderFreezeModal();
   renderResetSettingsModal();
   renderProfiles();
+  renderAutoruns();
 }
 
 function setActiveView(view) {
@@ -1266,20 +1437,24 @@ function setActiveView(view) {
 function renderActiveView() {
   const dashboardActive = state.activeView === "dashboard";
   const processesActive = state.activeView === "processes";
+  const autorunsActive = state.activeView === "autoruns";
   const settingsActive = state.activeView === "settings";
   const aboutActive = state.activeView === "about";
   const rulesActive = state.activeView === "rules";
   elements.dashboardView.classList.toggle("hidden-view", !dashboardActive);
   elements.processesView.classList.toggle("hidden-view", !processesActive);
+  elements.autorunsView.classList.toggle("hidden-view", !autorunsActive);
   elements.settingsView.classList.toggle("hidden-view", !settingsActive);
   elements.aboutView.classList.toggle("hidden-view", !aboutActive);
   elements.rulesView.classList.toggle("hidden-view", !rulesActive);
   elements.dashboardNavButton.classList.toggle("active", dashboardActive);
   elements.processesNavButton.classList.toggle("active", processesActive);
+  elements.autorunsNavButton.classList.toggle("active", autorunsActive);
   elements.settingsNavButton.classList.toggle("active", settingsActive);
   elements.aboutNavButton.classList.toggle("active", aboutActive);
   elements.rulesNavButton.classList.toggle("active", rulesActive);
   syncSystemMetricsLoop();
+  if (autorunsActive && !state.autorunsRequested) requestAutoruns();
 }
 
 function applySettingsEffects() {
@@ -3526,11 +3701,23 @@ bindUi(elements.buyMeACoffeeBtn, "click", () => {
 
 bindUi(elements.dashboardNavButton, "click", () => setActiveView("dashboard"), "dashboardNavButton");
 bindUi(elements.processesNavButton, "click", () => setActiveView("processes"), "processesNavButton");
+bindUi(elements.autorunsNavButton, "click", () => setActiveView("autoruns"), "autorunsNavButton");
 bindUi(elements.settingsNavButton, "click", () => setActiveView("settings"), "settingsNavButton");
 bindUi(elements.aboutNavButton, "click", () => setActiveView("about"), "aboutNavButton");
 bindUi(elements.rulesNavButton, "click", () => setActiveView("rules"), "rulesNavButton");
 bindUi(elements.goToProcessesButton, "click", () => setActiveView("processes"), "goToProcessesButton");
 bindUi(elements.quickProcessesButton, "click", () => setActiveView("processes"), "quickProcessesButton");
+bindUi(elements.autorunsRefreshButton, "click", requestAutoruns, "autorunsRefreshButton");
+bindUi(elements.autorunsSearchInput, "input", (event) => {
+  state.autorunsQuery = event.target.value;
+  renderAutoruns();
+}, "autorunsSearchInput");
+elements.autorunsCategoryButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.autorunsCategory = button.dataset.autorunsCategory === "logon" ? "logon" : "everything";
+    renderAutoruns();
+  });
+});
 bindUi(elements.startScreenDashboard, "change", () => updateSetting("startScreen", "dashboard"), "startScreenDashboard");
 bindUi(elements.startScreenProcesses, "change", () => updateSetting("startScreen", "processes"), "startScreenProcesses");
 bindUi(elements.startWithWindowsToggle, "change", (event) => updateSetting("startWithWindows", event.target.checked), "startWithWindowsToggle");

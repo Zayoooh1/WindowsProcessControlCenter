@@ -34,6 +34,7 @@
         <div class="nav-title">Navigation</div>
         <button id="dashboardNavButton" class="nav-item active" type="button">Dashboard</button>
         <button id="processesNavButton" class="nav-item" type="button">Processes</button>
+        <button id="autorunsNavButton" class="nav-item" type="button">Autoruns</button>
         <button id="rulesNavButton" class="nav-item" type="button">Rules / Profiles</button>
         <button id="settingsNavButton" class="nav-item" type="button">Settings</button>
         <button id="aboutNavButton" class="nav-item" type="button">About</button>
@@ -171,6 +172,57 @@
               Select a process to inspect its details.
             </div>
           </aside>
+        </section>
+
+        <section id="autorunsView" class="autoruns-view hidden-view">
+          <section class="panel autoruns-hero">
+            <div>
+              <h2>Autoruns</h2>
+              <p>Review and safely manage common Logon startup entries.</p>
+            </div>
+            <button id="autorunsRefreshButton" class="primary-button" type="button">Refresh</button>
+          </section>
+
+          <section class="panel autoruns-panel">
+            <div class="autoruns-toolbar">
+              <div class="autoruns-categories" role="group" aria-label="Autoruns category">
+                <button class="autoruns-category active" type="button" data-autoruns-category="everything"
+                  aria-pressed="true">Everything</button>
+                <button class="autoruns-category" type="button" data-autoruns-category="logon"
+                  aria-pressed="false">Logon</button>
+              </div>
+              <span id="autorunsCount" class="count">0 entries</span>
+            </div>
+
+            <label class="search-box autoruns-search" aria-label="Search autorun entries">
+              <span>Search</span>
+              <input id="autorunsSearchInput" type="search"
+                placeholder="Entry, image path, location, user, or status" autocomplete="off">
+            </label>
+
+            <div id="autorunsWarning" class="settings-storage-notice hidden"></div>
+
+            <div class="table-wrap autoruns-table-wrap">
+              <table class="autoruns-table">
+                <thead>
+                  <tr>
+                    <th class="autoruns-enabled-column">Enabled</th>
+                    <th class="autoruns-entry-column">Entry</th>
+                    <th class="autoruns-publisher-column">Publisher</th>
+                    <th class="autoruns-image-column">Image Path</th>
+                    <th class="autoruns-location-column">Location</th>
+                    <th class="autoruns-user-column">User</th>
+                    <th class="autoruns-status-column">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="autorunsRows">
+                  <tr>
+                    <td colspan="7" class="empty-cell">Open Autoruns to load Logon entries.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </section>
 
         <section id="settingsView" class="settings-view hidden-view">

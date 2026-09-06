@@ -287,6 +287,12 @@ namespace wpcc
                     case WebMessageType::SaveProfiles:
                         HandleSaveProfiles(messageJson);
                         break;
+                    case WebMessageType::GetAutoruns:
+                        HandleGetAutoruns();
+                        break;
+                    case WebMessageType::SetAutorunEnabled:
+                        HandleSetAutorunEnabled(messageJson);
+                        break;
                     case WebMessageType::GetSettings:
                         HandleGetSettings();
                         break;
@@ -719,6 +725,70 @@ namespace wpcc
         const ProfileLoadResult result = ProfileStore::GetProfiles();
         const std::wstring response = m_bridge.BuildProfilesLoadedMessage(result.success, result.jsonContent, result.warning);
         m_webView->PostWebMessageAsJson(response.c_str());
+    }
+
+    void WebViewHost::HandleGetAutoruns()
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        try
+        {
+            const AutorunScanResult result = m_autorunProvider.GetLogonEntries();
+            const std::wstring response = m_bridge.BuildAutorunsSnapshotMessage(result);
+            m_webView->PostWebMessageAsJson(response.c_str());
+        }
+        catch (...)
+        {
+            SendError("Failed to enumerate Logon autoruns.");
+        }
+    }
+
+    void WebViewHost::HandleSetAutorunEnabled(std::wstring_view messageJson)
+    {
+        if (!m_webView)
+        {
+            return;
+        }
+
+        AutorunActionResult result{};
+        try
+        {
+            const SetAutorunEnabledRequest request = m_bridge.ParseSetAutorunEnabledRequest(messageJson);
+            if (!request.valid)
+            {
+                result.id = request.id;
+                result.enabled = request.enabled;
+                result.message = "Invalid Autoruns action request.";
+            }
+            else
+            {
+                result = m_autorunProvider.SetEnabled(request.id, request.enabled);
+            }
+        }
+        catch (...)
+        {
+            result.message = "The Autoruns action could not be completed.";
+        }
+
+        const std::wstring actionResponse = m_bridge.BuildAutorunActionResultMessage(result);
+        m_webView->PostWebMessageAsJson(actionResponse.c_str());
+
+        if (result.success)
+        {
+            try
+            {
+                const AutorunScanResult scanResult = m_autorunProvider.GetLogonEntries();
+                const std::wstring snapshotResponse = m_bridge.BuildAutorunsSnapshotMessage(scanResult);
+                m_webView->PostWebMessageAsJson(snapshotResponse.c_str());
+            }
+            catch (...)
+            {
+                SendError("The Autoruns entry changed, but the refreshed list could not be loaded.");
+            }
+        }
     }
 
     void WebViewHost::HandleGetSettings()
