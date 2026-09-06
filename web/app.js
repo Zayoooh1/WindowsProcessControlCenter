@@ -1423,6 +1423,7 @@ function handleHostMessage(event) {
 
 function isLikelySystemProcess(process) {
   const normalizedName = String(process?.name ?? "").trim().toLowerCase();
+  if (normalizedName === "unknown" && process?.accessStatus === "Protected/System") return true;
   if (KNOWN_WINDOWS_SYSTEM_PROCESS_NAMES.has(normalizedName)) return true;
 
   let normalizedPath = String(process?.path ?? "").trim().replaceAll("/", "\\").toLowerCase();
