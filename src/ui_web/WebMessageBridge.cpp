@@ -477,6 +477,25 @@ namespace wpcc
 
     std::wstring WebMessageBridge::BuildAutorunsSnapshotMessage(const AutorunScanResult& result) const
     {
+        const auto categoryName = [](AutorunCategory category) -> std::wstring_view {
+            switch (category)
+            {
+            case AutorunCategory::ScheduledTask: return L"scheduledTask";
+            case AutorunCategory::Service: return L"service";
+            case AutorunCategory::Driver: return L"driver";
+            default: return L"logon";
+            }
+        };
+        const auto sourceTypeName = [](AutorunSourceType sourceType) -> std::wstring_view {
+            switch (sourceType)
+            {
+            case AutorunSourceType::StartupFolder: return L"startupFolder";
+            case AutorunSourceType::ScheduledTask: return L"scheduledTask";
+            case AutorunSourceType::Service: return L"service";
+            case AutorunSourceType::Driver: return L"driver";
+            default: return L"registryValue";
+            }
+        };
         std::wostringstream json;
         json << L"{\"type\":\"autorunsSnapshot\",\"entries\":[";
         for (size_t index = 0; index < result.entries.size(); ++index)
@@ -488,18 +507,19 @@ namespace wpcc
             }
             json << L"{";
             json << L"\"id\":\"" << EscapeJson(entry.id) << L"\",";
-            json << L"\"category\":\"logon\",";
-            json << L"\"sourceType\":\""
-                 << (entry.sourceType == AutorunSourceType::RegistryValue ? L"registryValue" : L"startupFolder")
-                 << L"\",";
+            json << L"\"category\":\"" << categoryName(entry.category) << L"\",";
+            json << L"\"sourceType\":\"" << sourceTypeName(entry.sourceType) << L"\",";
             json << L"\"entryName\":\"" << EscapeJson(WideToUtf8(entry.entryName)) << L"\",";
-            json << L"\"publisher\":\"—\",";
+            json << L"\"publisher\":\"\\u2014\",";
             json << L"\"command\":\"" << EscapeJson(WideToUtf8(entry.command)) << L"\",";
             json << L"\"imagePath\":\"" << EscapeJson(WideToUtf8(entry.imagePath)) << L"\",";
             json << L"\"location\":\"" << EscapeJson(WideToUtf8(entry.location)) << L"\",";
             json << L"\"user\":\"" << EscapeJson(WideToUtf8(entry.user)) << L"\",";
             json << L"\"status\":\"" << EscapeJson(WideToUtf8(entry.status)) << L"\",";
             json << L"\"enabled\":" << (entry.enabled ? L"true" : L"false") << L",";
+            json << L"\"enabledKnown\":" << (entry.enabledKnown ? L"true" : L"false") << L",";
+            json << L"\"canSetEnabled\":" << (entry.canSetEnabled ? L"true" : L"false") << L",";
+            json << L"\"readOnlyReason\":\"" << EscapeJson(WideToUtf8(entry.readOnlyReason)) << L"\",";
             json << L"\"requiresElevation\":" << (entry.requiresElevation ? L"true" : L"false");
             json << L"}";
         }

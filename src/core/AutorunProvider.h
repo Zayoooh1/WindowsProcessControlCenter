@@ -11,12 +11,18 @@ namespace wpcc
     enum class AutorunCategory
     {
         Logon,
+        ScheduledTask,
+        Service,
+        Driver,
     };
 
     enum class AutorunSourceType
     {
         RegistryValue,
         StartupFolder,
+        ScheduledTask,
+        Service,
+        Driver,
     };
 
     struct AutorunEntry
@@ -33,7 +39,10 @@ namespace wpcc
         std::wstring status;
 
         bool enabled = true;
+        bool enabledKnown = true;
+        bool canSetEnabled = true;
         bool requiresElevation = false;
+        std::wstring readOnlyReason;
 
         // Registry metadata is retained verbatim so disabling and restoring can
         // preserve the original value without interpreting its contents.
@@ -48,6 +57,16 @@ namespace wpcc
         std::wstring startupOriginalPath;
         std::wstring startupDisabledPath;
         bool startupCurrentUser = true;
+
+        // Task Scheduler identities are full paths (including the folder) so
+        // tasks with the same leaf name remain distinct.
+        std::wstring taskPath;
+
+        // Service entries use the SCM key name as their stable identity. For
+        // services disabled by WPCC, the exact prior start type is persisted.
+        std::wstring serviceName;
+        unsigned long serviceStartType = 0;
+        unsigned long serviceOriginalStartType = 0;
     };
 
     struct AutorunScanResult

@@ -178,7 +178,7 @@
           <section class="panel autoruns-hero">
             <div>
               <h2>Autoruns</h2>
-              <p>Review and safely manage common Logon startup entries.</p>
+              <p>Review Logon entries, Scheduled Tasks, services, and drivers in one on-demand view.</p>
             </div>
             <button id="autorunsRefreshButton" class="primary-button" type="button">Refresh</button>
           </section>
@@ -187,9 +187,15 @@
             <div class="autoruns-toolbar">
               <div class="autoruns-categories" role="group" aria-label="Autoruns category">
                 <button class="autoruns-category active" type="button" data-autoruns-category="everything"
-                  aria-pressed="true">Everything</button>
+                  data-autoruns-label="Everything" aria-pressed="true">Everything (0)</button>
                 <button class="autoruns-category" type="button" data-autoruns-category="logon"
-                  aria-pressed="false">Logon</button>
+                  data-autoruns-label="Logon" aria-pressed="false">Logon (0)</button>
+                <button class="autoruns-category" type="button" data-autoruns-category="scheduledTask"
+                  data-autoruns-label="Scheduled Tasks" aria-pressed="false">Scheduled Tasks (0)</button>
+                <button class="autoruns-category" type="button" data-autoruns-category="service"
+                  data-autoruns-label="Services" aria-pressed="false">Services (0)</button>
+                <button class="autoruns-category" type="button" data-autoruns-category="driver"
+                  data-autoruns-label="Drivers" aria-pressed="false">Drivers (0)</button>
               </div>
               <span id="autorunsCount" class="count">0 entries</span>
             </div>
@@ -206,18 +212,18 @@
               <table class="autoruns-table">
                 <thead>
                   <tr>
-                    <th class="autoruns-enabled-column">Enabled</th>
-                    <th class="autoruns-entry-column">Entry</th>
-                    <th class="autoruns-publisher-column">Publisher</th>
-                    <th class="autoruns-image-column">Image Path</th>
-                    <th class="autoruns-location-column">Location</th>
-                    <th class="autoruns-user-column">User</th>
-                    <th class="autoruns-status-column">Status</th>
+                    <th class="autoruns-enabled-column"><button type="button" data-autoruns-sort="enabled">Enabled</button></th>
+                    <th class="autoruns-entry-column"><button type="button" data-autoruns-sort="entryName">Entry</button></th>
+                    <th class="autoruns-publisher-column"><button type="button" data-autoruns-sort="publisher">Publisher</button></th>
+                    <th class="autoruns-image-column"><button type="button" data-autoruns-sort="imagePath">Image Path</button></th>
+                    <th class="autoruns-location-column"><button type="button" data-autoruns-sort="location">Location</button></th>
+                    <th class="autoruns-user-column"><button type="button" data-autoruns-sort="user">User</button></th>
+                    <th class="autoruns-status-column"><button type="button" data-autoruns-sort="status">Status</button></th>
                   </tr>
                 </thead>
                 <tbody id="autorunsRows">
                   <tr>
-                    <td colspan="7" class="empty-cell">Open Autoruns to load Logon entries.</td>
+                    <td colspan="7" class="empty-cell">Open Autoruns to load startup entries.</td>
                   </tr>
                 </tbody>
               </table>

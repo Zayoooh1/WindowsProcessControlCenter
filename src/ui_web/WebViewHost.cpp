@@ -742,7 +742,7 @@ namespace wpcc
         }
         catch (...)
         {
-            SendError("Failed to enumerate Logon autoruns.");
+            SendError("Failed to enumerate Autoruns entries.");
         }
     }
 

@@ -1344,6 +1344,7 @@ tbody tr.selected {
 
 .autoruns-categories {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--border-soft);
@@ -1381,6 +1382,29 @@ tbody tr.selected {
 
 .autoruns-table tbody tr {
   cursor: default;
+}
+
+.autoruns-table th button {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.autoruns-table th button:hover,
+.autoruns-table th button.active {
+  color: var(--text);
+}
+
+.autoruns-table th button.active::after {
+  margin-left: 5px;
+  content: "\2191";
+}
+
+.autoruns-table th button.active[data-sort-direction="desc"]::after {
+  content: "\2193";
 }
 
 .autoruns-enabled-column {

@@ -94,6 +94,8 @@ const state = {
   autorunsLoading: false,
   autorunsQuery: "",
   autorunsCategory: "everything",
+  autorunsSortColumn: "entryName",
+  autorunsSortDirection: "asc",
   autorunsRequested: false,
   autorunsWarning: "",
   pendingAutorunAction: null,
@@ -190,6 +192,7 @@ const elements = {
   autorunsRows: document.getElementById("autorunsRows"),
   autorunsWarning: document.getElementById("autorunsWarning"),
   autorunsCategoryButtons: Array.from(document.querySelectorAll("[data-autoruns-category]")),
+  autorunsSortButtons: Array.from(document.querySelectorAll("[data-autoruns-sort]")),
   // Profiles Elements
   rulesStorageNotice: document.getElementById("rulesStorageNotice"),
   rulesActionsBar: document.getElementById("rulesActionsBar"),
@@ -811,15 +814,15 @@ function requestAutoruns() {
 
 function autorunStatusTone(status) {
   if (status === "OK") return "success";
-  if (status === "Disabled by WPCC") return "neutral";
-  if (status === "File not found" || status === "Access limited") return "warning";
+  if (String(status).startsWith("Disabled")) return "neutral";
+  if (status === "File not found" || status === "Access limited" || String(status).includes("unavailable")) return "warning";
   return "neutral";
 }
 
 function filteredAutoruns() {
   const query = state.autorunsQuery.trim().toLowerCase();
-  return state.autorunsEntries.filter((entry) => {
-    if (state.autorunsCategory === "logon" && entry.category !== "logon") return false;
+  const entries = state.autorunsEntries.filter((entry) => {
+    if (state.autorunsCategory !== "everything" && entry.category !== state.autorunsCategory) return false;
     if (!query) return true;
     return [
       entry.entryName,
@@ -831,6 +834,22 @@ function filteredAutoruns() {
       entry.status,
     ].some((value) => String(value ?? "").toLowerCase().includes(query));
   });
+  const direction = state.autorunsSortDirection === "desc" ? -1 : 1;
+  const column = state.autorunsSortColumn;
+  entries.sort((left, right) => {
+    let comparison = 0;
+    if (column === "enabled") {
+      comparison = Number(left.enabled === true) - Number(right.enabled === true);
+    } else {
+      comparison = String(left[column] ?? "").localeCompare(String(right[column] ?? ""), undefined, {
+        sensitivity: "base",
+        numeric: true,
+      });
+    }
+    if (comparison !== 0) return comparison * direction;
+    return String(left.id).localeCompare(String(right.id));
+  });
+  return entries;
 }
 
 function renderAutoruns() {
@@ -841,14 +860,23 @@ function renderAutoruns() {
     const active = button.dataset.autorunsCategory === state.autorunsCategory;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", String(active));
+    const category = button.dataset.autorunsCategory;
+    const count = category === "everything"
+      ? state.autorunsEntries.length
+      : state.autorunsEntries.reduce((total, entry) => total + (entry.category === category ? 1 : 0), 0);
+    button.textContent = `${button.dataset.autorunsLabel} (${count})`;
+  });
+  elements.autorunsSortButtons.forEach((button) => {
+    const active = button.dataset.autorunsSort === state.autorunsSortColumn;
+    button.classList.toggle("active", active);
+    button.dataset.sortDirection = active ? state.autorunsSortDirection : "";
+    button.setAttribute("aria-sort", active ? (state.autorunsSortDirection === "asc" ? "ascending" : "descending") : "none");
   });
   elements.autorunsWarning.classList.toggle("hidden", !state.autorunsWarning);
   elements.autorunsWarning.textContent = state.autorunsWarning;
 
   const entries = filteredAutoruns();
-  elements.autorunsCount.textContent = entries.length === state.autorunsEntries.length
-    ? `${entries.length} ${entries.length === 1 ? "entry" : "entries"}`
-    : `${entries.length} shown from ${state.autorunsEntries.length}`;
+  elements.autorunsCount.textContent = `${entries.length} ${entries.length === 1 ? "entry" : "entries"}`;
   elements.autorunsRows.replaceChildren();
 
   if (state.autorunsLoading) {
@@ -856,7 +884,7 @@ function renderAutoruns() {
     const cell = document.createElement("td");
     cell.colSpan = 7;
     cell.className = "empty-cell";
-    cell.textContent = "Loading Logon autoruns...";
+    cell.textContent = "Loading Autoruns entries...";
     row.appendChild(cell);
     elements.autorunsRows.appendChild(row);
     return;
@@ -867,7 +895,7 @@ function renderAutoruns() {
     const cell = document.createElement("td");
     cell.colSpan = 7;
     cell.className = "empty-cell";
-    cell.textContent = state.autorunsQuery ? "No autorun entries match this filter." : "No Logon autorun entries found.";
+    cell.textContent = state.autorunsQuery ? "No autorun entries match this filter." : "No Autoruns entries found in this category.";
     row.appendChild(cell);
     elements.autorunsRows.appendChild(row);
     return;
@@ -882,9 +910,12 @@ function renderAutoruns() {
     enabledToggle.type = "checkbox";
     enabledToggle.className = "autoruns-enabled-toggle";
     enabledToggle.checked = entry.enabled === true;
-    enabledToggle.disabled = state.pendingAutorunAction !== null;
+    enabledToggle.indeterminate = entry.enabledKnown === false;
+    enabledToggle.disabled = state.pendingAutorunAction !== null || entry.canSetEnabled === false || entry.enabledKnown === false;
     enabledToggle.setAttribute("aria-label", `${entry.enabled ? "Disable" : "Enable"} ${entry.entryName}`);
-    if (entry.requiresElevation) {
+    if (entry.canSetEnabled === false || entry.enabledKnown === false) {
+      enabledToggle.title = entry.readOnlyReason || "This entry is read-only.";
+    } else if (entry.requiresElevation) {
       enabledToggle.title = "Changing this entry may require administrator privileges.";
     }
     enabledToggle.addEventListener("change", () => {
@@ -900,10 +931,10 @@ function renderAutoruns() {
     enabledCell.appendChild(enabledToggle);
     row.appendChild(enabledCell);
 
-    const values = [entry.entryName, entry.publisher || "—", entry.imagePath, entry.location, entry.user];
+    const values = [entry.entryName, entry.publisher || "\u2014", entry.imagePath, entry.location, entry.user];
     for (const value of values) {
       const cell = document.createElement("td");
-      cell.textContent = value || "—";
+      cell.textContent = value || "\u2014";
       cell.title = value || "";
       row.appendChild(cell);
     }
@@ -912,11 +943,13 @@ function renderAutoruns() {
     const statusBadge = document.createElement("span");
     statusBadge.className = `badge ${autorunStatusTone(entry.status)}`;
     statusBadge.textContent = entry.status || "Unresolved command";
-    if (entry.requiresElevation) {
+    if (entry.canSetEnabled === false || entry.enabledKnown === false) {
+      statusBadge.title = entry.readOnlyReason || "This entry is read-only.";
+    } else if (entry.requiresElevation) {
       statusBadge.title = "Changing this entry may require administrator privileges.";
     }
     statusCell.appendChild(statusBadge);
-    if (entry.requiresElevation) {
+    if (entry.requiresElevation && entry.canSetEnabled !== false) {
       const elevationBadge = document.createElement("span");
       elevationBadge.className = "badge warning autoruns-elevation-badge";
       elevationBadge.textContent = "Admin to change";
@@ -3714,7 +3747,19 @@ bindUi(elements.autorunsSearchInput, "input", (event) => {
 }, "autorunsSearchInput");
 elements.autorunsCategoryButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    state.autorunsCategory = button.dataset.autorunsCategory === "logon" ? "logon" : "everything";
+    state.autorunsCategory = button.dataset.autorunsCategory;
+    renderAutoruns();
+  });
+});
+elements.autorunsSortButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const column = button.dataset.autorunsSort;
+    if (state.autorunsSortColumn === column) {
+      state.autorunsSortDirection = state.autorunsSortDirection === "asc" ? "desc" : "asc";
+    } else {
+      state.autorunsSortColumn = column;
+      state.autorunsSortDirection = "asc";
+    }
     renderAutoruns();
   });
 });

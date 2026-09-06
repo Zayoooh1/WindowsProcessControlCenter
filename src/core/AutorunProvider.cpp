@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <ShlObj.h>
 #include <ShObjIdl.h>
+#include <taskschd.h>
 #include <wrl/client.h>
 
 #include <nlohmann/json.hpp>
@@ -81,6 +82,39 @@ namespace
 
     private:
         HANDLE m_handle = INVALID_HANDLE_VALUE;
+    };
+
+    class ServiceHandle final
+    {
+    public:
+        ServiceHandle() = default;
+        explicit ServiceHandle(SC_HANDLE handle) : m_handle(handle) {}
+        ServiceHandle(const ServiceHandle&) = delete;
+        ServiceHandle& operator=(const ServiceHandle&) = delete;
+        ~ServiceHandle() { if (m_handle != nullptr) CloseServiceHandle(m_handle); }
+        SC_HANDLE Get() const { return m_handle; }
+    private:
+        SC_HANDLE m_handle = nullptr;
+    };
+
+    class ScopedBstr final
+    {
+    public:
+        ScopedBstr() = default;
+        explicit ScopedBstr(std::wstring_view value)
+            : m_value(SysAllocStringLen(value.data(), static_cast<UINT>(value.size()))) {}
+        ScopedBstr(const ScopedBstr&) = delete;
+        ScopedBstr& operator=(const ScopedBstr&) = delete;
+        ~ScopedBstr() { SysFreeString(m_value); }
+        BSTR Get() const { return m_value; }
+        BSTR* Put() { SysFreeString(m_value); m_value = nullptr; return &m_value; }
+        std::wstring String() const
+        {
+            return m_value == nullptr ? std::wstring{} :
+                std::wstring(m_value, static_cast<size_t>(SysStringLen(m_value)));
+        }
+    private:
+        BSTR m_value = nullptr;
     };
 
     std::string WideToUtf8(std::wstring_view value)
@@ -175,6 +209,21 @@ namespace
             originalPath.lexically_normal().wstring();
     }
 
+    std::wstring TaskSourceIdentity(std::wstring_view taskPath)
+    {
+        return L"task|" + std::wstring(taskPath);
+    }
+
+    std::wstring ServiceSourceIdentity(std::wstring_view serviceName)
+    {
+        return L"service|" + std::wstring(serviceName);
+    }
+
+    std::wstring DriverSourceIdentity(std::wstring_view serviceName)
+    {
+        return L"driver|" + std::wstring(serviceName);
+    }
+
     std::wstring SourceIdentity(const wpcc::AutorunEntry& entry)
     {
         if (entry.sourceType == wpcc::AutorunSourceType::RegistryValue)
@@ -185,7 +234,19 @@ namespace
                 entry.registryKeyPath,
                 entry.registryValueName);
         }
-        return StartupSourceIdentity(entry.startupCurrentUser, entry.startupOriginalPath);
+        if (entry.sourceType == wpcc::AutorunSourceType::StartupFolder)
+        {
+            return StartupSourceIdentity(entry.startupCurrentUser, entry.startupOriginalPath);
+        }
+        if (entry.sourceType == wpcc::AutorunSourceType::ScheduledTask)
+        {
+            return TaskSourceIdentity(entry.taskPath);
+        }
+        if (entry.sourceType == wpcc::AutorunSourceType::Service)
+        {
+            return ServiceSourceIdentity(entry.serviceName);
+        }
+        return DriverSourceIdentity(entry.serviceName);
     }
 
     bool SameSourceIdentity(const wpcc::AutorunEntry& left, const wpcc::AutorunEntry& right)
@@ -309,7 +370,7 @@ namespace
         {
             const std::wstring lower = ToLower(command);
             size_t executableEnd = std::wstring::npos;
-            for (const std::wstring_view extension : {L".exe", L".com", L".bat", L".cmd"})
+            for (const std::wstring_view extension : {L".exe", L".com", L".bat", L".cmd", L".sys"})
             {
                 size_t searchAt = 0;
                 while (searchAt < lower.size())
@@ -339,6 +400,32 @@ namespace
                 const size_t separator = command.find_first_of(L" \t\r\n");
                 result.path = command.substr(0, separator);
                 result.resolved = false;
+            }
+        }
+
+        if (result.resolved && !result.path.empty())
+        {
+            std::wstring normalized = result.path;
+            const std::wstring lower = ToLower(normalized);
+            std::array<wchar_t, MAX_PATH> windowsDirectory{};
+            const UINT windowsLength = GetWindowsDirectoryW(
+                windowsDirectory.data(), static_cast<UINT>(windowsDirectory.size()));
+            if (windowsLength > 0 && windowsLength < windowsDirectory.size())
+            {
+                const std::wstring windowsPath(windowsDirectory.data(), windowsLength);
+                if (lower.starts_with(L"\\systemroot\\"))
+                {
+                    normalized = windowsPath + normalized.substr(11);
+                }
+                else if (lower.starts_with(L"system32\\"))
+                {
+                    normalized = windowsPath + L"\\" + normalized;
+                }
+                else if (lower.starts_with(L"\\??\\"))
+                {
+                    normalized.erase(0, 4);
+                }
+                result.path = std::move(normalized);
             }
         }
 
@@ -475,9 +562,18 @@ namespace
 
     json SerializeDisabledEntry(const wpcc::AutorunEntry& entry)
     {
+        const char* sourceType = "startupFolder";
+        if (entry.sourceType == wpcc::AutorunSourceType::RegistryValue)
+        {
+            sourceType = "registryValue";
+        }
+        else if (entry.sourceType == wpcc::AutorunSourceType::Service)
+        {
+            sourceType = "service";
+        }
         json item = {
             {"id", entry.id},
-            {"sourceType", entry.sourceType == wpcc::AutorunSourceType::RegistryValue ? "registryValue" : "startupFolder"},
+            {"sourceType", sourceType},
             {"entryName", WideToUtf8(entry.entryName)},
             {"command", WideToUtf8(entry.command)},
             {"imagePath", WideToUtf8(entry.imagePath)},
@@ -497,12 +593,19 @@ namespace
                 {"valueDataHex", HexEncode(entry.registryValueData)},
             };
         }
-        else
+        else if (entry.sourceType == wpcc::AutorunSourceType::StartupFolder)
         {
             item["startup"] = {
                 {"scope", entry.startupCurrentUser ? "currentUser" : "common"},
                 {"originalPath", WideToUtf8(entry.startupOriginalPath)},
                 {"disabledPath", WideToUtf8(entry.startupDisabledPath)},
+            };
+        }
+        else if (entry.sourceType == wpcc::AutorunSourceType::Service)
+        {
+            item["service"] = {
+                {"name", WideToUtf8(entry.serviceName)},
+                {"originalStartType", entry.serviceOriginalStartType},
             };
         }
         return item;
@@ -587,6 +690,22 @@ namespace
                 !expectedStartupDirectory.empty() && !expectedDisabledDirectory.empty() &&
                 PathsEqual(originalPath.parent_path(), expectedStartupDirectory) &&
                 PathsEqual(disabledPath, expectedDisabledPath);
+        }
+        if (sourceType == "service" && item.contains("service") && item["service"].is_object())
+        {
+            const json& service = item["service"];
+            entry.category = wpcc::AutorunCategory::Service;
+            entry.sourceType = wpcc::AutorunSourceType::Service;
+            entry.serviceName = Utf8ToWide(service.at("name").get<std::string>());
+            entry.serviceOriginalStartType = service.at("originalStartType").get<unsigned long>();
+            const bool validStartType = entry.serviceOriginalStartType == SERVICE_BOOT_START ||
+                entry.serviceOriginalStartType == SERVICE_SYSTEM_START ||
+                entry.serviceOriginalStartType == SERVICE_AUTO_START ||
+                entry.serviceOriginalStartType == SERVICE_DEMAND_START;
+            entry.requiresElevation = true;
+            entry.entryName = entry.entryName.empty() ? entry.serviceName : entry.entryName;
+            return !entry.serviceName.empty() && validStartType &&
+                entry.id == StableId("service", ServiceSourceIdentity(entry.serviceName));
         }
         return false;
     }
@@ -943,6 +1062,392 @@ namespace
         } while (FindNextFileW(scopedFindHandle.Get(), &findData));
     }
 
+    unsigned long ErrorFromHresult(HRESULT result)
+    {
+        return HRESULT_FACILITY(result) == FACILITY_WIN32 ? HRESULT_CODE(result) :
+            static_cast<unsigned long>(result);
+    }
+
+    HRESULT ConnectTaskScheduler(ComPtr<ITaskService>& service)
+    {
+        HRESULT result = CoCreateInstance(
+            CLSID_TaskScheduler, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&service));
+        if (FAILED(result))
+        {
+            return result;
+        }
+
+        VARIANT empty;
+        VariantInit(&empty);
+        return service->Connect(empty, empty, empty, empty);
+    }
+
+    std::wstring CombineTaskCommand(std::wstring_view path, std::wstring_view arguments)
+    {
+        if (path.empty())
+        {
+            return {};
+        }
+        std::wstring command = L"\"" + std::wstring(path) + L"\"";
+        if (!arguments.empty())
+        {
+            command += L" ";
+            command += arguments;
+        }
+        return command;
+    }
+
+    bool AddScheduledTask(IRegisteredTask* task, std::vector<wpcc::AutorunEntry>& entries)
+    {
+        if (task == nullptr)
+        {
+            return false;
+        }
+
+        wpcc::AutorunEntry entry;
+        entry.category = wpcc::AutorunCategory::ScheduledTask;
+        entry.sourceType = wpcc::AutorunSourceType::ScheduledTask;
+        entry.requiresElevation = false;
+
+        ScopedBstr name;
+        ScopedBstr path;
+        if (SUCCEEDED(task->get_Name(name.Put()))) entry.entryName = name.String();
+        if (FAILED(task->get_Path(path.Put())) || path.String().empty()) return false;
+        entry.taskPath = path.String();
+        entry.location = entry.taskPath;
+
+        VARIANT_BOOL nativeEnabled = VARIANT_FALSE;
+        if (SUCCEEDED(task->get_Enabled(&nativeEnabled)))
+        {
+            entry.enabled = nativeEnabled == VARIANT_TRUE;
+        }
+        else
+        {
+            entry.enabledKnown = false;
+            entry.canSetEnabled = false;
+            entry.readOnlyReason = L"Task enabled state is unavailable.";
+        }
+
+        long execActionCount = 0;
+        long nonExecActionCount = 0;
+        std::vector<std::wstring> commands;
+        ComPtr<ITaskDefinition> definition;
+        if (SUCCEEDED(task->get_Definition(&definition)) && definition)
+        {
+            ComPtr<IPrincipal> principal;
+            if (SUCCEEDED(definition->get_Principal(&principal)) && principal)
+            {
+                ScopedBstr userId;
+                ScopedBstr groupId;
+                if (SUCCEEDED(principal->get_UserId(userId.Put())) && !userId.String().empty())
+                {
+                    entry.user = userId.String();
+                }
+                else if (SUCCEEDED(principal->get_GroupId(groupId.Put())))
+                {
+                    entry.user = groupId.String();
+                }
+            }
+
+            ComPtr<IActionCollection> actions;
+            if (SUCCEEDED(definition->get_Actions(&actions)) && actions)
+            {
+                long count = 0;
+                if (SUCCEEDED(actions->get_Count(&count)))
+                {
+                    for (long index = 1; index <= count; ++index)
+                    {
+                        ComPtr<IAction> action;
+                        if (FAILED(actions->get_Item(index, &action)) || !action)
+                        {
+                            continue;
+                        }
+                        TASK_ACTION_TYPE type = TASK_ACTION_EXEC;
+                        if (FAILED(action->get_Type(&type)) || type != TASK_ACTION_EXEC)
+                        {
+                            ++nonExecActionCount;
+                            continue;
+                        }
+                        ++execActionCount;
+                        ComPtr<IExecAction> execAction;
+                        if (FAILED(action.As(&execAction)) || !execAction)
+                        {
+                            continue;
+                        }
+                        ScopedBstr executable;
+                        ScopedBstr arguments;
+                        execAction->get_Path(executable.Put());
+                        execAction->get_Arguments(arguments.Put());
+                        const std::wstring command = CombineTaskCommand(executable.String(), arguments.String());
+                        if (!command.empty()) commands.push_back(command);
+                        if (entry.imagePath.empty()) entry.imagePath = ExpandEnvironment(executable.String());
+                    }
+                }
+            }
+        }
+
+        for (size_t index = 0; index < commands.size(); ++index)
+        {
+            if (index > 0) entry.command += L" | ";
+            entry.command += commands[index];
+        }
+        if (entry.entryName.empty()) entry.entryName = entry.taskPath;
+        if (!entry.enabledKnown) entry.status = L"Enabled state unavailable";
+        else if (execActionCount > 0 && nonExecActionCount > 0)
+        {
+            entry.status = std::to_wstring(execActionCount) + L" Exec action" + (execActionCount == 1 ? L"" : L"s") +
+                L" + " + std::to_wstring(nonExecActionCount) + L" non-exec action" +
+                (nonExecActionCount == 1 ? L"" : L"s");
+            if (!entry.enabled) entry.status = L"Disabled - " + entry.status;
+        }
+        else if (execActionCount > 1) entry.status = entry.enabled ? L"Multiple Exec actions" : L"Disabled - Multiple Exec actions";
+        else if (execActionCount == 0 && nonExecActionCount > 0) entry.status = entry.enabled ? L"Non-exec task" : L"Disabled - Non-exec task";
+        else if (entry.imagePath.empty()) entry.status = entry.enabled ? L"Action unavailable" : L"Disabled";
+        else entry.status = entry.enabled ? StatusForImage(ParseCommandImage(entry.command)) : L"Disabled";
+        entry.id = StableId("task", TaskSourceIdentity(entry.taskPath));
+        entries.push_back(std::move(entry));
+        return true;
+    }
+
+    void EnumerateTaskFolder(
+        ITaskFolder* folder,
+        std::vector<wpcc::AutorunEntry>& entries,
+        bool& hadPartialFailure)
+    {
+        if (folder == nullptr) return;
+
+        ComPtr<IRegisteredTaskCollection> tasks;
+        if (SUCCEEDED(folder->GetTasks(TASK_ENUM_HIDDEN, &tasks)) && tasks)
+        {
+            long count = 0;
+            if (SUCCEEDED(tasks->get_Count(&count)))
+            {
+                for (long index = 1; index <= count; ++index)
+                {
+                    VARIANT item;
+                    VariantInit(&item);
+                    item.vt = VT_I4;
+                    item.lVal = index;
+                    ComPtr<IRegisteredTask> task;
+                    if (SUCCEEDED(tasks->get_Item(item, &task)) && task)
+                    {
+                        if (!AddScheduledTask(task.Get(), entries)) hadPartialFailure = true;
+                    }
+                    else hadPartialFailure = true;
+                }
+            }
+            else hadPartialFailure = true;
+        }
+        else hadPartialFailure = true;
+
+        ComPtr<ITaskFolderCollection> folders;
+        if (FAILED(folder->GetFolders(0, &folders)) || !folders)
+        {
+            hadPartialFailure = true;
+            return;
+        }
+        long count = 0;
+        if (FAILED(folders->get_Count(&count)))
+        {
+            hadPartialFailure = true;
+            return;
+        }
+        for (long index = 1; index <= count; ++index)
+        {
+            VARIANT item;
+            VariantInit(&item);
+            item.vt = VT_I4;
+            item.lVal = index;
+            ComPtr<ITaskFolder> child;
+            if (SUCCEEDED(folders->get_Item(item, &child)) && child)
+            {
+                EnumerateTaskFolder(child.Get(), entries, hadPartialFailure);
+            }
+            else hadPartialFailure = true;
+        }
+    }
+
+    void EnumerateScheduledTasks(std::vector<wpcc::AutorunEntry>& entries, std::wstring& warning)
+    {
+        ComPtr<ITaskService> service;
+        const HRESULT connectResult = ConnectTaskScheduler(service);
+        if (FAILED(connectResult) || !service)
+        {
+            AppendWarning(warning, L"Scheduled Tasks could not be read.");
+            return;
+        }
+        ScopedBstr rootPath(L"\\");
+        ComPtr<ITaskFolder> root;
+        if (FAILED(service->GetFolder(rootPath.Get(), &root)) || !root)
+        {
+            AppendWarning(warning, L"The Task Scheduler root folder could not be read.");
+            return;
+        }
+        bool hadPartialFailure = false;
+        EnumerateTaskFolder(root.Get(), entries, hadPartialFailure);
+        if (hadPartialFailure)
+        {
+            AppendWarning(warning, L"Some Scheduled Tasks or folders could not be read.");
+        }
+    }
+
+    std::wstring ServiceStartTypeLabel(DWORD startType)
+    {
+        switch (startType)
+        {
+        case SERVICE_BOOT_START: return L"Boot";
+        case SERVICE_SYSTEM_START: return L"System";
+        case SERVICE_AUTO_START: return L"Automatic";
+        case SERVICE_DEMAND_START: return L"Manual";
+        case SERVICE_DISABLED: return L"Disabled";
+        default: return L"Unknown start type";
+        }
+    }
+
+    DWORD QueryServiceConfiguration(SC_HANDLE service, std::vector<unsigned char>& storage, QUERY_SERVICE_CONFIGW*& config)
+    {
+        DWORD required = 0;
+        QueryServiceConfigW(service, nullptr, 0, &required);
+        const DWORD initialError = GetLastError();
+        if (required == 0 || initialError != ERROR_INSUFFICIENT_BUFFER) return initialError;
+        storage.resize(required);
+        config = reinterpret_cast<QUERY_SERVICE_CONFIGW*>(storage.data());
+        if (!QueryServiceConfigW(service, config, required, &required)) return GetLastError();
+        return ERROR_SUCCESS;
+    }
+
+    void AddScmEntry(
+        SC_HANDLE manager,
+        const ENUM_SERVICE_STATUS_PROCESSW& item,
+        std::vector<wpcc::AutorunEntry>& entries,
+        bool& hadPartialFailure)
+    {
+        const bool driver = (item.ServiceStatusProcess.dwServiceType & SERVICE_DRIVER) != 0;
+        wpcc::AutorunEntry entry;
+        entry.category = driver ? wpcc::AutorunCategory::Driver : wpcc::AutorunCategory::Service;
+        entry.sourceType = driver ? wpcc::AutorunSourceType::Driver : wpcc::AutorunSourceType::Service;
+        entry.serviceName = item.lpServiceName == nullptr ? L"" : item.lpServiceName;
+        entry.entryName = item.lpDisplayName == nullptr || item.lpDisplayName[0] == L'\0' ?
+            entry.serviceName : item.lpDisplayName;
+        entry.location = driver ? L"Service Control Manager - Driver" : L"Service Control Manager - Service";
+        entry.requiresElevation = true;
+        entry.canSetEnabled = !driver;
+        if (driver)
+        {
+            entry.readOnlyReason = L"Driver startup management is read-only in this version.";
+        }
+
+        const SC_HANDLE nativeService = OpenServiceW(manager, entry.serviceName.c_str(), SERVICE_QUERY_CONFIG);
+        const DWORD openError = nativeService == nullptr ? GetLastError() : ERROR_SUCCESS;
+        ServiceHandle service(nativeService);
+        std::vector<unsigned char> storage;
+        QUERY_SERVICE_CONFIGW* config = nullptr;
+        const DWORD queryError = service.Get() == nullptr ? openError :
+            QueryServiceConfiguration(service.Get(), storage, config);
+        if (queryError == ERROR_SUCCESS && config != nullptr)
+        {
+            entry.command = config->lpBinaryPathName == nullptr ? L"" : config->lpBinaryPathName;
+            entry.user = config->lpServiceStartName == nullptr ? L"" : config->lpServiceStartName;
+            entry.serviceStartType = config->dwStartType;
+            entry.enabled = config->dwStartType != SERVICE_DISABLED;
+            const ParsedImage parsed = ParseCommandImage(entry.command);
+            entry.imagePath = parsed.path;
+            entry.status = ServiceStartTypeLabel(config->dwStartType);
+            if (driver)
+            {
+                entry.status += L" - Read-only";
+            }
+            else if (config->dwStartType == SERVICE_DISABLED)
+            {
+                entry.canSetEnabled = false;
+                entry.readOnlyReason = L"WPCC does not know the original start type of this externally disabled service.";
+            }
+        }
+        else
+        {
+            entry.enabledKnown = false;
+            entry.canSetEnabled = false;
+            entry.status = L"Configuration unavailable";
+            entry.readOnlyReason = driver ? L"Driver startup management is read-only in this version." :
+                L"Service configuration is unavailable.";
+            hadPartialFailure = true;
+        }
+
+        const std::wstring identity = driver ? DriverSourceIdentity(entry.serviceName) :
+            ServiceSourceIdentity(entry.serviceName);
+        entry.id = StableId(driver ? "driver" : "service", identity);
+        entries.push_back(std::move(entry));
+    }
+
+    void EnumerateScmEntries(std::vector<wpcc::AutorunEntry>& entries, std::wstring& warning)
+    {
+        ServiceHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_ENUMERATE_SERVICE));
+        if (manager.Get() == nullptr)
+        {
+            AppendWarning(warning, L"Services and drivers could not be enumerated.");
+            return;
+        }
+
+        std::vector<unsigned char> buffer(256U * 1024U);
+        DWORD resumeHandle = 0;
+        bool hadPartialFailure = false;
+        for (;;)
+        {
+            DWORD bytesNeeded = 0;
+            DWORD entriesRead = 0;
+            const BOOL complete = EnumServicesStatusExW(
+                manager.Get(), SC_ENUM_PROCESS_INFO, SERVICE_WIN32 | SERVICE_DRIVER,
+                SERVICE_STATE_ALL, buffer.data(), static_cast<DWORD>(buffer.size()),
+                &bytesNeeded, &entriesRead, &resumeHandle, nullptr);
+            const DWORD error = complete ? ERROR_SUCCESS : GetLastError();
+            const auto* nativeEntries = reinterpret_cast<const ENUM_SERVICE_STATUS_PROCESSW*>(buffer.data());
+            for (DWORD index = 0; index < entriesRead; ++index)
+            {
+                AddScmEntry(manager.Get(), nativeEntries[index], entries, hadPartialFailure);
+            }
+            if (complete) break;
+            if (error != ERROR_MORE_DATA)
+            {
+                hadPartialFailure = true;
+                break;
+            }
+            if (entriesRead == 0)
+            {
+                if (bytesNeeded > buffer.size()) buffer.resize(bytesNeeded);
+                else
+                {
+                    hadPartialFailure = true;
+                    break;
+                }
+            }
+        }
+        if (hadPartialFailure)
+        {
+            AppendWarning(warning, L"Some service or driver details could not be read.");
+        }
+    }
+
+    HRESULT SetScheduledTaskEnabled(std::wstring_view taskPath, bool enabled)
+    {
+        ComPtr<ITaskService> service;
+        HRESULT result = ConnectTaskScheduler(service);
+        if (FAILED(result) || !service) return result;
+
+        const size_t separator = taskPath.find_last_of(L'\\');
+        if (separator == std::wstring_view::npos || separator + 1 >= taskPath.size()) return E_INVALIDARG;
+        const std::wstring folderPath = separator == 0 ? L"\\" : std::wstring(taskPath.substr(0, separator));
+        const std::wstring taskName(taskPath.substr(separator + 1));
+        ScopedBstr nativeFolderPath(folderPath);
+        ComPtr<ITaskFolder> folder;
+        result = service->GetFolder(nativeFolderPath.Get(), &folder);
+        if (FAILED(result) || !folder) return result;
+        ScopedBstr nativeTaskName(taskName);
+        ComPtr<IRegisteredTask> task;
+        result = folder->GetTask(nativeTaskName.Get(), &task);
+        if (FAILED(result) || !task) return result;
+        return task->put_Enabled(enabled ? VARIANT_TRUE : VARIANT_FALSE);
+    }
+
     wpcc::AutorunActionResult FailureResult(
         std::string_view id,
         bool enabled,
@@ -996,15 +1501,39 @@ namespace wpcc
 
         EnumerateStartupFolder(FOLDERID_Startup, true, result.entries, result.warning);
         EnumerateStartupFolder(FOLDERID_CommonStartup, false, result.entries, result.warning);
+        try
+        {
+            EnumerateScheduledTasks(result.entries, result.warning);
+        }
+        catch (...)
+        {
+            AppendWarning(result.warning, L"Scheduled Tasks could not be read.");
+        }
+        try
+        {
+            EnumerateScmEntries(result.entries, result.warning);
+        }
+        catch (...)
+        {
+            AppendWarning(result.warning, L"Services and drivers could not be enumerated.");
+        }
 
+        std::vector<AutorunEntry> uniqueEntries;
+        uniqueEntries.reserve(result.entries.size());
         for (const AutorunEntry& entry : result.entries)
         {
             const auto [existing, inserted] = m_entries.emplace(entry.id, entry);
-            if (!inserted && !SameSourceIdentity(existing->second, entry))
+            if (inserted)
+            {
+                uniqueEntries.push_back(entry);
+            }
+            else if (!SameSourceIdentity(existing->second, entry))
             {
                 m_ambiguousIds.insert(entry.id);
+                uniqueEntries.push_back(entry);
             }
         }
+        result.entries = std::move(uniqueEntries);
 
         std::vector<AutorunEntry> disabledEntries;
         std::wstring storeWarning;
@@ -1013,6 +1542,37 @@ namespace wpcc
             for (AutorunEntry& entry : disabledEntries)
             {
                 const auto existing = m_entries.find(entry.id);
+                if (entry.sourceType == AutorunSourceType::Service)
+                {
+                    if (existing != m_entries.end() && SameSourceIdentity(existing->second, entry))
+                    {
+                        auto visible = std::find_if(result.entries.begin(), result.entries.end(), [&entry](const AutorunEntry& item) {
+                            return item.id == entry.id && SameSourceIdentity(item, entry);
+                        });
+                        if (existing->second.serviceStartType == SERVICE_DISABLED)
+                        {
+                            existing->second.serviceOriginalStartType = entry.serviceOriginalStartType;
+                            existing->second.canSetEnabled = true;
+                            existing->second.readOnlyReason.clear();
+                            existing->second.status = L"Disabled by WPCC (was " +
+                                ServiceStartTypeLabel(entry.serviceOriginalStartType) + L")";
+                            if (visible != result.entries.end()) *visible = existing->second;
+                        }
+                        else
+                        {
+                            existing->second.canSetEnabled = false;
+                            existing->second.readOnlyReason = L"Stored service state does not match the current SCM configuration.";
+                            existing->second.status += L" - Backup mismatch";
+                            if (visible != result.entries.end()) *visible = existing->second;
+                            AppendWarning(result.warning, L"A stored service backup no longer matches its current start type.");
+                        }
+                    }
+                    else if (existing != m_entries.end())
+                    {
+                        m_ambiguousIds.insert(entry.id);
+                    }
+                    continue;
+                }
                 if (existing == m_entries.end())
                 {
                     m_entries.emplace(entry.id, entry);
@@ -1031,6 +1591,14 @@ namespace wpcc
 
         if (!m_ambiguousIds.empty())
         {
+            for (AutorunEntry& entry : result.entries)
+            {
+                if (m_ambiguousIds.contains(entry.id))
+                {
+                    entry.canSetEnabled = false;
+                    entry.readOnlyReason = L"This identifier collides with another Autoruns source and cannot be changed safely.";
+                }
+            }
             AppendWarning(
                 result.warning,
                 L"One or more entries have colliding identifiers and cannot be changed safely.");
@@ -1064,9 +1632,30 @@ namespace wpcc
         }
 
         const AutorunEntry entry = catalogEntry->second;
+        if (!entry.canSetEnabled)
+        {
+            const std::string reason = entry.readOnlyReason.empty() ?
+                "This Autoruns entry is read-only." : WideToUtf8(entry.readOnlyReason);
+            return FailureResult(id, enabled, reason);
+        }
         if (entry.enabled == enabled)
         {
             return SuccessResult(id, enabled, enabled ? "The Autoruns entry is already enabled." : "The Autoruns entry is already disabled.");
+        }
+
+        if (entry.sourceType == AutorunSourceType::ScheduledTask)
+        {
+            const HRESULT result = SetScheduledTaskEnabled(entry.taskPath, enabled);
+            if (FAILED(result))
+            {
+                return FailureResult(
+                    id, enabled, "The Scheduled Task enabled state could not be changed.", ErrorFromHresult(result));
+            }
+            return SuccessResult(id, enabled, enabled ? "Scheduled Task enabled." : "Scheduled Task disabled.");
+        }
+        if (entry.sourceType == AutorunSourceType::Driver)
+        {
+            return FailureResult(id, enabled, "Driver startup management is read-only in this version.");
         }
 
         std::vector<AutorunEntry> disabledEntries;
@@ -1074,6 +1663,115 @@ namespace wpcc
         if (!LoadDisabledEntries(disabledEntries, storeWarning))
         {
             return FailureResult(id, enabled, WideToUtf8(storeWarning));
+        }
+
+        if (entry.sourceType == AutorunSourceType::Service)
+        {
+            const SC_HANDLE nativeManager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+            const DWORD managerError = nativeManager == nullptr ? GetLastError() : ERROR_SUCCESS;
+            ServiceHandle manager(nativeManager);
+            if (manager.Get() == nullptr)
+            {
+                return FailureResult(id, enabled, "The Service Control Manager could not be opened.", managerError);
+            }
+            const SC_HANDLE nativeService = OpenServiceW(
+                manager.Get(), entry.serviceName.c_str(), SERVICE_QUERY_CONFIG | SERVICE_CHANGE_CONFIG);
+            const DWORD serviceError = nativeService == nullptr ? GetLastError() : ERROR_SUCCESS;
+            ServiceHandle service(nativeService);
+            if (service.Get() == nullptr)
+            {
+                return FailureResult(id, enabled, "The service configuration could not be opened.", serviceError);
+            }
+
+            std::vector<unsigned char> configurationStorage;
+            QUERY_SERVICE_CONFIGW* configuration = nullptr;
+            const DWORD queryError = QueryServiceConfiguration(service.Get(), configurationStorage, configuration);
+            if (queryError != ERROR_SUCCESS || configuration == nullptr)
+            {
+                return FailureResult(id, enabled, "The current service start type could not be read.", queryError);
+            }
+
+            if (!enabled)
+            {
+                if (configuration->dwStartType == SERVICE_DISABLED)
+                {
+                    return FailureResult(id, enabled, "The service is already disabled and its prior start type is unknown.");
+                }
+
+                AutorunEntry backup = entry;
+                backup.enabled = false;
+                backup.serviceOriginalStartType = configuration->dwStartType;
+                backup.status = L"Disabled by WPCC (was " + ServiceStartTypeLabel(configuration->dwStartType) + L")";
+                bool backupAdded = false;
+                const auto existingBackup = FindDisabledEntry(disabledEntries, id);
+                if (existingBackup != disabledEntries.end())
+                {
+                    if (existingBackup->sourceType != AutorunSourceType::Service ||
+                        ToLower(existingBackup->serviceName) != ToLower(backup.serviceName) ||
+                        existingBackup->serviceOriginalStartType != backup.serviceOriginalStartType)
+                    {
+                        return FailureResult(id, enabled, "A conflicting disabled backup already exists for this service.");
+                    }
+                }
+                else
+                {
+                    disabledEntries.push_back(backup);
+                    backupAdded = true;
+                    if (!SaveDisabledEntries(disabledEntries, storeWarning))
+                    {
+                        return FailureResult(id, enabled, WideToUtf8(storeWarning));
+                    }
+                }
+
+                if (!ChangeServiceConfigW(
+                    service.Get(), SERVICE_NO_CHANGE, SERVICE_DISABLED, SERVICE_NO_CHANGE,
+                    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr))
+                {
+                    const DWORD changeError = GetLastError();
+                    if (backupAdded)
+                    {
+                        disabledEntries.pop_back();
+                        std::wstring rollbackWarning;
+                        SaveDisabledEntries(disabledEntries, rollbackWarning);
+                    }
+                    return FailureResult(id, enabled, "The service start type could not be disabled.", changeError);
+                }
+                return SuccessResult(id, false, "Service disabled; its original start type was preserved by WPCC.");
+            }
+
+            auto disabledEntry = FindDisabledEntry(disabledEntries, id);
+            if (disabledEntry == disabledEntries.end() || disabledEntry->sourceType != AutorunSourceType::Service ||
+                !SameSourceIdentity(*disabledEntry, entry))
+            {
+                return FailureResult(id, enabled, "The service's original start type backup could not be found.");
+            }
+            if (configuration->dwStartType != SERVICE_DISABLED)
+            {
+                return FailureResult(id, enabled, "Restore conflict: the service start type changed after WPCC disabled it.");
+            }
+            const DWORD restoreStartType = disabledEntry->serviceOriginalStartType;
+            if (!ChangeServiceConfigW(
+                service.Get(), SERVICE_NO_CHANGE, restoreStartType, SERVICE_NO_CHANGE,
+                nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr))
+            {
+                return FailureResult(id, enabled, "The service's original start type could not be restored.", GetLastError());
+            }
+
+            disabledEntries.erase(disabledEntry);
+            if (!SaveDisabledEntries(disabledEntries, storeWarning))
+            {
+                const BOOL rolledBack = ChangeServiceConfigW(
+                    service.Get(), SERVICE_NO_CHANGE, SERVICE_DISABLED, SERVICE_NO_CHANGE,
+                    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
+                const DWORD rollbackError = rolledBack ? 0 : GetLastError();
+                std::string message = WideToUtf8(storeWarning);
+                if (!rolledBack)
+                {
+                    message += " The restored start type could not be rolled back; its backup remains stored.";
+                }
+                return FailureResult(id, enabled, std::move(message), rollbackError);
+            }
+            return SuccessResult(id, true, "The service's original start type was restored.");
         }
 
         if (entry.sourceType == AutorunSourceType::RegistryValue)

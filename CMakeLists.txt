@@ -116,11 +116,13 @@ target_link_libraries(WindowsProcessControlCenter PRIVATE
     advapi32
     dwmapi
     ole32
+    oleaut32
     shell32
     shlwapi
     urlmon
     user32
     version
+    taskschd
 )
 
 set_target_properties(WindowsProcessControlCenter PROPERTIES
