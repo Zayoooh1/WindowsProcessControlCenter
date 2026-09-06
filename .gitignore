@@ -44,6 +44,7 @@ CMakeUserPresets.json
 *.dll
 *.exe
 *.manifest
+!resources/WindowsProcessControlCenter.manifest
 
 # NuGet / dependency caches generated inside build trees
 packages/

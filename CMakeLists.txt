@@ -86,6 +86,7 @@ add_executable(WindowsProcessControlCenter WIN32
     src/ui_web/WebMessageBridge.h
     src/ui_web/WebViewHost.cpp
     src/ui_web/WebViewHost.h
+    resources/WindowsProcessControlCenter.manifest
     resources/WindowsProcessControlCenter.rc
 )
 
@@ -107,6 +108,9 @@ if(MSVC)
         /W4
         /permissive-
         /Zc:__cplusplus
+    )
+    target_link_options(WindowsProcessControlCenter PRIVATE
+        /MANIFESTUAC:NO
     )
 endif()
 
