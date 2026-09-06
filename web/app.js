@@ -841,10 +841,18 @@ function autorunStatusTone(status) {
   return "neutral";
 }
 
+function isManageableAutorun(entry) {
+  return entry?.canSetEnabled === true;
+}
+
 function filteredAutoruns() {
   const query = state.autorunsQuery.trim().toLowerCase();
   const entries = state.autorunsEntries.filter((entry) => {
-    if (state.autorunsCategory !== "everything" && entry.category !== state.autorunsCategory) return false;
+    if (state.autorunsCategory === "everything") {
+      if (!isManageableAutorun(entry)) return false;
+    } else if (entry.category !== state.autorunsCategory) {
+      return false;
+    }
     if (!query) return true;
     return [
       entry.entryName,
@@ -884,7 +892,7 @@ function renderAutoruns() {
     button.setAttribute("aria-pressed", String(active));
     const category = button.dataset.autorunsCategory;
     const count = category === "everything"
-      ? state.autorunsEntries.length
+      ? state.autorunsEntries.reduce((total, entry) => total + (isManageableAutorun(entry) ? 1 : 0), 0)
       : state.autorunsEntries.reduce((total, entry) => total + (entry.category === category ? 1 : 0), 0);
     button.textContent = `${button.dataset.autorunsLabel} (${count})`;
   });
