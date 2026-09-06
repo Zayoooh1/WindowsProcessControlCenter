@@ -62,6 +62,12 @@ namespace wpcc
             return result;
         }
 
+        if (pid == 4)
+        {
+            result.message = "Protected or system processes cannot be modified.";
+            return result;
+        }
+
         if (pid == GetCurrentProcessId())
         {
             result.message = "Changing this application's own priority is blocked.";
@@ -85,7 +91,7 @@ namespace wpcc
         const ProcessInfo process = provider.GetProcess(pid);
         const ProcessInfo* processIt = &process;
 
-        if (process.accessStatus == "Unknown")
+        if (process.accessStatus == "Exited/race")
         {
             result.message = "The process is no longer running.";
             result.win32ErrorCode = ERROR_NOT_FOUND;
@@ -98,25 +104,23 @@ namespace wpcc
             return result;
         }
 
-        if (processIt->accessStatus == "Access denied")
-        {
-            result.message = "Access denied. Administrator permissions may be required.";
-            result.win32ErrorCode = ERROR_ACCESS_DENIED;
-            return result;
-        }
-
-        if (processIt->accessStatus != "Accessible")
-        {
-            result.message = "This process is not accessible.";
-            return result;
-        }
-
         UniqueHandle processHandle(OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
         if (!processHandle.IsValid())
         {
             const DWORD errorCode = GetLastError();
             result.win32ErrorCode = errorCode;
-            result.message = errorCode == ERROR_ACCESS_DENIED ? "Access denied. Administrator permissions may be required." : FormatWin32Error(errorCode);
+            if (errorCode == ERROR_ACCESS_DENIED)
+            {
+                result.message = "Access denied. Administrator permissions may be required.";
+            }
+            else if (errorCode == ERROR_INVALID_PARAMETER || errorCode == ERROR_NOT_FOUND)
+            {
+                result.message = "The process is no longer running.";
+            }
+            else
+            {
+                result.message = FormatWin32Error(errorCode);
+            }
             return result;
         }
 
@@ -144,6 +148,18 @@ namespace wpcc
             return result;
         }
 
+        if (pid == 4)
+        {
+            result.message = "Protected or system processes cannot be modified.";
+            return result;
+        }
+
+        if (pid == GetCurrentProcessId())
+        {
+            result.message = "Changing this application's own CPU affinity is blocked.";
+            return result;
+        }
+
         if (affinityMask == 0)
         {
             result.message = "CPU affinity mask must not be zero.";
@@ -162,7 +178,18 @@ namespace wpcc
         {
             const DWORD errorCode = GetLastError();
             result.win32ErrorCode = errorCode;
-            result.message = errorCode == ERROR_ACCESS_DENIED ? "Access denied. Administrator permissions may be required." : FormatWin32Error(errorCode);
+            if (errorCode == ERROR_ACCESS_DENIED)
+            {
+                result.message = "Access denied. Administrator permissions may be required.";
+            }
+            else if (errorCode == ERROR_INVALID_PARAMETER || errorCode == ERROR_NOT_FOUND)
+            {
+                result.message = "The process is no longer running.";
+            }
+            else
+            {
+                result.message = FormatWin32Error(errorCode);
+            }
             return result;
         }
 

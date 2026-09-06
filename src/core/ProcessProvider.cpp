@@ -190,6 +190,17 @@ namespace
         return WideToUtf8(std::wstring_view(pathBuffer.data(), size));
     }
 
+    std::string ExecutableNameFromPath(std::string_view executablePath)
+    {
+        const size_t separator = executablePath.find_last_of("\\/");
+        if (separator == std::string_view::npos)
+        {
+            return std::string(executablePath);
+        }
+
+        return std::string(executablePath.substr(separator + 1));
+    }
+
     std::string ClassifyOpenProcessFailure(DWORD errorCode, bool systemLikeProcess)
     {
         if (systemLikeProcess)
@@ -500,8 +511,11 @@ namespace wpcc
         }
         if (process.name.empty())
         {
+            process.name = ExecutableNameFromPath(process.executablePath);
+        }
+        if (process.name.empty())
+        {
             process.name = "Unknown";
-            process.accessStatus = "Limited access";
         }
 
         const DWORD priorityClass = GetPriorityClass(processHandle.Get());

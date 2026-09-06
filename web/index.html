@@ -637,7 +637,16 @@
                     </div>
 
                     <div class="form-group">
-                      <label for="profileRunningProcessPicker">Select running process</label>
+                      <div class="profile-process-picker-heading">
+                        <label for="profileRunningProcessPicker">Select running process</label>
+                        <label class="profile-process-visibility-toggle">
+                          <span>Show system processes</span>
+                          <span class="switch-control">
+                            <input id="profileShowSystemProcessesToggle" type="checkbox">
+                            <span class="switch-track"><span class="switch-thumb"></span></span>
+                          </span>
+                        </label>
+                      </div>
                       <select id="profileRunningProcessPicker" class="setting-select">
                         <option value="">-- Select a running process --</option>
                       </select>
@@ -655,7 +664,10 @@
 
                     <div class="form-group" id="exePathGroup">
                       <label for="profileExePath">Target executable path (preferred)</label>
-                      <input type="text" id="profileExePath" placeholder="e.g. C:\Games\HeavyGame.exe">
+                      <div class="profile-executable-picker-row">
+                        <input type="text" id="profileExePath" placeholder="e.g. C:\Games\HeavyGame.exe">
+                        <button id="profileChooseExecutableButton" class="secondary-button" type="button">Choose executable...</button>
+                      </div>
                     </div>
 
                     <div class="form-group" id="processNameGroup">

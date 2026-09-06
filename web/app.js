@@ -254,8 +254,10 @@ const elements = {
   profileForm: document.getElementById("profileForm"),
   profileName: document.getElementById("profileName"),
   profileRunningProcessPicker: document.getElementById("profileRunningProcessPicker"),
+  profileShowSystemProcessesToggle: document.getElementById("profileShowSystemProcessesToggle"),
   profileMatchMode: document.getElementById("profileMatchMode"),
   profileExePath: document.getElementById("profileExePath"),
+  profileChooseExecutableButton: document.getElementById("profileChooseExecutableButton"),
   profileProcessName: document.getElementById("profileProcessName"),
   exePathGroup: document.getElementById("exePathGroup"),
   processNameGroup: document.getElementById("processNameGroup"),
@@ -520,12 +522,13 @@ function openProfileModal(profileId = null) {
   elements.profileAutoApply.checked = prof ? Boolean(prof.autoApply) : false;
   elements.profileNotes.value = prof ? prof.notes : "";
   elements.profileRealtimeCheckbox.checked = prof ? prof.allowRealtime : false;
+  elements.profileShowSystemProcessesToggle.checked = false;
 
   if (elements.profileDeleteButton) {
     elements.profileDeleteButton.classList.toggle("hidden", !profileId);
   }
 
-  populateRunningProcessPicker();
+  populateRunningProcessPicker({ preserveSelection: false });
 
   updateMatchModeUi();
   updateCpuRealtimeUi();
@@ -558,10 +561,9 @@ function resetProfileForm() {
     elements.profileAutoApply.checked = false;
     elements.profileNotes.value = "";
     elements.profileRealtimeCheckbox.checked = false;
+    elements.profileShowSystemProcessesToggle.checked = false;
 
-    if (elements.profileRunningProcessPicker) {
-      elements.profileRunningProcessPicker.selectedIndex = 0;
-    }
+    populateRunningProcessPicker({ preserveSelection: false });
 
     updateMatchModeUi();
     updateCpuRealtimeUi();
@@ -1055,6 +1057,16 @@ function handleHostMessage(event) {
   const message = event.data;
   if (!message || typeof message.type !== "string") {
     showError("Received an invalid backend message.");
+    return;
+  }
+
+  if (message.type === "executableChosen") {
+    if (message.success === true && typeof message.path === "string" && message.path) {
+      elements.profileExePath.value = message.path;
+    } else if (message.cancelled !== true) {
+      showError("Unable to open the executable picker.");
+    }
+    elements.profileChooseExecutableButton?.focus();
     return;
   }
 
@@ -3426,16 +3438,8 @@ function renderActionResult(container, pid, action = "setCpuPriority") {
 }
 
 function getPriorityUnavailableReason(process) {
-  if (process.pid === 0 || process.name === "System" || process.accessStatus === "Protected/System") {
+  if (process.pid === 0 || process.pid === 4 || process.name === "System" || process.accessStatus === "Protected/System") {
     return "Protected/system process cannot be modified.";
-  }
-
-  if (process.accessStatus === "Access denied") {
-    return "This process is not accessible. Administrator permissions may be required.";
-  }
-
-  if (process.accessStatus !== "Accessible") {
-    return "This process is not accessible.";
   }
 
   return "";
@@ -3919,28 +3923,18 @@ bindUi(elements.closeDetailsButton, "click", () => {
   render();
 }, "closeDetailsButton");
 
-function populateRunningProcessPicker() {
+function populateRunningProcessPicker({ preserveSelection = true } = {}) {
   const picker = elements.profileRunningProcessPicker;
   if (!picker) return;
 
+  const selectedValue = picker.value;
+  const showSystemProcesses = elements.profileShowSystemProcessesToggle?.checked === true;
   picker.innerHTML = "";
 
   const defaultOpt = document.createElement("option");
   defaultOpt.value = "";
   defaultOpt.textContent = "-- Select a running process --";
   picker.appendChild(defaultOpt);
-
-  const excludedNames = new Set([
-    "smss.exe",
-    "wininit.exe",
-    "spoolsv.exe",
-    "searchindexer.exe",
-    "rtkauduservice64.exe",
-    "securityhealthservice.exe",
-    "sendevsvc.exe",
-    "wmiprvse.exe",
-    "wudfhost.exe"
-  ]);
 
   const uniqueProcesses = [];
   const seenPaths = new Set();
@@ -3949,19 +3943,8 @@ function populateRunningProcessPicker() {
   for (const proc of state.processes) {
     if (!proc.name) continue;
 
-    // Filter rules
     const nameLower = proc.name.toLowerCase();
-    if (proc.pid <= 4) continue;
-    if (proc.accessStatus === "Protected/System" || proc.accessStatus === "Access denied") continue;
-    if (excludedNames.has(nameLower)) continue;
-
-    const pathNormalized = (proc.path || "").toLowerCase().replace(/\\/g, "/");
-    if (pathNormalized.includes("system32") ||
-        pathNormalized.includes("systemapps") ||
-        pathNormalized.includes("syswow64") ||
-        pathNormalized.includes("wbem")) {
-      continue;
-    }
+    if (!showSystemProcesses && isLikelySystemProcess(proc)) continue;
 
     const pathKey = proc.path ? proc.path.toLowerCase() : "";
 
@@ -3989,6 +3972,10 @@ function populateRunningProcessPicker() {
     opt.value = JSON.stringify({ path: proc.path || "", name: proc.name || "" });
     opt.textContent = proc.name + (proc.path ? ` (${proc.path})` : "");
     picker.appendChild(opt);
+  }
+
+  if (selectedValue && Array.from(picker.options).some((option) => option.value === selectedValue)) {
+    picker.value = selectedValue;
   }
 }
 
@@ -4031,7 +4018,16 @@ function ensureProfileModalDom() {
         </div>
 
         <div class="form-group">
-          <label for="profileRunningProcessPicker">Select running process</label>
+          <div class="profile-process-picker-heading">
+            <label for="profileRunningProcessPicker">Select running process</label>
+            <label class="profile-process-visibility-toggle">
+              <span>Show system processes</span>
+              <span class="switch-control">
+                <input id="profileShowSystemProcessesToggle" type="checkbox">
+                <span class="switch-track"><span class="switch-thumb"></span></span>
+              </span>
+            </label>
+          </div>
           <select id="profileRunningProcessPicker" class="setting-select">
             <option value="">-- Select a running process --</option>
           </select>
@@ -4049,7 +4045,10 @@ function ensureProfileModalDom() {
 
         <div class="form-group" id="exePathGroup">
           <label for="profileExePath">Target executable path (preferred)</label>
-          <input type="text" id="profileExePath" placeholder="e.g. C:\\Games\\HeavyGame.exe">
+          <div class="profile-executable-picker-row">
+            <input type="text" id="profileExePath" placeholder="e.g. C:\\Games\\HeavyGame.exe">
+            <button id="profileChooseExecutableButton" class="secondary-button" type="button">Choose executable...</button>
+          </div>
         </div>
 
         <div class="form-group" id="processNameGroup">
@@ -4142,8 +4141,10 @@ function ensureProfileModalDom() {
   elements.profileForm = document.getElementById("profileForm");
   elements.profileName = document.getElementById("profileName");
   elements.profileRunningProcessPicker = document.getElementById("profileRunningProcessPicker");
+  elements.profileShowSystemProcessesToggle = document.getElementById("profileShowSystemProcessesToggle");
   elements.profileMatchMode = document.getElementById("profileMatchMode");
   elements.profileExePath = document.getElementById("profileExePath");
+  elements.profileChooseExecutableButton = document.getElementById("profileChooseExecutableButton");
   elements.profileProcessName = document.getElementById("profileProcessName");
   elements.exePathGroup = document.getElementById("exePathGroup");
   elements.processNameGroup = document.getElementById("processNameGroup");
@@ -4180,6 +4181,8 @@ bindUi(elements.profileRunningProcessPicker, "change", (event) => {
     console.error("Failed to parse process picker value", e);
   }
 }, "profileRunningProcessPicker");
+bindUi(elements.profileShowSystemProcessesToggle, "change", () => populateRunningProcessPicker(), "profileShowSystemProcessesToggle");
+bindUi(elements.profileChooseExecutableButton, "click", () => postToHost({ type: "chooseExecutable" }), "profileChooseExecutableButton");
 bindUi(elements.profileMatchMode, "change", updateMatchModeUi, "profileMatchMode");
 bindUi(elements.profileCpuPriority, "change", updateCpuRealtimeUi, "profileCpuPriority");
 bindUi(elements.profileRealtimeCheckbox, "change", updateCpuRealtimeUi, "profileRealtimeCheckbox");

@@ -1099,7 +1099,7 @@ namespace wpcc
             FILEOPENDIALOGOPTIONS options;
             if (SUCCEEDED(fileDialog->GetOptions(&options)))
             {
-                options |= FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR;
+                options |= FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR | FOS_FORCEFILESYSTEM;
                 fileDialog->SetOptions(options);
             }
 
@@ -1136,7 +1136,6 @@ namespace wpcc
             }
             else
             {
-                cancelled = true;
                 AppLog(L"Picker failed: " + HResultToMessage(hr));
             }
         }
@@ -1161,7 +1160,6 @@ namespace wpcc
             }
             else
             {
-                cancelled = true;
                 const DWORD err = CommDlgExtendedError();
                 if (err == 0)
                 {

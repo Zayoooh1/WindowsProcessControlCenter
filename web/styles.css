@@ -2520,6 +2520,47 @@ body.reduced-motion *::after {
   color: var(--muted);
 }
 
+#profileForm .profile-process-picker-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#profileForm .profile-process-picker-heading > label {
+  margin-bottom: 6px;
+}
+
+#profileForm .profile-process-visibility-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#profileForm .profile-process-visibility-toggle > span:first-child {
+  font-size: 12px;
+}
+
+#profileForm .profile-executable-picker-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+#profileForm .profile-executable-picker-row input[type="text"] {
+  flex: 1 1 260px;
+  min-width: 0;
+  width: auto;
+}
+
+#profileForm #profileChooseExecutableButton {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 #profileForm input[type="text"],
 #profileForm textarea,
 #profileForm select {
