@@ -7,6 +7,7 @@ const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
   compactProcessTable: false,
   showExecutablePathColumn: true,
+  showSystemProcesses: false,
   showSafetyNotes: true,
   reduceVisualEffects: false,
   confirmDestructiveActions: true,
@@ -24,6 +25,24 @@ const DEFAULT_SETTINGS = {
 const VALID_AUTO_REFRESH_INTERVALS = ["off", "5s", "15s", "30s", "60s"];
 const SYSTEM_METRICS_INTERVAL_MS = 2000;
 const SYSTEM_METRICS_HISTORY_LIMIT = 30;
+const KNOWN_WINDOWS_SYSTEM_PROCESS_NAMES = new Set([
+  "system idle process",
+  "idle",
+  "system",
+  "registry",
+  "memory compression",
+  "smss.exe",
+  "csrss.exe",
+  "wininit.exe",
+  "winlogon.exe",
+  "services.exe",
+  "lsass.exe",
+  "svchost.exe",
+  "fontdrvhost.exe",
+  "dwm.exe",
+  "sihost.exe",
+  "taskhostw.exe",
+]);
 const BINARY_MEMORY_UNITS = [
   { divisor: 1024n ** 4n, label: "TB" },
   { divisor: 1024n ** 3n, label: "GB" },
@@ -159,6 +178,8 @@ const elements = {
   compactTableToggle: document.getElementById("compactTableToggle"),
   showPathToggle: document.getElementById("showPathToggle"),
   showPidToggle: document.getElementById("showPidToggle"),
+  settingsShowSystemProcessesToggle: document.getElementById("settingsShowSystemProcessesToggle"),
+  processesShowSystemProcessesToggle: document.getElementById("processesShowSystemProcessesToggle"),
   startWithWindowsToggle: document.getElementById("startWithWindowsToggle"),
   minimizeToTrayToggle: document.getElementById("minimizeToTrayToggle"),
   showSafetyNotesToggle: document.getElementById("showSafetyNotesToggle"),
@@ -247,6 +268,7 @@ function normalizeSettings(value) {
     compactProcessTable: Boolean(source.compactProcessTable),
     showExecutablePathColumn: source.showExecutablePathColumn !== false,
     showPidColumn: source.showPidColumn !== false,
+    showSystemProcesses: Boolean(source.showSystemProcesses),
     showSafetyNotes: source.showSafetyNotes !== false,
     reduceVisualEffects: Boolean(source.reduceVisualEffects),
     confirmDestructiveActions: true,
@@ -1114,6 +1136,7 @@ function handleHostMessage(event) {
     state.pendingProcessDetails.delete(message.pid);
     const process = state.processes.find((item) => item.pid === message.pid);
     if (!process) return;
+    const wasLikelySystemProcess = isLikelySystemProcess(process);
     const details = { ...message.details };
     if (confirmedAffinity && detailsRequestVersion <= confirmedAffinityRequestVersion) {
       Object.assign(details, confirmedAffinity);
@@ -1123,6 +1146,12 @@ function handleHostMessage(event) {
     }
     state.processDetailsCache.set(message.pid, { details, snapshotVersion: state.snapshotVersion });
     Object.assign(process, details, { detailsLoaded: true });
+    if (!state.settings.showSystemProcesses && wasLikelySystemProcess !== isLikelySystemProcess(process)) {
+      clearTimeout(visibleDetailsHydrationTimer);
+      visibleDetailsHydrationTimer = null;
+      applyFilter({ hydrateVisibleDetails: false });
+      return;
+    }
     updateVisibleProcessRow(message.pid);
     if (message.pid === state.selectedPid) {
       initializeAffinityDraft(process);
@@ -1360,16 +1389,33 @@ function handleHostMessage(event) {
   }
 }
 
-function applyFilter() {
+function isLikelySystemProcess(process) {
+  const normalizedName = String(process?.name ?? "").trim().toLowerCase();
+  if (KNOWN_WINDOWS_SYSTEM_PROCESS_NAMES.has(normalizedName)) return true;
+
+  let normalizedPath = String(process?.path ?? "").trim().replaceAll("/", "\\").toLowerCase();
+  if (normalizedPath.startsWith("\\\\?\\")) normalizedPath = normalizedPath.slice(4);
+  return /^[a-z]:\\windows(?:\\|$)/.test(normalizedPath);
+}
+
+function syncSystemProcessVisibilityToggles() {
+  const checked = state.settings.showSystemProcesses === true;
+  elements.settingsShowSystemProcessesToggle.checked = checked;
+  elements.processesShowSystemProcessesToggle.checked = checked;
+}
+
+function applyFilter({ hydrateVisibleDetails = true } = {}) {
+  syncSystemProcessVisibilityToggles();
   const query = state.query.trim().toLowerCase();
-  state.filtered = query
-    ? state.processes.filter((process) => {
-        const pid = String(process.pid ?? "");
-        const name = String(process.name ?? "").toLowerCase();
-        const path = String(process.path ?? "").toLowerCase();
-        return pid.includes(query) || name.includes(query) || path.includes(query);
-      })
-    : [...state.processes];
+  state.filtered = state.processes.filter((process) => {
+    if (!state.settings.showSystemProcesses && isLikelySystemProcess(process)) return false;
+    if (!query) return true;
+
+    const pid = String(process.pid ?? "");
+    const name = String(process.name ?? "").toLowerCase();
+    const path = String(process.path ?? "").toLowerCase();
+    return pid.includes(query) || name.includes(query) || path.includes(query);
+  });
 
   if (!state.sortColumn || state.sortDirection === "none") {
     const favoriteProcesses = [];
@@ -1428,7 +1474,7 @@ function applyFilter() {
 
   updateHeaderIndicators();
   renderDashboard();
-  renderRows({ force: true });
+  renderRows({ force: true, hydrateVisibleDetails });
   renderDetails();
   elements.processCount.textContent = `${state.processes.length} processes`;
   elements.snapshotSummary.textContent = `${state.filtered.length} shown from ${state.processes.length} active processes`;
@@ -1503,6 +1549,10 @@ function updateSetting(key, value) {
     [key]: value,
   });
   saveSettings();
+  if (key === "showSystemProcesses") {
+    applyFilter();
+    return;
+  }
   render();
 }
 
@@ -1516,6 +1566,7 @@ function renderSettings() {
   elements.compactTableToggle.checked = state.settings.compactProcessTable;
   elements.showPathToggle.checked = state.settings.showExecutablePathColumn;
   elements.showPidToggle.checked = state.settings.showPidColumn;
+  syncSystemProcessVisibilityToggles();
   elements.showSafetyNotesToggle.checked = state.settings.showSafetyNotes;
   elements.reduceEffectsToggle.checked = state.settings.reduceVisualEffects;
   elements.confirmDestructiveToggle.checked = true;
@@ -2195,7 +2246,7 @@ function actionLabel(action) {
   return labels[action] || action || "Unknown action";
 }
 
-function renderRows({ force = false, allowPoolTrim = false } = {}) {
+function renderRows({ force = false, allowPoolTrim = false, hydrateVisibleDetails = true } = {}) {
   ensureVirtualRowsStructure();
 
   if (state.filtered.length === 0) {
@@ -2205,7 +2256,7 @@ function renderRows({ force = false, allowPoolTrim = false } = {}) {
     virtualRows.emptyRow.hidden = false;
     virtualRows.emptyRow.firstElementChild.textContent = state.processes.length === 0
       ? "No process snapshot loaded."
-      : "No processes match the current search.";
+      : "No processes match the current filters.";
     virtualRows.lastStartIndex = -1;
     virtualRows.lastEndIndex = -1;
     virtualRows.lastRowHeight = 0;
@@ -2246,7 +2297,7 @@ function renderRows({ force = false, allowPoolTrim = false } = {}) {
   virtualRows.lastEndIndex = endIndex;
   virtualRows.lastRowHeight = rowHeight;
   virtualRows.lastFiltered = state.filtered;
-  scheduleVisibleProcessDetailsHydration();
+  if (hydrateVisibleDetails) scheduleVisibleProcessDetailsHydration();
 }
 
 function ensureVirtualRowsStructure() {
@@ -3770,6 +3821,9 @@ bindUi(elements.minimizeToTrayToggle, "change", (event) => updateSetting("minimi
 bindUi(elements.compactTableToggle, "change", (event) => updateSetting("compactProcessTable", event.target.checked), "compactTableToggle");
 bindUi(elements.showPathToggle, "change", (event) => updateSetting("showExecutablePathColumn", event.target.checked), "showPathToggle");
 bindUi(elements.showPidToggle, "change", (event) => updateSetting("showPidColumn", event.target.checked), "showPidToggle");
+bindUi(elements.settingsShowSystemProcessesToggle, "change", (event) => {
+  updateSetting("showSystemProcesses", event.target.checked);
+}, "settingsShowSystemProcessesToggle");
 bindUi(elements.showSafetyNotesToggle, "change", (event) => updateSetting("showSafetyNotes", event.target.checked), "showSafetyNotesToggle");
 bindUi(elements.reduceEffectsToggle, "change", (event) => updateSetting("reduceVisualEffects", event.target.checked), "reduceEffectsToggle");
 bindUi(elements.confirmDestructiveToggle, "change", () => renderSettings(), "confirmDestructiveToggle");
@@ -3820,6 +3874,9 @@ bindUi(elements.searchInput, "input", (event) => {
   state.query = event.target.value;
   applyFilter();
 }, "searchInput");
+bindUi(elements.processesShowSystemProcessesToggle, "change", (event) => {
+  updateSetting("showSystemProcesses", event.target.checked);
+}, "processesShowSystemProcessesToggle");
 bindUi(elements.toggleDetailsBtn, "click", () => {
   state.detailsPanelOpen = !state.detailsPanelOpen;
   render();

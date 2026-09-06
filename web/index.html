@@ -130,10 +130,19 @@
               </button>
             </div>
 
-            <label class="search-box" aria-label="Search processes">
-              <span>Search</span>
-              <input id="searchInput" type="search" placeholder="Process, PID, or executable path" autocomplete="off">
-            </label>
+            <div class="process-list-controls">
+              <label class="search-box" aria-label="Search processes">
+                <span>Search</span>
+                <input id="searchInput" type="search" placeholder="Process, PID, or executable path" autocomplete="off">
+              </label>
+              <label class="process-system-toggle">
+                <span>Show system processes</span>
+                <span class="switch-control">
+                  <input id="processesShowSystemProcessesToggle" type="checkbox">
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                </span>
+              </label>
+            </div>
 
             <div class="table-wrap">
               <table>
@@ -330,6 +339,17 @@
                 </div>
                 <label class="switch-control">
                   <input id="showPidToggle" type="checkbox">
+                  <span class="switch-track"><span class="switch-thumb"></span></span>
+                </label>
+              </article>
+
+              <article class="panel setting-card">
+                <div class="setting-copy">
+                  <h3>Show Windows &amp; system processes</h3>
+                  <p>Include Windows services, system components, and background processes in the process list.</p>
+                </div>
+                <label class="switch-control">
+                  <input id="settingsShowSystemProcessesToggle" type="checkbox">
                   <span class="switch-track"><span class="switch-thumb"></span></span>
                 </label>
               </article>
