@@ -12,7 +12,7 @@ if (-not $Version -and (Test-Path $versionFile)) {
 }
 
 if (-not $Version) {
-    $Version = "0.1.4" # Fallback
+    $Version = "0.1.12" # Fallback
 }
 
 # Parse version (supporting X.Y.Z or X.Y.Z.W)
