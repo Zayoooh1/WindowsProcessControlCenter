@@ -205,6 +205,16 @@
                   data-autoruns-label="Services" aria-pressed="false">Services (0)</button>
                 <button class="autoruns-category" type="button" data-autoruns-category="driver"
                   data-autoruns-label="Drivers" aria-pressed="false">Drivers (0)</button>
+                <button class="autoruns-category" type="button" data-autoruns-category="explorer"
+                  data-autoruns-label="Explorer" aria-pressed="false">Explorer (0)</button>
+                <button class="autoruns-category" type="button" data-autoruns-category="winlogon"
+                  data-autoruns-label="Winlogon" aria-pressed="false">Winlogon (0)</button>
+                <button class="autoruns-category" type="button" data-autoruns-category="appInit"
+                  data-autoruns-label="AppInit" aria-pressed="false">AppInit (0)</button>
+                <button class="autoruns-category" type="button" data-autoruns-category="imageHijack"
+                  data-autoruns-label="Image Hijacks" aria-pressed="false">Image Hijacks (0)</button>
+                <button class="autoruns-category" type="button" data-autoruns-category="knownDll"
+                  data-autoruns-label="Known DLLs" aria-pressed="false">Known DLLs (0)</button>
               </div>
               <span id="autorunsCount" class="count">0 entries</span>
             </div>
@@ -225,6 +235,7 @@
                     <th class="autoruns-entry-column"><button type="button" data-autoruns-sort="entryName">Entry</button></th>
                     <th class="autoruns-publisher-column"><button type="button" data-autoruns-sort="publisher">Publisher</button></th>
                     <th class="autoruns-image-column"><button type="button" data-autoruns-sort="imagePath">Image Path</button></th>
+                    <th class="autoruns-command-column"><button type="button" data-autoruns-sort="command">Command / CLSID</button></th>
                     <th class="autoruns-location-column"><button type="button" data-autoruns-sort="location">Location</button></th>
                     <th class="autoruns-user-column"><button type="button" data-autoruns-sort="user">User</button></th>
                     <th class="autoruns-status-column"><button type="button" data-autoruns-sort="status">Status</button></th>
@@ -232,7 +243,7 @@
                 </thead>
                 <tbody id="autorunsRows">
                   <tr>
-                    <td colspan="7" class="empty-cell">Open Autoruns to load startup entries.</td>
+                    <td colspan="8" class="empty-cell">Open Autoruns to load startup entries.</td>
                   </tr>
                 </tbody>
               </table>

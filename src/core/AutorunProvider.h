@@ -14,6 +14,11 @@ namespace wpcc
         ScheduledTask,
         Service,
         Driver,
+        Explorer,
+        Winlogon,
+        AppInit,
+        ImageHijack,
+        KnownDll,
     };
 
     enum class AutorunSourceType

@@ -257,15 +257,35 @@ namespace
 
     void AppendWarning(std::wstring& target, std::wstring_view warning)
     {
-        if (warning.empty())
+        const std::wstring normalizedWarning = Trim(std::wstring(warning));
+        if (normalizedWarning.empty())
         {
             return;
         }
+
+        size_t start = 0;
+        while (start < target.size())
+        {
+            const size_t separator = target.find(L" \u2022 ", start);
+            const std::wstring_view existing = separator == std::wstring::npos
+                ? std::wstring_view(target).substr(start)
+                : std::wstring_view(target).substr(start, separator - start);
+            if (existing == normalizedWarning)
+            {
+                return;
+            }
+            if (separator == std::wstring::npos)
+            {
+                break;
+            }
+            start = separator + 3;
+        }
+
         if (!target.empty())
         {
-            target += L" ";
+            target += L" \u2022 ";
         }
-        target += warning;
+        target += normalizedWarning;
     }
 
     bool Is64BitWindows()
@@ -370,7 +390,7 @@ namespace
         {
             const std::wstring lower = ToLower(command);
             size_t executableEnd = std::wstring::npos;
-            for (const std::wstring_view extension : {L".exe", L".com", L".bat", L".cmd", L".sys"})
+            for (const std::wstring_view extension : {L".exe", L".com", L".bat", L".cmd", L".sys", L".dll", L".ocx"})
             {
                 size_t searchAt = 0;
                 while (searchAt < lower.size())
@@ -946,6 +966,612 @@ namespace
         }
     }
 
+    std::wstring RegistryValueDisplay(DWORD valueType, const std::vector<unsigned char>& valueData)
+    {
+        if (valueType == REG_SZ || valueType == REG_EXPAND_SZ)
+        {
+            return RegistryString(valueData);
+        }
+        if (valueType == REG_MULTI_SZ)
+        {
+            const size_t characterCount = valueData.size() / sizeof(wchar_t);
+            std::wstring multiValue(characterCount, L'\0');
+            if (!multiValue.empty())
+            {
+                std::memcpy(multiValue.data(), valueData.data(), multiValue.size() * sizeof(wchar_t));
+            }
+            std::wstring result;
+            for (size_t offset = 0; offset < characterCount;)
+            {
+                const size_t remaining = characterCount - offset;
+                size_t length = 0;
+                while (length < remaining && multiValue[offset + length] != L'\0')
+                {
+                    ++length;
+                }
+                if (length == 0 || length >= remaining)
+                {
+                    break;
+                }
+                if (!result.empty())
+                {
+                    result += L"; ";
+                }
+                result.append(multiValue, offset, length);
+                offset += length + 1;
+            }
+            return result;
+        }
+        if (valueType == REG_DWORD && valueData.size() >= sizeof(DWORD))
+        {
+            DWORD value = 0;
+            std::memcpy(&value, valueData.data(), sizeof(value));
+            std::wostringstream stream;
+            stream << L"0x" << std::hex << std::uppercase << value;
+            return stream.str();
+        }
+        return L"(non-string registry data)";
+    }
+
+    std::wstring ResolveRegistryImagePath(std::wstring_view value)
+    {
+        const ParsedImage parsed = ParseCommandImage(value);
+        if (!parsed.path.empty())
+        {
+            return parsed.path;
+        }
+        return {};
+    }
+
+    void AddReadOnlyRegistryEntry(
+        wpcc::AutorunCategory category,
+        bool currentUser,
+        std::wstring_view keyPath,
+        REGSAM view,
+        std::wstring_view viewLabel,
+        std::wstring_view valueName,
+        DWORD valueType,
+        const std::vector<unsigned char>& valueData,
+        std::wstring entryName,
+        std::wstring command,
+        std::wstring imagePath,
+        std::wstring statusDetail,
+        std::wstring readOnlyReason,
+        std::vector<wpcc::AutorunEntry>& entries)
+    {
+        wpcc::AutorunEntry entry;
+        entry.category = category;
+        entry.sourceType = wpcc::AutorunSourceType::RegistryValue;
+        entry.entryName = std::move(entryName);
+        entry.command = std::move(command);
+        entry.imagePath = std::move(imagePath);
+        entry.location = RegistryLocationLabel(currentUser, keyPath, viewLabel);
+        entry.user = currentUser ? CurrentUserLabel() : L"All users";
+        entry.status = statusDetail.empty() ? L"Read-only" : L"Read-only: " + std::move(statusDetail);
+        entry.enabled = true;
+        entry.enabledKnown = true;
+        entry.canSetEnabled = false;
+        entry.requiresElevation = !currentUser;
+        entry.readOnlyReason = std::move(readOnlyReason);
+        entry.registryCurrentUser = currentUser;
+        entry.registryView = view;
+        entry.registryKeyPath = keyPath;
+        entry.registryValueName = valueName;
+        entry.registryValueType = valueType;
+        entry.registryValueData = valueData;
+        entry.id = StableId("reg", RegistrySourceIdentity(currentUser, view, keyPath, valueName));
+        entries.push_back(std::move(entry));
+    }
+
+    bool TryReadRegistryValue(
+        bool currentUser,
+        std::wstring_view keyPath,
+        REGSAM view,
+        std::wstring_view valueName,
+        DWORD& valueType,
+        std::vector<unsigned char>& valueData)
+    {
+        RegistryKey key;
+        const HKEY root = currentUser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE;
+        if (RegOpenKeyExW(root, std::wstring(keyPath).c_str(), 0, KEY_QUERY_VALUE | view, key.Put()) != ERROR_SUCCESS)
+        {
+            return false;
+        }
+        return QueryRegistryValue(key.Get(), valueName, valueType, valueData) == ERROR_SUCCESS;
+    }
+
+    bool LooksLikeClsid(std::wstring_view value)
+    {
+        const std::wstring trimmed = Trim(std::wstring(value));
+        return trimmed.size() > 2 && trimmed.front() == L'{' && trimmed.back() == L'}';
+    }
+
+    std::wstring ResolveClsidServerImage(REGSAM view, std::wstring_view clsid)
+    {
+        if (!LooksLikeClsid(clsid))
+        {
+            return {};
+        }
+
+        const std::wstring classPath = L"Software\\Classes\\CLSID\\" + Trim(std::wstring(clsid));
+        for (const bool currentUser : {true, false})
+        {
+            for (const std::wstring_view serverKey : {L"InprocServer32", L"LocalServer32"})
+            {
+                DWORD valueType = 0;
+                std::vector<unsigned char> valueData;
+                const std::wstring keyPath = classPath + L"\\" + std::wstring(serverKey);
+                if (!TryReadRegistryValue(currentUser, keyPath, view, L"", valueType, valueData) ||
+                    (valueType != REG_SZ && valueType != REG_EXPAND_SZ))
+                {
+                    continue;
+                }
+
+                const std::wstring server = RegistryString(valueData);
+                const std::wstring imagePath = ResolveRegistryImagePath(server);
+                return imagePath.empty() ? Trim(ExpandEnvironment(server)) : imagePath;
+            }
+        }
+        return {};
+    }
+
+    void EnumerateExplorerApproved(
+        bool currentUser,
+        REGSAM view,
+        std::wstring_view viewLabel,
+        std::vector<wpcc::AutorunEntry>& entries,
+        std::wstring& warning)
+    {
+        constexpr wchar_t ApprovedKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Shell Extensions\\Approved";
+        RegistryKey key;
+        const HKEY root = currentUser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE;
+        const LSTATUS openStatus = RegOpenKeyExW(root, ApprovedKey, 0, KEY_QUERY_VALUE | view, key.Put());
+        if (openStatus == ERROR_FILE_NOT_FOUND)
+        {
+            return;
+        }
+        if (openStatus != ERROR_SUCCESS)
+        {
+            AppendWarning(warning, L"An Explorer Shell Extensions Approved location could not be read.");
+            return;
+        }
+
+        DWORD valueCount = 0;
+        DWORD maximumNameLength = 0;
+        DWORD maximumDataLength = 0;
+        if (RegQueryInfoKeyW(key.Get(), nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                &valueCount, &maximumNameLength, &maximumDataLength, nullptr, nullptr) != ERROR_SUCCESS)
+        {
+            AppendWarning(warning, L"An Explorer Shell Extensions Approved location could not be enumerated.");
+            return;
+        }
+
+        for (DWORD index = 0; index < valueCount; ++index)
+        {
+            std::wstring valueName(static_cast<size_t>(maximumNameLength) + 1, L'\0');
+            std::vector<unsigned char> valueData(std::max<DWORD>(maximumDataLength, 1));
+            DWORD nameLength = static_cast<DWORD>(valueName.size());
+            DWORD dataLength = static_cast<DWORD>(valueData.size());
+            DWORD valueType = 0;
+            if (RegEnumValueW(key.Get(), index, valueName.data(), &nameLength, nullptr, &valueType,
+                    valueData.data(), &dataLength) != ERROR_SUCCESS)
+            {
+                continue;
+            }
+            valueName.resize(nameLength);
+            valueData.resize(dataLength);
+            const std::wstring displayName = RegistryValueDisplay(valueType, valueData);
+            const std::wstring imagePath = ResolveClsidServerImage(view, valueName);
+            const std::wstring entryName = displayName.empty() || displayName == valueName ? valueName :
+                displayName + L" (" + valueName + L")";
+            AddReadOnlyRegistryEntry(
+                wpcc::AutorunCategory::Explorer, currentUser, ApprovedKey, view, viewLabel, valueName,
+                valueType, valueData, entryName, valueName, imagePath,
+                imagePath.empty() ? L"CLSID server unresolved" : StatusForImage({imagePath, true}),
+                L"Explorer shell-extension registrations are displayed read-only because a safe reversible disable operation is not available.",
+                entries);
+        }
+    }
+
+    void EnumerateExplorerHandlerLocation(
+        bool currentUser,
+        std::wstring_view keyPath,
+        REGSAM view,
+        std::wstring_view viewLabel,
+        std::vector<wpcc::AutorunEntry>& entries,
+        std::wstring& warning)
+    {
+        RegistryKey key;
+        const HKEY root = currentUser ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE;
+        const LSTATUS openStatus = RegOpenKeyExW(root, std::wstring(keyPath).c_str(), 0,
+            KEY_ENUMERATE_SUB_KEYS | KEY_QUERY_VALUE | view, key.Put());
+        if (openStatus == ERROR_FILE_NOT_FOUND)
+        {
+            return;
+        }
+        if (openStatus != ERROR_SUCCESS)
+        {
+            AppendWarning(warning, L"An Explorer shell integration location could not be read.");
+            return;
+        }
+
+        DWORD subkeyCount = 0;
+        DWORD maximumSubkeyLength = 0;
+        if (RegQueryInfoKeyW(key.Get(), nullptr, nullptr, nullptr, &subkeyCount, &maximumSubkeyLength,
+                nullptr, nullptr, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
+        {
+            AppendWarning(warning, L"An Explorer shell integration location could not be enumerated.");
+            return;
+        }
+
+        for (DWORD index = 0; index < subkeyCount; ++index)
+        {
+            std::wstring subkeyName(static_cast<size_t>(maximumSubkeyLength) + 1, L'\0');
+            DWORD subkeyLength = static_cast<DWORD>(subkeyName.size());
+            if (RegEnumKeyExW(key.Get(), index, subkeyName.data(), &subkeyLength, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
+            {
+                continue;
+            }
+            subkeyName.resize(subkeyLength);
+            const std::wstring childPath = std::wstring(keyPath) + L"\\" + subkeyName;
+            DWORD valueType = 0;
+            std::vector<unsigned char> valueData;
+            const bool hasDefaultValue = TryReadRegistryValue(currentUser, childPath, view, L"", valueType, valueData);
+            const std::wstring defaultValue = hasDefaultValue ? RegistryValueDisplay(valueType, valueData) : L"";
+            const std::wstring clsid = LooksLikeClsid(defaultValue) ? defaultValue :
+                (LooksLikeClsid(subkeyName) ? subkeyName : L"");
+            const std::wstring imagePath = ResolveClsidServerImage(view, clsid);
+            const std::wstring entryName = clsid.empty() ? subkeyName : subkeyName + L" (" + clsid + L")";
+            AddReadOnlyRegistryEntry(
+                wpcc::AutorunCategory::Explorer, currentUser, childPath, view, viewLabel, L"", valueType,
+                valueData, entryName, clsid.empty() ? defaultValue : clsid, imagePath,
+                imagePath.empty() ? L"CLSID server unresolved" : StatusForImage({imagePath, true}),
+                L"Explorer shell integration is displayed read-only because safe backup and restore semantics are not available.",
+                entries);
+        }
+    }
+
+    void EnumerateWinlogonLocation(
+        bool currentUser,
+        REGSAM view,
+        std::wstring_view viewLabel,
+        std::vector<wpcc::AutorunEntry>& entries)
+    {
+        constexpr wchar_t WinlogonKey[] = L"Software\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon";
+        constexpr std::array<std::wstring_view, 5> ValueNames = {
+            L"Shell", L"Userinit", L"Taskman", L"GinaDLL", L"AppSetup"};
+        constexpr wchar_t ReadOnlyReason[] =
+            L"Winlogon values are security-sensitive and are displayed read-only to preserve their exact raw data.";
+
+        for (const std::wstring_view valueName : ValueNames)
+        {
+            DWORD valueType = 0;
+            std::vector<unsigned char> valueData;
+            if (!TryReadRegistryValue(currentUser, WinlogonKey, view, valueName, valueType, valueData))
+            {
+                continue;
+            }
+            const std::wstring command = RegistryValueDisplay(valueType, valueData);
+            const std::wstring imagePath = ResolveRegistryImagePath(command);
+            AddReadOnlyRegistryEntry(
+                wpcc::AutorunCategory::Winlogon, currentUser, WinlogonKey, view, viewLabel, valueName,
+                valueType, valueData, std::wstring(valueName), command, imagePath,
+                imagePath.empty() ? L"Configured Winlogon value" : StatusForImage({imagePath, true}),
+                ReadOnlyReason, entries);
+        }
+    }
+
+    std::vector<std::wstring> ParseAppInitDlls(std::wstring_view rawValue)
+    {
+        const std::wstring value = Trim(ExpandEnvironment(rawValue));
+        std::vector<std::wstring> entries;
+        size_t position = 0;
+        while (position < value.size())
+        {
+            while (position < value.size() &&
+                (std::iswspace(static_cast<wint_t>(value[position])) != 0 || value[position] == L';' || value[position] == L','))
+            {
+                ++position;
+            }
+            if (position >= value.size())
+            {
+                break;
+            }
+
+            if (value[position] == L'"')
+            {
+                const size_t closingQuote = value.find(L'"', position + 1);
+                if (closingQuote == std::wstring::npos)
+                {
+                    entries.push_back(Trim(value.substr(position)));
+                    break;
+                }
+                entries.push_back(Trim(value.substr(position + 1, closingQuote - position - 1)));
+                position = closingQuote + 1;
+                continue;
+            }
+
+            const std::wstring lower = ToLower(value);
+            size_t tokenEnd = std::wstring::npos;
+            for (const std::wstring_view extension : {L".dll", L".ocx"})
+            {
+                const size_t found = lower.find(extension, position);
+                if (found == std::wstring::npos)
+                {
+                    continue;
+                }
+                const size_t candidateEnd = found + extension.size();
+                if (candidateEnd == lower.size() || std::iswspace(static_cast<wint_t>(lower[candidateEnd])) != 0 ||
+                    lower[candidateEnd] == L';' || lower[candidateEnd] == L',')
+                {
+                    tokenEnd = std::min(tokenEnd, candidateEnd);
+                }
+            }
+            if (tokenEnd == std::wstring::npos)
+            {
+                entries.push_back(Trim(value.substr(position)));
+                break;
+            }
+            entries.push_back(Trim(value.substr(position, tokenEnd - position)));
+            position = tokenEnd;
+        }
+
+        entries.erase(std::remove_if(entries.begin(), entries.end(), [](const std::wstring& item) {
+            return item.empty();
+        }), entries.end());
+        return entries;
+    }
+
+    std::wstring JoinDisplayValues(const std::vector<std::wstring>& values)
+    {
+        std::wstring joined;
+        for (const std::wstring& value : values)
+        {
+            if (!joined.empty())
+            {
+                joined += L"; ";
+            }
+            joined += value;
+        }
+        return joined;
+    }
+
+    void EnumerateAppInitLocation(
+        REGSAM view,
+        std::wstring_view viewLabel,
+        std::vector<wpcc::AutorunEntry>& entries)
+    {
+        constexpr wchar_t AppInitKey[] = L"Software\\Microsoft\\Windows NT\\CurrentVersion\\Windows";
+        constexpr std::array<std::wstring_view, 3> ValueNames = {
+            L"AppInit_DLLs", L"LoadAppInit_DLLs", L"RequireSignedAppInit_DLLs"};
+        constexpr wchar_t ReadOnlyReason[] =
+            L"AppInit configuration is displayed read-only because disabling it safely requires exact multi-value backup and restore semantics.";
+
+        for (const std::wstring_view valueName : ValueNames)
+        {
+            DWORD valueType = 0;
+            std::vector<unsigned char> valueData;
+            if (!TryReadRegistryValue(false, AppInitKey, view, valueName, valueType, valueData))
+            {
+                continue;
+            }
+
+            const std::wstring command = RegistryValueDisplay(valueType, valueData);
+            std::wstring imagePath;
+            std::wstring statusDetail;
+            if (valueName == L"AppInit_DLLs")
+            {
+                const std::vector<std::wstring> dlls = ParseAppInitDlls(command);
+                imagePath = JoinDisplayValues(dlls);
+                statusDetail = command.empty() ? L"No DLLs configured" :
+                    L"Configured DLL list (" + std::to_wstring(dlls.size()) + L" entries)";
+            }
+            else
+            {
+                statusDetail = L"Configured policy value";
+            }
+
+            AddReadOnlyRegistryEntry(
+                wpcc::AutorunCategory::AppInit, false, AppInitKey, view, viewLabel, valueName,
+                valueType, valueData, std::wstring(valueName), command, imagePath, statusDetail,
+                ReadOnlyReason, entries);
+        }
+    }
+
+    void EnumerateImageHijackLocation(
+        std::wstring_view baseKeyPath,
+        std::initializer_list<std::wstring_view> valueNames,
+        REGSAM view,
+        std::wstring_view viewLabel,
+        std::vector<wpcc::AutorunEntry>& entries,
+        std::wstring& warning)
+    {
+        RegistryKey baseKey;
+        const std::wstring sourceLabel = baseKeyPath.find(L"Image File Execution Options") != std::wstring_view::npos
+            ? L"IFEO" : L"SilentProcessExit";
+        const std::wstring viewDescription = std::wstring(viewLabel) + L" view";
+        const LSTATUS openStatus = RegOpenKeyExW(HKEY_LOCAL_MACHINE, std::wstring(baseKeyPath).c_str(), 0,
+            KEY_ENUMERATE_SUB_KEYS | view, baseKey.Put());
+        if (openStatus == ERROR_FILE_NOT_FOUND)
+        {
+            return;
+        }
+        if (openStatus != ERROR_SUCCESS)
+        {
+            AppendWarning(warning, L"Image Hijacks: failed to read " + sourceLabel + L" (" + viewDescription + L").");
+            return;
+        }
+
+        DWORD subkeyCount = 0;
+        DWORD maximumSubkeyLength = 0;
+        if (RegQueryInfoKeyW(baseKey.Get(), nullptr, nullptr, nullptr, &subkeyCount, &maximumSubkeyLength,
+                nullptr, nullptr, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
+        {
+            AppendWarning(warning, L"Image Hijacks: failed to enumerate " + sourceLabel + L" (" + viewDescription + L").");
+            return;
+        }
+
+        constexpr wchar_t ReadOnlyReason[] =
+            L"Image execution options are security-sensitive and are displayed read-only until exact reversible restore semantics are available.";
+        for (DWORD index = 0; index < subkeyCount; ++index)
+        {
+            std::wstring targetName(static_cast<size_t>(maximumSubkeyLength) + 1, L'\0');
+            DWORD targetLength = static_cast<DWORD>(targetName.size());
+            if (RegEnumKeyExW(baseKey.Get(), index, targetName.data(), &targetLength, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
+            {
+                continue;
+            }
+            targetName.resize(targetLength);
+            const std::wstring targetPath = std::wstring(baseKeyPath) + L"\\" + targetName;
+            for (const std::wstring_view valueName : valueNames)
+            {
+                DWORD valueType = 0;
+                std::vector<unsigned char> valueData;
+                if (!TryReadRegistryValue(false, targetPath, view, valueName, valueType, valueData))
+                {
+                    continue;
+                }
+                const std::wstring command = RegistryValueDisplay(valueType, valueData);
+                const bool commandLike = valueName == L"Debugger" || valueName == L"MonitorProcess";
+                const std::wstring imagePath = commandLike ? ResolveRegistryImagePath(command) : L"";
+                AddReadOnlyRegistryEntry(
+                    wpcc::AutorunCategory::ImageHijack, false, targetPath, view, viewLabel, valueName,
+                    valueType, valueData, targetName + L" - " + std::wstring(valueName), command, imagePath,
+                    imagePath.empty() ? L"Configured hijack value" : StatusForImage({imagePath, true}),
+                    ReadOnlyReason, entries);
+            }
+        }
+    }
+
+    std::wstring SystemDirectoryForView(REGSAM view)
+    {
+        std::array<wchar_t, 32768> windowsDirectory{};
+        const UINT length = GetWindowsDirectoryW(windowsDirectory.data(), static_cast<UINT>(windowsDirectory.size()));
+        if (length == 0 || length >= windowsDirectory.size())
+        {
+            return {};
+        }
+        std::wstring directory(windowsDirectory.data(), length);
+        if (Is64BitWindows() && view == KEY_WOW64_32KEY)
+        {
+            return directory + L"\\SysWOW64";
+        }
+        return directory + L"\\System32";
+    }
+
+    void EnumerateKnownDllLocation(
+        std::wstring_view keyPath,
+        REGSAM view,
+        std::wstring_view viewLabel,
+        std::vector<wpcc::AutorunEntry>& entries,
+        std::wstring& warning)
+    {
+        RegistryKey key;
+        const LSTATUS openStatus = RegOpenKeyExW(HKEY_LOCAL_MACHINE, std::wstring(keyPath).c_str(), 0,
+            KEY_QUERY_VALUE | view, key.Put());
+        if (openStatus == ERROR_FILE_NOT_FOUND)
+        {
+            return;
+        }
+        if (openStatus != ERROR_SUCCESS)
+        {
+            AppendWarning(warning, L"A Known DLLs registry location could not be read.");
+            return;
+        }
+
+        DWORD valueCount = 0;
+        DWORD maximumNameLength = 0;
+        DWORD maximumDataLength = 0;
+        if (RegQueryInfoKeyW(key.Get(), nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                &valueCount, &maximumNameLength, &maximumDataLength, nullptr, nullptr) != ERROR_SUCCESS)
+        {
+            AppendWarning(warning, L"A Known DLLs registry location could not be enumerated.");
+            return;
+        }
+
+        constexpr wchar_t ReadOnlyReason[] =
+            L"Known DLLs are loaded by Windows and are displayed read-only to avoid altering system loader configuration.";
+        const std::wstring systemDirectory = SystemDirectoryForView(view);
+        for (DWORD index = 0; index < valueCount; ++index)
+        {
+            std::wstring valueName(static_cast<size_t>(maximumNameLength) + 1, L'\0');
+            std::vector<unsigned char> valueData(std::max<DWORD>(maximumDataLength, 1));
+            DWORD nameLength = static_cast<DWORD>(valueName.size());
+            DWORD dataLength = static_cast<DWORD>(valueData.size());
+            DWORD valueType = 0;
+            if (RegEnumValueW(key.Get(), index, valueName.data(), &nameLength, nullptr, &valueType,
+                    valueData.data(), &dataLength) != ERROR_SUCCESS)
+            {
+                continue;
+            }
+            valueName.resize(nameLength);
+            valueData.resize(dataLength);
+            const std::wstring dllName = RegistryValueDisplay(valueType, valueData);
+            std::wstring imagePath = Trim(ExpandEnvironment(dllName));
+            if (!imagePath.empty() && imagePath.find_first_of(L"\\/") == std::wstring::npos && !systemDirectory.empty())
+            {
+                imagePath = systemDirectory + L"\\" + imagePath;
+            }
+            AddReadOnlyRegistryEntry(
+                wpcc::AutorunCategory::KnownDll, false, keyPath, view, viewLabel, valueName,
+                valueType, valueData, valueName.empty() ? L"(Default)" : valueName, dllName, imagePath,
+                imagePath.empty() ? L"Configured Known DLL" : StatusForImage({imagePath, true}),
+                ReadOnlyReason, entries);
+        }
+    }
+
+    void EnumerateExplorerEntries(
+        const std::vector<std::pair<REGSAM, std::wstring>>& views,
+        std::vector<wpcc::AutorunEntry>& entries,
+        std::wstring& warning)
+    {
+        constexpr std::array<std::wstring_view, 26> HandlerKeys = {
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ShellIconOverlayIdentifiers",
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ContextMenuHandlers",
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\DragDropHandlers",
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\PropertySheetHandlers",
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\CopyHookHandlers",
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\ColumnHandlers",
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\MyComputer\\NameSpace",
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Browser Helper Objects",
+            L"Software\\Classes\\*\\shellex\\ContextMenuHandlers",
+            L"Software\\Classes\\AllFilesystemObjects\\shellex\\ContextMenuHandlers",
+            L"Software\\Classes\\Directory\\shellex\\ContextMenuHandlers",
+            L"Software\\Classes\\Directory\\Background\\shellex\\ContextMenuHandlers",
+            L"Software\\Classes\\Folder\\shellex\\ContextMenuHandlers",
+            L"Software\\Classes\\Drive\\shellex\\ContextMenuHandlers",
+            L"Software\\Classes\\*\\shellex\\DragDropHandlers",
+            L"Software\\Classes\\AllFilesystemObjects\\shellex\\DragDropHandlers",
+            L"Software\\Classes\\Directory\\shellex\\DragDropHandlers",
+            L"Software\\Classes\\Folder\\shellex\\DragDropHandlers",
+            L"Software\\Classes\\*\\shellex\\PropertySheetHandlers",
+            L"Software\\Classes\\AllFilesystemObjects\\shellex\\PropertySheetHandlers",
+            L"Software\\Classes\\Folder\\shellex\\PropertySheetHandlers",
+            L"Software\\Classes\\*\\shellex\\CopyHookHandlers",
+            L"Software\\Classes\\AllFilesystemObjects\\shellex\\CopyHookHandlers",
+            L"Software\\Classes\\Folder\\shellex\\CopyHookHandlers",
+            L"Software\\Classes\\Folder\\shellex\\ColumnHandlers",
+            L"Software\\Classes\\Directory\\shellex\\ColumnHandlers"};
+
+        const auto& [currentUserView, currentUserViewLabel] = views.front();
+        const std::wstring effectiveCurrentUserViewLabel = Is64BitWindows() ? L"shared" : currentUserViewLabel;
+        EnumerateExplorerApproved(true, currentUserView, effectiveCurrentUserViewLabel, entries, warning);
+        for (const std::wstring_view keyPath : HandlerKeys)
+        {
+            EnumerateExplorerHandlerLocation(
+                true, keyPath, currentUserView, effectiveCurrentUserViewLabel, entries, warning);
+        }
+
+        for (const auto& [view, viewLabel] : views)
+        {
+            EnumerateExplorerApproved(false, view, viewLabel, entries, warning);
+            for (const std::wstring_view keyPath : HandlerKeys)
+            {
+                EnumerateExplorerHandlerLocation(false, keyPath, view, viewLabel, entries, warning);
+            }
+        }
+    }
+
     bool ResolveShortcut(
         std::wstring_view shortcutPath,
         std::wstring& command,
@@ -1501,6 +2127,74 @@ namespace wpcc
 
         EnumerateStartupFolder(FOLDERID_Startup, true, result.entries, result.warning);
         EnumerateStartupFolder(FOLDERID_CommonStartup, false, result.entries, result.warning);
+        try
+        {
+            EnumerateExplorerEntries(views, result.entries, result.warning);
+        }
+        catch (...)
+        {
+            AppendWarning(result.warning, L"Explorer integration locations could not be read.");
+        }
+        try
+        {
+            EnumerateWinlogonLocation(true, currentUserView, effectiveCurrentUserViewLabel, result.entries);
+            for (const auto& [view, viewLabel] : views)
+            {
+                EnumerateWinlogonLocation(false, view, viewLabel, result.entries);
+            }
+        }
+        catch (...)
+        {
+            AppendWarning(result.warning, L"Winlogon locations could not be read.");
+        }
+        try
+        {
+            for (const auto& [view, viewLabel] : views)
+            {
+                EnumerateAppInitLocation(view, viewLabel, result.entries);
+            }
+        }
+        catch (...)
+        {
+            AppendWarning(result.warning, L"AppInit locations could not be read.");
+        }
+        try
+        {
+            constexpr wchar_t ImageFileExecutionOptionsKey[] =
+                L"Software\\Microsoft\\Windows NT\\CurrentVersion\\Image File Execution Options";
+            constexpr wchar_t SilentProcessExitKey[] =
+                L"Software\\Microsoft\\Windows NT\\CurrentVersion\\SilentProcessExit";
+            for (const auto& [view, viewLabel] : views)
+            {
+                EnumerateImageHijackLocation(
+                    ImageFileExecutionOptionsKey, {L"Debugger", L"GlobalFlag"}, view, viewLabel,
+                    result.entries, result.warning);
+                EnumerateImageHijackLocation(
+                    SilentProcessExitKey, {L"Debugger", L"MonitorProcess"}, view, viewLabel,
+                    result.entries, result.warning);
+            }
+        }
+        catch (...)
+        {
+            AppendWarning(result.warning, L"Image Hijacks locations could not be read.");
+        }
+        try
+        {
+            constexpr wchar_t KnownDllsKey[] = L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs";
+            constexpr wchar_t KnownDlls32Key[] = L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\KnownDLLs32";
+            for (const auto& [view, viewLabel] : views)
+            {
+                EnumerateKnownDllLocation(KnownDllsKey, view, viewLabel, result.entries, result.warning);
+                if (Is64BitWindows())
+                {
+                    EnumerateKnownDllLocation(KnownDlls32Key, view, viewLabel, result.entries, result.warning);
+                }
+            }
+        }
+        catch (...)
+        {
+            AppendWarning(result.warning, L"Known DLLs locations could not be read.");
+        }
         try
         {
             EnumerateScheduledTasks(result.entries, result.warning);

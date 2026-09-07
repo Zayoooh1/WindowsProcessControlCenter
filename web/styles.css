@@ -1335,6 +1335,10 @@ tbody tr.selected {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: var(--gap);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-color: #435165 transparent;
 }
 
 .autoruns-hero {
@@ -1404,10 +1408,12 @@ tbody tr.selected {
 
 .autoruns-table-wrap {
   margin-top: 14px;
+  min-height: clamp(280px, 40vh, 420px);
+  height: clamp(340px, 48vh, 560px);
 }
 
 .autoruns-table {
-  min-width: 1220px;
+  min-width: 1450px;
 }
 
 .autoruns-table tbody tr {
@@ -1458,6 +1464,10 @@ tbody tr.selected {
   width: 260px;
 }
 
+.autoruns-command-column {
+  width: 280px;
+}
+
 .autoruns-location-column {
   width: 300px;
 }
@@ -1495,6 +1505,11 @@ tbody tr.selected {
 
   .autoruns-hero h2 {
     font-size: 15px;
+  }
+
+  .autoruns-table-wrap {
+    min-height: 220px;
+    height: min(42vh, 300px);
   }
 }
 

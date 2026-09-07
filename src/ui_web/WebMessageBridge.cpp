@@ -483,6 +483,11 @@ namespace wpcc
             case AutorunCategory::ScheduledTask: return L"scheduledTask";
             case AutorunCategory::Service: return L"service";
             case AutorunCategory::Driver: return L"driver";
+            case AutorunCategory::Explorer: return L"explorer";
+            case AutorunCategory::Winlogon: return L"winlogon";
+            case AutorunCategory::AppInit: return L"appInit";
+            case AutorunCategory::ImageHijack: return L"imageHijack";
+            case AutorunCategory::KnownDll: return L"knownDll";
             default: return L"logon";
             }
         };

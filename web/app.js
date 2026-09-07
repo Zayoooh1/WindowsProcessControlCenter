@@ -938,7 +938,7 @@ function renderAutoruns() {
   if (state.autorunsLoading) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 7;
+    cell.colSpan = 8;
     cell.className = "empty-cell";
     cell.textContent = "Loading Autoruns entries...";
     row.appendChild(cell);
@@ -949,7 +949,7 @@ function renderAutoruns() {
   if (entries.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 7;
+    cell.colSpan = 8;
     cell.className = "empty-cell";
     cell.textContent = state.autorunsQuery ? "No autorun entries match this filter." : "No Autoruns entries found in this category.";
     row.appendChild(cell);
@@ -987,7 +987,7 @@ function renderAutoruns() {
     enabledCell.appendChild(enabledToggle);
     row.appendChild(enabledCell);
 
-    const values = [entry.entryName, entry.publisher || "\u2014", entry.imagePath, entry.location, entry.user];
+    const values = [entry.entryName, entry.publisher || "\u2014", entry.imagePath, entry.command, entry.location, entry.user];
     for (const value of values) {
       const cell = document.createElement("td");
       cell.textContent = value || "\u2014";
