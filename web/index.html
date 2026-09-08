@@ -216,14 +216,32 @@
                 <button class="autoruns-category" type="button" data-autoruns-category="knownDll"
                   data-autoruns-label="Known DLLs" aria-pressed="false">Known DLLs (0)</button>
               </div>
-              <span id="autorunsCount" class="count">0 entries</span>
+              <span id="autorunsCount" class="count">0 of 0 visible</span>
             </div>
 
-            <label class="search-box autoruns-search" aria-label="Search autorun entries">
-              <span>Search</span>
-              <input id="autorunsSearchInput" type="search"
-                placeholder="Entry, image path, location, user, or status" autocomplete="off">
-            </label>
+            <div class="autoruns-filter-bar">
+              <label class="search-box autoruns-search" aria-label="Search autorun entries">
+                <span>Search</span>
+                <input id="autorunsSearchInput" type="search"
+                  placeholder="Entry, image path, location, user, or status" autocomplete="off">
+              </label>
+              <div class="autoruns-filter-toggles" role="group" aria-label="Autoruns visibility filters">
+                <label class="autoruns-filter-toggle">
+                  <span>Hide Microsoft entries</span>
+                  <span class="switch-control">
+                    <input id="autorunsHideMicrosoftToggle" type="checkbox">
+                    <span class="switch-track"><span class="switch-thumb"></span></span>
+                  </span>
+                </label>
+                <label class="autoruns-filter-toggle">
+                  <span>Hide Windows entries</span>
+                  <span class="switch-control">
+                    <input id="autorunsHideWindowsToggle" type="checkbox">
+                    <span class="switch-track"><span class="switch-thumb"></span></span>
+                  </span>
+                </label>
+              </div>
+            </div>
 
             <div id="autorunsWarning" class="settings-storage-notice hidden"></div>
 

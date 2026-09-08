@@ -134,9 +134,12 @@ set_target_properties(WindowsProcessControlCenter PROPERTIES
     VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:WindowsProcessControlCenter>"
 )
 
-add_custom_command(TARGET WindowsProcessControlCenter POST_BUILD
+add_custom_target(WindowsProcessControlCenterWebAssets
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_SOURCE_DIR}/web"
         "$<TARGET_FILE_DIR:WindowsProcessControlCenter>/web"
-    COMMENT "Copying WebView frontend assets"
+    COMMENT "Synchronizing WebView frontend assets"
+    VERBATIM
 )
+
+add_dependencies(WindowsProcessControlCenter WindowsProcessControlCenterWebAssets)

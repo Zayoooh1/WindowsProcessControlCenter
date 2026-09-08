@@ -137,6 +137,8 @@ const state = {
   autorunsLoading: false,
   autorunsQuery: "",
   autorunsCategory: "everything",
+  autorunsHideMicrosoft: false,
+  autorunsHideWindows: false,
   autorunsSortColumn: "entryName",
   autorunsSortDirection: "asc",
   autorunsRequested: false,
@@ -233,6 +235,8 @@ const elements = {
   errorBanner: document.getElementById("errorBanner"),
   autorunsRefreshButton: document.getElementById("autorunsRefreshButton"),
   autorunsSearchInput: document.getElementById("autorunsSearchInput"),
+  autorunsHideMicrosoftToggle: document.getElementById("autorunsHideMicrosoftToggle"),
+  autorunsHideWindowsToggle: document.getElementById("autorunsHideWindowsToggle"),
   autorunsCount: document.getElementById("autorunsCount"),
   autorunsRows: document.getElementById("autorunsRows"),
   autorunsWarning: document.getElementById("autorunsWarning"),
@@ -871,14 +875,78 @@ function isManageableAutorun(entry) {
   return entry?.canSetEnabled === true;
 }
 
-function filteredAutoruns() {
+function normalizedAutorunText(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function normalizedAutorunPath(value) {
+  let path = normalizedAutorunText(value).replaceAll("/", "\\");
+  if (path.startsWith('"')) path = path.slice(1);
+  if (path.startsWith("\\\\?\\")) path = path.slice(4);
+  if (path.startsWith("\\??\\")) path = path.slice(4);
+  return path;
+}
+
+function isWindowsSystemPath(value) {
+  const path = normalizedAutorunPath(value);
+  return path.startsWith("%systemroot%\\") ||
+    path.startsWith("%windir%\\") ||
+    path.startsWith("\\systemroot\\") ||
+    /^[a-z]:\\windows(?:\\|$)/.test(path);
+}
+
+function hasMicrosoftPublisher(entry) {
+  const publisher = normalizedAutorunText(entry?.publisher).replace(/\s+/g, " ");
+  return publisher === "microsoft" ||
+    publisher === "microsoft corp" ||
+    publisher === "microsoft corp." ||
+    publisher === "microsoft corporation" ||
+    publisher === "microsoft windows" ||
+    publisher === "microsoft windows publisher";
+}
+
+function isCoreWinlogonDefault(entry) {
+  if (entry?.category !== "winlogon") return false;
+  const name = normalizedAutorunText(entry.entryName);
+  const command = normalizedAutorunPath(entry.command).replace(/[\s,]+$/g, "");
+  if (name === "shell") return command === "explorer.exe";
+  return name === "userinit" && (command === "userinit.exe" || command.endsWith("\\system32\\userinit.exe"));
+}
+
+function isWindowsAutorun(entry) {
+  if (!entry) return false;
+  if (entry.category === "knownDll") return true;
+  if (isWindowsSystemPath(entry.imagePath)) return true;
+  if (isCoreWinlogonDefault(entry)) return true;
+  const location = normalizedAutorunPath(entry.location);
+  return entry.sourceType === "scheduledTask" && location.startsWith("\\microsoft\\windows\\");
+}
+
+function isMicrosoftOwnedPath(value) {
+  const path = normalizedAutorunPath(value);
+  return /\\program files(?: \(x86\))?\\(?:microsoft\\edge|microsoft office|microsoft onedrive)(?:\\|$)/.test(path) ||
+    /\\program files\\windowsapps\\microsoft(?:\.|corporationii\.)/.test(path);
+}
+
+function isMicrosoftAutorun(entry) {
+  if (!entry) return false;
+  if (isWindowsAutorun(entry) || hasMicrosoftPublisher(entry) || isMicrosoftOwnedPath(entry.imagePath)) return true;
+  const location = normalizedAutorunPath(entry.location);
+  return entry.sourceType === "scheduledTask" && location.startsWith("\\microsoft\\");
+}
+
+function autorunsInSelectedCategory() {
+  return state.autorunsEntries.filter((entry) => {
+    if (state.autorunsCategory === "everything") return isManageableAutorun(entry);
+    return entry.category === state.autorunsCategory;
+  });
+}
+
+function filteredAutoruns(categoryEntries = autorunsInSelectedCategory()) {
   const query = state.autorunsQuery.trim().toLowerCase();
-  const entries = state.autorunsEntries.filter((entry) => {
-    if (state.autorunsCategory === "everything") {
-      if (!isManageableAutorun(entry)) return false;
-    } else if (entry.category !== state.autorunsCategory) {
-      return false;
-    }
+  const entries = categoryEntries.filter((entry) => {
+    if (state.autorunsHideMicrosoft && isMicrosoftAutorun(entry)) return false;
+    if (state.autorunsHideWindows && isWindowsAutorun(entry)) return false;
     if (!query) return true;
     return [
       entry.entryName,
@@ -930,9 +998,12 @@ function renderAutoruns() {
   });
   elements.autorunsWarning.classList.toggle("hidden", !state.autorunsWarning);
   elements.autorunsWarning.textContent = state.autorunsWarning;
+  elements.autorunsHideMicrosoftToggle.checked = state.autorunsHideMicrosoft;
+  elements.autorunsHideWindowsToggle.checked = state.autorunsHideWindows;
 
-  const entries = filteredAutoruns();
-  elements.autorunsCount.textContent = `${entries.length} ${entries.length === 1 ? "entry" : "entries"}`;
+  const categoryEntries = autorunsInSelectedCategory();
+  const entries = filteredAutoruns(categoryEntries);
+  elements.autorunsCount.textContent = `${entries.length} of ${categoryEntries.length} visible`;
   elements.autorunsRows.replaceChildren();
 
   if (state.autorunsLoading) {
@@ -951,7 +1022,8 @@ function renderAutoruns() {
     const cell = document.createElement("td");
     cell.colSpan = 8;
     cell.className = "empty-cell";
-    cell.textContent = state.autorunsQuery ? "No autorun entries match this filter." : "No Autoruns entries found in this category.";
+    const hasVisibilityFilter = state.autorunsQuery || state.autorunsHideMicrosoft || state.autorunsHideWindows;
+    cell.textContent = hasVisibilityFilter ? "No autorun entries match the current filters." : "No Autoruns entries found in this category.";
     row.appendChild(cell);
     elements.autorunsRows.appendChild(row);
     return;
@@ -3833,6 +3905,14 @@ bindUi(elements.autorunsSearchInput, "input", (event) => {
   state.autorunsQuery = event.target.value;
   renderAutoruns();
 }, "autorunsSearchInput");
+bindUi(elements.autorunsHideMicrosoftToggle, "change", (event) => {
+  state.autorunsHideMicrosoft = event.target.checked;
+  renderAutoruns();
+}, "autorunsHideMicrosoftToggle");
+bindUi(elements.autorunsHideWindowsToggle, "change", (event) => {
+  state.autorunsHideWindows = event.target.checked;
+  renderAutoruns();
+}, "autorunsHideWindowsToggle");
 elements.autorunsCategoryButtons.forEach((button) => {
   button.addEventListener("click", () => {
     state.autorunsCategory = button.dataset.autorunsCategory;
