@@ -80,7 +80,7 @@ let autoRefreshTimer = null;
 let systemMetricsTimer = null;
 let snapshotDebounceTimer = null;
 let visibleDetailsHydrationTimer = null;
-const PROCESS_ROW_HEIGHT = 44;
+const PROCESS_ROW_HEIGHT = 38;
 const COMPACT_PROCESS_ROW_HEIGHT = 34;
 const PROCESS_ROW_OVERSCAN = 6;
 const VISIBLE_DETAILS_HYDRATION_DELAY_MS = 75;
@@ -154,7 +154,7 @@ const state = {
   settingsStorageAvailable: initialSettingsState.storageAvailable,
   settingsStorageWarning: initialSettingsState.warning,
   resetSettingsModalOpen: false,
-  detailsPanelOpen: true,
+  detailsPanelOpen: window.innerWidth > 1180,
   pendingInstallerFilePath: null,
   isBulkDeleteMode: false,
   bulkDeleteSelectedIds: new Set(),
