@@ -1,5 +1,7 @@
 #define MyAppName "Windows Process Control Center"
-#define MyAppVersion "0.1.12"
+#ifndef MyAppVersion
+#define MyAppVersion "0.1.13"
+#endif
 #define MyAppPublisher "Windows Process Control Center"
 #define MyAppExeName "WindowsProcessControlCenter.exe"
 #define MyAppId "{{6FDC4703-94B6-4E3D-98B1-B22588940D1E}"
@@ -17,7 +19,7 @@ DefaultGroupName=Windows Process Control Center
 DisableProgramGroupPage=yes
 
 OutputDir=..\dist
-OutputBaseFilename=WindowsProcessControlCenter-v0.1.12-Setup
+OutputBaseFilename=WindowsProcessControlCenter-v{#MyAppVersion}-Setup
 
 Compression=lzma2
 SolidCompression=yes

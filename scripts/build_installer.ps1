@@ -12,7 +12,7 @@ if (-not $Version -and (Test-Path $versionFile)) {
 }
 
 if (-not $Version) {
-    $Version = "0.1.12" # Fallback
+    $Version = "0.1.13" # Fallback
 }
 
 # Parse version (supporting X.Y.Z or X.Y.Z.W)
@@ -71,7 +71,7 @@ if (Test-Path $appJsPath) {
 }
 
 $installerScript = Join-Path $repoRoot "installer\WindowsProcessControlCenter.iss"
-$installerOutput = Join-Path $repoRoot "dist\installer\WindowsProcessControlCenter-$Version-setup.exe"
+$installerOutput = Join-Path $repoRoot "dist\WindowsProcessControlCenter-v$Version-Setup.exe"
 
 function Find-InnoSetupCompiler {
     $fromPath = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
@@ -80,6 +80,8 @@ function Find-InnoSetupCompiler {
     }
 
     $standardPaths = @(
+        "C:\Program Files\Inno Setup 7\ISCC.exe",
+        "C:\Program Files (x86)\Inno Setup 7\ISCC.exe",
         "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
         "C:\Program Files\Inno Setup 6\ISCC.exe"
     )
@@ -98,9 +100,9 @@ if (-not $iscc) {
     Write-Error @"
 Inno Setup Compiler was not found.
 
-Install Inno Setup 6 from https://jrsoftware.org/isinfo.php and either:
+Install Inno Setup from https://jrsoftware.org/isinfo.php and either:
 - add ISCC.exe to PATH, or
-- install it into C:\Program Files (x86)\Inno Setup 6\ or C:\Program Files\Inno Setup 6\.
+- install it into one of the standard Inno Setup 6 or 7 locations.
 
 Then run:
 .\scripts\build_installer.ps1

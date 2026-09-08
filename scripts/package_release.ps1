@@ -1,19 +1,20 @@
 param(
-    [string]$Version = "0.1.12",
+    [string]$Version = "0.1.13",
     [string]$Configuration = "Release",
+    [string]$BuildDirectory = "build",
     [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$buildDir = Join-Path $repoRoot "build"
+$buildDir = Join-Path $repoRoot $BuildDirectory
 $distDir = Join-Path $repoRoot "dist"
-$packageName = "WindowsProcessControlCenter-$Version-portable"
+$packageName = "WindowsProcessControlCenter-v$Version-Portable"
 $packageDir = Join-Path $distDir $packageName
 $zipPath = Join-Path $distDir "$packageName.zip"
 $exePath = Join-Path $buildDir "$Configuration\WindowsProcessControlCenter.exe"
-$webSource = Join-Path $repoRoot "web"
+$webSource = Join-Path $buildDir "$Configuration\web"
 
 if (-not $SkipBuild) {
     cmake -S $repoRoot -B $buildDir -G "Visual Studio 17 2022" -A x64
@@ -25,7 +26,7 @@ if (-not (Test-Path $exePath)) {
 }
 
 if (-not (Test-Path (Join-Path $webSource "index.html"))) {
-    throw "Web frontend was not found: $webSource"
+    throw "Built web frontend was not found: $webSource"
 }
 
 New-Item -ItemType Directory -Force -Path $distDir | Out-Null
