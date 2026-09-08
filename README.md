@@ -2,8 +2,6 @@
 
 Windows Process Control Center is a lightweight Windows utility for inspecting and controlling running processes, managing per-application preferences, reviewing startup entries, and monitoring essential system activity from one interface.
 
-<img src="screenshots/showcase.gif" width="100%" alt="Windows Process Control Center showcase">
-
 ## What is WPCC?
 
 WPCC combines a native C++ backend with a local WebView2 interface. It provides practical process and startup controls without treating every application as an optimization target or promising universal performance gains.
