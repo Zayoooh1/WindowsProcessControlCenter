@@ -3,6 +3,8 @@
 #include <wrl/event.h>
 
 #include "core/SettingsStore.h"
+#include "core/SettingsService.h"
+#include <nlohmann/json.hpp>
 
 #include <ShlObj.h>
 #include <shellapi.h>
@@ -140,10 +142,11 @@ namespace wpcc
             return false;
         }
 
+        StartupLog(L"webview.environment-requested", result);
         return true;
     }
 
-    void WebViewHost::SetSettingsChangedCallback(std::function<void(bool, bool)> callback)
+    void WebViewHost::SetSettingsChangedCallback(std::function<void(bool)> callback)
     {
         m_onSettingsChanged = std::move(callback);
     }
@@ -188,6 +191,7 @@ namespace wpcc
 
     void WebViewHost::OnEnvironmentCreated(HRESULT result, ICoreWebView2Environment* environment)
     {
+        StartupLog(L"webview.environment", result);
         if (FAILED(result) || environment == nullptr)
         {
             ShowInitializationError(L"WebView2 Runtime is not available or failed to initialize: " + HResultToMessage(result));
@@ -195,7 +199,7 @@ namespace wpcc
         }
 
         m_environment = environment;
-        m_environment->CreateCoreWebView2Controller(
+        const HRESULT controllerRequest = m_environment->CreateCoreWebView2Controller(
             m_hwnd,
             Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
                 [this](HRESULT controllerResult, ICoreWebView2Controller* controller) -> HRESULT {
@@ -203,10 +207,13 @@ namespace wpcc
                     return S_OK;
                 })
                 .Get());
+        StartupLog(L"webview.controller-requested", controllerRequest);
+        if (FAILED(controllerRequest)) ShowInitializationError(L"Failed to request WebView2 controller: " + HResultToMessage(controllerRequest));
     }
 
     void WebViewHost::OnControllerCreated(HRESULT result, ICoreWebView2Controller* controller)
     {
+        StartupLog(L"webview.controller", result);
         if (FAILED(result) || controller == nullptr)
         {
             ShowInitializationError(L"Failed to create WebView2 controller: " + HResultToMessage(result));
@@ -351,18 +358,24 @@ namespace wpcc
 
     void WebViewHost::NavigateToFrontend()
     {
-        const std::filesystem::path indexPath = GetFrontendIndexPath();
-        if (!std::filesystem::exists(indexPath))
+        try
         {
-            ShowInitializationError(L"Frontend file was not found: " + indexPath.wstring());
-            return;
+            const std::filesystem::path indexPath = GetFrontendIndexPath();
+            if (!std::filesystem::exists(indexPath))
+            {
+                StartupLog(L"webview.frontend-missing", HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND));
+                ShowInitializationError(L"Frontend file was not found: " + indexPath.wstring());
+                return;
+            }
+            const std::wstring uri = PathToFileUri(indexPath);
+            const HRESULT result = m_webView->Navigate(uri.c_str());
+            StartupLog(L"webview.navigate", result);
+            if (FAILED(result))
+                ShowInitializationError(L"Failed to load frontend from " + uri + L": " + HResultToMessage(result));
         }
-
-        const std::wstring uri = PathToFileUri(indexPath);
-        const HRESULT result = m_webView->Navigate(uri.c_str());
-        if (FAILED(result))
+        catch (...)
         {
-            ShowInitializationError(L"Failed to load frontend from " + uri + L": " + HResultToMessage(result));
+            ShowInitializationError(L"Failed to determine the executable/frontend path.");
         }
     }
 
@@ -798,8 +811,8 @@ namespace wpcc
             return;
         }
 
-        const SettingsLoadResult result = SettingsStore::GetSettings();
-        const std::wstring response = m_bridge.BuildSettingsLoadedMessage(result.success, result.jsonContent, result.warning);
+        const auto result = SettingsService::Load();
+        const std::wstring response = m_bridge.BuildSettingsLoadedMessage(result.success, result.jsonContent, result.warning, result.startup.known);
         m_webView->PostWebMessageAsJson(response.c_str());
     }
 
@@ -810,23 +823,24 @@ namespace wpcc
             return;
         }
 
-        const std::string settingsJson = m_bridge.ParseSaveSettingsRequest(messageJson);
-        if (settingsJson.empty())
+        unsigned long long requestId = 0;
+        SettingsUpdateResult result;
+        try
         {
-            const std::wstring response = m_bridge.BuildSettingsSavedMessage(false, L"No settings data received.");
-            m_webView->PostWebMessageAsJson(response.c_str());
-            return;
+            const auto request = nlohmann::json::parse(messageJson.begin(), messageJson.end());
+            requestId = request.value("requestId", 0ULL);
+            const bool startupChange = request.value("startupChange", false);
+            result = SettingsService::Save(m_bridge.ParseSaveSettingsRequest(messageJson), startupChange);
         }
-
-        const SettingsSaveResult result = SettingsStore::SaveSettings(settingsJson);
-        const std::wstring response = m_bridge.BuildSettingsSavedMessage(result.success, result.warning);
-        m_webView->PostWebMessageAsJson(response.c_str());
-
+        catch (...)
+        {
+            result.warning = L"Invalid settings request; nothing was saved.";
+            result.startup = StartupManager::Read();
+        }
         if (result.success && m_onSettingsChanged)
-        {
-            AppSettings settings = SettingsStore::ParseSettingsJson(settingsJson);
-            m_onSettingsChanged(settings.startWithWindows, settings.minimizeToTray);
-        }
+            m_onSettingsChanged(SettingsStore::ParseSettingsJson(result.jsonContent).minimizeToTray);
+        const auto response = m_bridge.BuildSettingsSavedMessage(result, requestId);
+        m_webView->PostWebMessageAsJson(response.c_str());
     }
 
     void WebViewHost::HandleSaveProfiles(std::wstring_view messageJson)
@@ -1203,19 +1217,14 @@ namespace wpcc
 
     void WebViewHost::ShowInitializationError(std::wstring_view message) const
     {
+        StartupLog(L"webview.initialization-failed", E_FAIL);
+        ShowWindow(m_hwnd, SW_SHOW);
         MessageBoxW(m_hwnd, std::wstring(message).c_str(), L"WebView2 initialization error", MB_ICONERROR | MB_OK);
     }
 
     std::filesystem::path WebViewHost::GetExecutableDirectory() const
     {
-        std::array<wchar_t, MAX_PATH> buffer{};
-        const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
-        if (length == 0)
-        {
-            return std::filesystem::current_path();
-        }
-
-        return std::filesystem::path(std::wstring(buffer.data(), length)).parent_path();
+        return std::filesystem::path(StartupManager::ExecutablePath()).parent_path();
     }
 
     std::filesystem::path WebViewHost::GetFrontendIndexPath() const

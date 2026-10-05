@@ -46,21 +46,9 @@ namespace wpcc
         }
 
         std::error_code ec;
-        if (!std::filesystem::exists(path, ec) || std::filesystem::file_size(path, ec) == 0)
-        {
-            try
-            {
-                std::filesystem::create_directories(path.parent_path(), ec);
-                std::ofstream file(path, std::ios::out | std::ios::binary | std::ios::trunc);
-                if (file)
-                {
-                    file << "{\"startWithWindows\": false, \"minimizeToTray\": false}";
-                    file.close();
-                }
-            }
-            catch (...) {}
-            return { true, "{\"startWithWindows\": false, \"minimizeToTray\": false}", L"" };
-        }
+        const bool exists = std::filesystem::exists(path, ec);
+        if (ec) return { false, "", L"Failed to inspect native settings file; existing data was preserved." };
+        if (!exists) return { true, "{\"startWithWindows\":false,\"minimizeToTray\":false}", L"" };
 
         try
         {
@@ -84,11 +72,11 @@ namespace wpcc
                 std::filesystem::path corruptedPath = path;
                 corruptedPath.replace_extension(L".json.corrupted");
                 std::filesystem::copy_file(path, corruptedPath, std::filesystem::copy_options::overwrite_existing);
-                std::filesystem::remove(path);
+                // Preserve the original: startup reconciliation must never reset user settings.
             }
             catch (...) {}
 
-            return { false, "", L"Native settings file contained corrupted or invalid JSON. A backup was saved and local defaults are active." };
+            return { false, "", L"Native settings file contained corrupted or invalid JSON. The original file was preserved; repair it before saving." };
         }
         catch (...)
         {
@@ -117,14 +105,21 @@ namespace wpcc
                 std::filesystem::copy_file(path, backupPath, std::filesystem::copy_options::overwrite_existing);
             }
 
-            std::ofstream file(path, std::ios::out | std::ios::binary | std::ios::trunc);
-            if (!file)
+            // Write beside the target and atomically replace it only after a checked flush.
+            auto temporary = path;
+            temporary += L".tmp";
+            const std::string bytes = j.dump(4);
+            HANDLE file = CreateFileW(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (file == INVALID_HANDLE_VALUE) return { false, L"Failed to open temporary settings file." };
+            DWORD written = 0;
+            const bool writtenOk = WriteFile(file, bytes.data(), static_cast<DWORD>(bytes.size()), &written, nullptr) && written == bytes.size();
+            const bool flushed = writtenOk && FlushFileBuffers(file);
+            CloseHandle(file);
+            if (!flushed || !MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
             {
-                return { false, L"Failed to open native settings file for writing." };
+                DeleteFileW(temporary.c_str());
+                return { false, L"Failed to commit settings file; the previous settings were preserved." };
             }
-
-            file << j.dump(4);
-            file.close();
 
             return { true, L"" };
         }
