@@ -1,4 +1,5 @@
 #pragma once
+#include "core/SettingsService.h"
 
 #include "core/ProcessActions.h"
 #include "core/ProcessInfo.h"
@@ -127,8 +128,8 @@ namespace wpcc
         std::wstring BuildProfilesSavedMessage(bool success, std::wstring_view warning) const;
         std::wstring BuildAutorunsSnapshotMessage(const AutorunScanResult& result) const;
         std::wstring BuildAutorunActionResultMessage(const AutorunActionResult& result) const;
-        std::wstring BuildSettingsLoadedMessage(bool success, const std::string& settingsJson, std::wstring_view warning) const;
-        std::wstring BuildSettingsSavedMessage(bool success, std::wstring_view warning) const;
+        std::wstring BuildSettingsLoadedMessage(bool success, const std::string& settingsJson, std::wstring_view warning, bool startupKnown) const;
+        std::wstring BuildSettingsSavedMessage(const SettingsUpdateResult& result, unsigned long long requestId) const;
         std::wstring BuildProfilesExportedMessage(bool success, bool cancelled, std::wstring_view warning) const;
         std::wstring BuildExecutableChosenMessage(bool success, bool cancelled, std::wstring_view path, std::wstring_view fileName, std::string_view iconDataUrl) const;
         std::wstring BuildProfileAppliedMessage(const std::string& profileId, bool success, int matched, int updated, int failed, std::string_view message) const;

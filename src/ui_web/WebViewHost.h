@@ -41,7 +41,7 @@ namespace wpcc
         void ChooseExecutable();
         void OnDownloadComplete(bool success, const std::wstring& filePath);
         void NotifyDownloadProgress(uint32_t downloadedBytes, uint32_t totalBytes);
-        void SetSettingsChangedCallback(std::function<void(bool, bool)> callback);
+        void SetSettingsChangedCallback(std::function<void(bool)> callback);
 
     private:
         void OnEnvironmentCreated(HRESULT result, ICoreWebView2Environment* environment);
@@ -93,7 +93,7 @@ namespace wpcc
         AutorunProvider m_autorunProvider;
         AutoApplyEngine* m_autoApplyEngine = nullptr;
         WebMessageBridge m_bridge;
-        std::function<void(bool, bool)> m_onSettingsChanged;
+        std::function<void(bool)> m_onSettingsChanged;
         bool m_snapshotRequestPosted = false;
         bool m_snapshotInFlight = false;
         bool m_pendingRefresh = false;

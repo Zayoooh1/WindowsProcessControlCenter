@@ -1,0 +1,92 @@
+name: Windows build, test and prerelease
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        shell: pwsh
+        run: |
+          node --check web/app.js
+          if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
+          node --check web/settings-queue.js
+          if ($LASTEXITCODE -ne 0) { throw 'settings-queue.js syntax failed' }
+      - name: Build Release, Portable and Setup
+        shell: pwsh
+        run: ./scripts/build_installer.ps1 -Version (Get-Content version.txt -Raw).Trim()
+      - name: Build Debug
+        shell: pwsh
+        run: |
+          cmake --build build --config Debug --parallel
+          if ($LASTEXITCODE -ne 0) { throw 'Debug build failed' }
+      - name: Test Debug and Release
+        shell: pwsh
+        run: |
+          ctest --test-dir build -C Debug --output-on-failure --no-tests=error
+          if ($LASTEXITCODE -ne 0) { throw 'Debug tests failed' }
+          ctest --test-dir build -C Release --output-on-failure --no-tests=error
+          if ($LASTEXITCODE -ne 0) { throw 'Release tests failed' }
+      - name: Verify manifest and packages
+        shell: pwsh
+        run: ./scripts/verify_release.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WPCC-0.1.14-windows-x64
+          if-no-files-found: error
+          path: |
+            dist/*-Setup.exe
+            dist/*-Portable.zip
+            dist/SHA256SUMS.txt
+
+  prerelease:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/autostart-0.1.14'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: WPCC-0.1.14-windows-x64
+          path: dist
+      - name: Publish tested commit as prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_COMMIT: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=v0.1.14-rc.1
+          # Never overwrite a published release or move its tag on a later push.
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; choose a new RC tag before publishing again."
+            exit 0
+          fi
+          cp docs/RELEASE_0.1.14-rc.1.md release-body.md
+          printf '\n## Automated validation\n\nDebug and Release builds, CTest and package verification: [GitHub Actions](%s).\nCommit: `%s`.\n' "$RUN_URL" "$RELEASE_COMMIT" >> release-body.md
+          gh release create "$tag" dist/*-Setup.exe dist/*-Portable.zip dist/SHA256SUMS.txt \
+            --target "$RELEASE_COMMIT" --prerelease --latest=false \
+            --title 'WPCC 0.1.14-rc.1: Startup fix' --notes-file release-body.md

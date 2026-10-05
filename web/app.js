@@ -1,7 +1,7 @@
 const SETTINGS_STORAGE_KEY = "wpcc.settings";
 const VALID_UPDATE_INTERVALS = ["3d", "weekly", "monthly"];
 const UPDATE_STATE_KEY = "wpcc.updateState";
-const CURRENT_VERSION = "0.1.13";
+const CURRENT_VERSION = "0.1.14";
 
 const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
@@ -363,13 +363,24 @@ function toggleFavoriteTarget(targetName) {
   applyFilter();
 }
 
-function saveSettings() {
-  if (window.chrome?.webview) {
-    window.chrome.webview.postMessage({
-      type: "saveSettings",
-      settings: JSON.stringify(state.settings),
-    });
+let startupKnown = false;
+const settingsQueue = new WPCCSettingsQueue(
+  (request) => window.chrome.webview.postMessage(request),
+  (message, pending) => {
+    startupKnown = Boolean(message.startupKnown);
+    if (pending) state.settings = normalizeSettings(pending);
+    else if (message.settings) state.settings = normalizeSettings(message.settings);
+    state.settings.startWithWindows = pending?.startWithWindows ?? Boolean(message.startupEnabled);
+    state.favoriteTargets = new Set(state.settings.favorites);
+    state.settingsStorageWarning = message.warning || (message.success ? "" : "Settings could not be saved.");
+    showStatus(message.success ? "Settings saved." : "Settings were not fully saved. See Settings for details.", Boolean(message.success));
+    applyFilter();
+    restartAutoRefresh();
+    render();
   }
+);
+function saveSettings(startupChange = false) {
+  if (window.chrome?.webview) settingsQueue.enqueue(state.settings, startupChange);
 }
 
 // ==========================================
@@ -1388,11 +1399,13 @@ function handleHostMessage(event) {
   }
 
   if (message.type === "settingsLoaded") {
+    if (settingsQueue.inFlight || settingsQueue.pending) return;
+    startupKnown = Boolean(message.startupKnown);
     if (message.success && message.settings && typeof message.settings === "object") {
       state.settings = normalizeSettings(message.settings);
       state.favoriteTargets = new Set(state.settings.favorites);
       state.settingsStorageAvailable = true;
-      state.settingsStorageWarning = "";
+      state.settingsStorageWarning = message.warning || "";
     } else if (message.warning) {
       state.settingsStorageWarning = message.warning;
     } else if (!message.success) {
@@ -1405,10 +1418,7 @@ function handleHostMessage(event) {
   }
 
   if (message.type === "settingsSaved") {
-    if (!message.success && message.warning) {
-      state.settingsStorageWarning = message.warning;
-      render();
-    }
+    settingsQueue.receive(message);
     return;
   }
 
@@ -1665,7 +1675,7 @@ function updateSetting(key, value) {
     ...state.settings,
     [key]: value,
   });
-  saveSettings();
+  saveSettings(key === "startWithWindows");
   if (key === "showSystemProcesses") {
     applyFilter();
     return;
@@ -1677,6 +1687,8 @@ function renderSettings() {
   elements.settingsStorageNotice.classList.toggle("hidden", !state.settingsStorageWarning);
   elements.settingsStorageNotice.textContent = state.settingsStorageWarning;
   elements.startWithWindowsToggle.checked = state.settings.startWithWindows;
+  elements.startWithWindowsToggle.indeterminate = !startupKnown || Boolean(settingsQueue.inFlight?.startupChange || settingsQueue.pending?.startupChange);
+  elements.startWithWindowsToggle.title = !startupKnown ? "Windows startup state could not be verified. See the warning above." : "Verified Windows startup configuration (pending changes appear indeterminate).";
   elements.minimizeToTrayToggle.checked = state.settings.minimizeToTray;
   elements.startScreenDashboard.checked = state.settings.startScreen === "dashboard";
   elements.startScreenProcesses.checked = state.settings.startScreen === "processes";

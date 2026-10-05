@@ -1,6 +1,9 @@
 #define MyAppName "Windows Process Control Center"
 #ifndef MyAppVersion
-#define MyAppVersion "0.1.13"
+#define MyAppVersion "0.1.14"
+#endif
+#ifndef MyBuildDir
+#define MyBuildDir "..\build\Release"
 #endif
 #define MyAppPublisher "Windows Process Control Center"
 #define MyAppExeName "WindowsProcessControlCenter.exe"
@@ -36,8 +39,8 @@ UninstallDisplayName=Windows Process Control Center
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Files]
-Source: "..\build-release-verify\Release\WindowsProcessControlCenter.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\build-release-verify\Release\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyBuildDir}\WindowsProcessControlCenter.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#MyBuildDir}\web\*"; DestDir: "{app}\web"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
@@ -93,4 +96,20 @@ begin
   { Show the destination path, but prevent manual text editing. }
   { The Browse button remains enabled and can still change the path. }
   WizardForm.DirEdit.ReadOnly := True;
+end;
+
+
+function InitializeUninstall(): Boolean;
+var
+  ResultCode: Integer;
+  ExePath: String;
+begin
+  ExePath := ExpandConstant('{app}\{#MyAppExeName}');
+  Result := Exec(ExePath, '--remove-installation-startup', ExpandConstant('{app}'),
+    SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if Result then Result := ResultCode = 0;
+  if not Result then
+    MsgBox('Could not remove WPCC startup configuration for this installation.' + #13#10 +
+      'Uninstall stopped so that startup entries are not left pointing to a deleted executable.' + #13#10 +
+      'Check startup.log, close other user sessions if a profile hive is busy, and retry.', mbError, MB_OK);
 end;

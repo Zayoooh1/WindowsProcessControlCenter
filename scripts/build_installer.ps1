@@ -1,5 +1,6 @@
 param(
-    [string]$Version = ""
+    [string]$Version = "",
+    [string]$BuildDirectory = "build"
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,7 +13,7 @@ if (-not $Version -and (Test-Path $versionFile)) {
 }
 
 if (-not $Version) {
-    $Version = "0.1.13" # Fallback
+    $Version = "0.1.14" # Fallback
 }
 
 # Parse version (supporting X.Y.Z or X.Y.Z.W)
@@ -109,13 +110,15 @@ Then run:
 "@
 }
 
-& (Join-Path $repoRoot "scripts\package_release.ps1") -Version $Version
+& (Join-Path $repoRoot "scripts\package_release.ps1") -Version $Version -BuildDirectory $BuildDirectory
 
 if (-not (Test-Path $installerScript)) {
     throw "Inno Setup script was not found: $installerScript"
 }
 
-& $iscc "/DMyAppVersion=$Version" $installerScript
+$installerBuildDir = Join-Path (Join-Path $repoRoot $BuildDirectory) "Release"
+& $iscc "/DMyAppVersion=$Version" "/DMyBuildDir=$installerBuildDir" $installerScript
+if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed ($LASTEXITCODE)." }
 
 if (-not (Test-Path $installerOutput)) {
     throw "Installer was not generated: $installerOutput"

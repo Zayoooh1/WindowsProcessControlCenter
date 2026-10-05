@@ -25,7 +25,7 @@ namespace wpcc
         void HandleTrayNotification(WPARAM wParam, LPARAM lParam);
         void ShowTrayContextMenu();
         void RestoreMainWindow();
-        void ApplyStartWithWindows(bool enable);
+        void RecreateTrayIcon();
 
         HINSTANCE m_instance;
         int m_showCommand;
@@ -37,5 +37,8 @@ namespace wpcc
         bool m_running = false;
         bool m_minimizeToTray = false;
         bool m_startMinimized = false;
+        bool m_trayAvailable = false;
+        UINT m_taskbarCreated = 0;
+        unsigned int m_trayRetries = 0;
     };
 }

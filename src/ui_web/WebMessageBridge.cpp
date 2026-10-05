@@ -422,12 +422,14 @@ namespace wpcc
         return json.str();
     }
 
-    std::wstring WebMessageBridge::BuildSettingsLoadedMessage(bool success, const std::string& settingsJson, std::wstring_view warning) const
+    std::wstring WebMessageBridge::BuildSettingsLoadedMessage(bool success, const std::string& settingsJson, std::wstring_view warning, bool startupKnown) const
     {
         std::wostringstream json;
         json << L"{";
         json << L"\"type\":\"settingsLoaded\",";
         json << L"\"success\":" << (success ? L"true" : L"false");
+
+        json << L",\"startupKnown\":" << (startupKnown ? L"true" : L"false");
 
         if (success && !settingsJson.empty())
         {
@@ -443,18 +445,15 @@ namespace wpcc
         return json.str();
     }
 
-    std::wstring WebMessageBridge::BuildSettingsSavedMessage(bool success, std::wstring_view warning) const
+    std::wstring WebMessageBridge::BuildSettingsSavedMessage(const SettingsUpdateResult& result, unsigned long long requestId) const
     {
         std::wostringstream json;
-        json << L"{";
-        json << L"\"type\":\"settingsSaved\",";
-        json << L"\"success\":" << (success ? L"true" : L"false");
-
-        if (!success && !warning.empty())
-        {
-            json << L",\"warning\":\"" << EscapeJson(WideToUtf8(warning)) << L"\"";
-        }
-
+        json << L"{\"type\":\"settingsSaved\",\"success\":" << (result.success ? L"true" : L"false")
+             << L",\"requestId\":" << requestId
+             << L",\"startupKnown\":" << (result.startup.known ? L"true" : L"false")
+             << L",\"startupEnabled\":" << (result.startup.enabled ? L"true" : L"false")
+             << L",\"warning\":\"" << EscapeJson(WideToUtf8(result.warning)) << L"\"";
+        if (!result.jsonContent.empty()) json << L",\"settings\":" << Utf8ToWide(result.jsonContent);
         json << L"}";
         return json.str();
     }

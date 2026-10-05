@@ -1,5 +1,6 @@
 #include "app/Application.h"
 #include "core/SettingsStore.h"
+#include "core/StartupManager.h"
 #include "resource.h"
 
 #include <Windows.h>
@@ -48,6 +49,10 @@ namespace wpcc
             return false;
         }
         m_comInitialized = true;
+        const HRESULT security = CoInitializeSecurity(nullptr, -1, nullptr, nullptr,
+            RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, nullptr, EOAC_NONE, nullptr);
+        if (FAILED(security) && security != RPC_E_TOO_LATE) { StartupLog(L"com.security", security); return false; }
+
 
         m_window.SetMessageHandler([this](HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, bool& handled) {
             return HandleWindowMessage(hwnd, message, wParam, lParam, handled);
@@ -69,20 +74,31 @@ namespace wpcc
         {
             AppSettings settings = SettingsStore::ParseSettingsJson(settingsResult.jsonContent);
             m_minimizeToTray = settings.minimizeToTray;
+            const auto startup = StartupManager::MigrateLegacy(settings.startWithWindows);
+            StartupLog(L"startup.reconcile", startup.error);
         }
 
-        m_webViewHost->SetSettingsChangedCallback([this](bool startWithWindows, bool minimizeToTray) {
+        m_webViewHost->SetSettingsChangedCallback([this](bool minimizeToTray) {
+            const bool restore = m_minimizeToTray && !minimizeToTray;
             m_minimizeToTray = minimizeToTray;
-            ApplyStartWithWindows(startWithWindows);
+            if (restore) RestoreMainWindow();
         });
 
-        m_trayIcon.Create(m_window.GetHandle(), m_instance, IDI_APP_ICON, L"WindowsProcessControlCenter");
+        m_taskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
+        if (m_taskbarCreated)
+        {
+            // Explorer runs at medium integrity; permit only its registered recovery message.
+            if (!ChangeWindowMessageFilterEx(m_window.GetHandle(), m_taskbarCreated, MSGFLT_ALLOW, nullptr))
+                StartupLog(L"tray.message-filter", HRESULT_FROM_WIN32(GetLastError()));
+        }
+        RecreateTrayIcon();
 
         m_autoApplyEngine.Start();
+        StartupLog(L"auto-apply.started");
 
-        if (!(m_startMinimized && m_minimizeToTray))
+        if (!(m_startMinimized && m_minimizeToTray && m_trayAvailable))
         {
-            m_window.Show(m_showCommand);
+            m_window.Show(m_startMinimized ? SW_SHOWNORMAL : m_showCommand);
         }
         
         m_running = true;
@@ -104,6 +120,13 @@ namespace wpcc
     LRESULT Application::HandleWindowMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, bool& handled)
     {
         UNREFERENCED_PARAMETER(hwnd);
+        if (m_taskbarCreated && message == m_taskbarCreated)
+        {
+            m_trayRetries = 0;
+            RecreateTrayIcon();
+            handled = true;
+            return 0;
+        }
 
         switch (message)
         {
@@ -145,6 +168,14 @@ namespace wpcc
             }
             handled = true;
             return 0;
+        case WM_TIMER:
+            if (wParam == 0x5750)
+            {
+                RecreateTrayIcon();
+                handled = true;
+                return 0;
+            }
+            break;
         case WM_SIZE:
             if (m_webViewHost && wParam != SIZE_MINIMIZED)
             {
@@ -158,7 +189,7 @@ namespace wpcc
                 handled = true;
                 return 0;
             }
-            if ((wParam & 0xfff0) == SC_MINIMIZE && m_minimizeToTray)
+            if ((wParam & 0xfff0) == SC_MINIMIZE && m_minimizeToTray && m_trayAvailable)
             {
                 ShowWindow(m_window.GetHandle(), SW_HIDE);
                 handled = true;
@@ -194,7 +225,7 @@ namespace wpcc
             }
             break;
         case WM_CLOSE:
-            if (m_minimizeToTray)
+            if (m_minimizeToTray && m_trayAvailable)
             {
                 ShowWindow(m_window.GetHandle(), SW_HIDE);
                 handled = true;
@@ -271,27 +302,21 @@ namespace wpcc
         SetActiveWindow(hwnd);
     }
 
-    void Application::ApplyStartWithWindows(bool enable)
+    void Application::RecreateTrayIcon()
     {
-        HKEY hKey;
-        if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, nullptr, 0, KEY_WRITE, nullptr, &hKey, nullptr) == ERROR_SUCCESS)
+        m_trayAvailable = m_trayIcon.Create(m_window.GetHandle(), m_instance, IDI_APP_ICON, L"WindowsProcessControlCenter");
+        // Shell_NotifyIcon does not promise a useful GetLastError; record a generic failure.
+        StartupLog(L"tray.create", m_trayAvailable ? S_OK : E_FAIL);
+        if (m_trayAvailable) KillTimer(m_window.GetHandle(), 0x5750);
+        else
         {
-            if (enable)
+            RestoreMainWindow();
+            if (++m_trayRetries <= 30)
             {
-                wchar_t exePath[MAX_PATH];
-                if (GetModuleFileNameW(nullptr, exePath, MAX_PATH) > 0)
-                {
-                    std::wstring command = L"\"";
-                    command += exePath;
-                    command += L"\" --minimized";
-                    RegSetValueExW(hKey, L"WindowsProcessControlCenter", 0, REG_SZ, reinterpret_cast<const BYTE*>(command.c_str()), static_cast<DWORD>((command.length() + 1) * sizeof(wchar_t)));
-                }
+                if (!SetTimer(m_window.GetHandle(), 0x5750, 2000, nullptr))
+                    StartupLog(L"tray.retry-timer", HRESULT_FROM_WIN32(GetLastError()));
             }
-            else
-            {
-                RegDeleteValueW(hKey, L"WindowsProcessControlCenter");
-            }
-            RegCloseKey(hKey);
+            else KillTimer(m_window.GetHandle(), 0x5750);
         }
     }
 }

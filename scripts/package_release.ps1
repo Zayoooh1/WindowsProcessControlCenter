@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.1.13",
+    [string]$Version = "0.1.14",
     [string]$Configuration = "Release",
     [string]$BuildDirectory = "build",
     [switch]$SkipBuild
@@ -18,7 +18,9 @@ $webSource = Join-Path $buildDir "$Configuration\web"
 
 if (-not $SkipBuild) {
     cmake -S $repoRoot -B $buildDir -G "Visual Studio 17 2022" -A x64
+    if ($LASTEXITCODE -ne 0) { throw "CMake configure failed ($LASTEXITCODE)." }
     cmake --build $buildDir --config $Configuration
+    if ($LASTEXITCODE -ne 0) { throw "CMake build failed ($LASTEXITCODE)." }
 }
 
 if (-not (Test-Path $exePath)) {
@@ -50,6 +52,10 @@ Copy-Item -LiteralPath $exePath -Destination (Join-Path $packageDir "WindowsProc
 Copy-Item -LiteralPath $webSource -Destination (Join-Path $packageDir "web") -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination (Join-Path $packageDir "README.md")
 Copy-Item -LiteralPath (Join-Path $repoRoot "RELEASE_NOTES.md") -Destination (Join-Path $packageDir "RELEASE_NOTES.md")
+
+New-Item -ItemType Directory -Force -Path (Join-Path $packageDir "scripts") | Out-Null
+Copy-Item -LiteralPath (Join-Path $repoRoot "scripts/verify_startup.ps1") -Destination (Join-Path $packageDir "scripts/verify_startup.ps1")
+Copy-Item -LiteralPath (Join-Path $repoRoot "docs/AUTOSTART_FIX.md") -Destination (Join-Path $packageDir "AUTOSTART_FIX.md")
 
 $licensePath = Join-Path $repoRoot "LICENSE"
 if (Test-Path $licensePath) {

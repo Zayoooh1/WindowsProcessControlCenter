@@ -5,7 +5,7 @@ if(POLICY CMP0091)
 endif()
 
 project(WindowsProcessControlCenter
-    VERSION 0.1.13
+    VERSION 0.1.14
     DESCRIPTION "Modern Windows desktop shell for process control workflows"
     LANGUAGES CXX
 )
@@ -72,6 +72,11 @@ add_executable(WindowsProcessControlCenter WIN32
     src/core/AutoApplyEngine.cpp
     src/core/ProfileStore.cpp
     src/core/ProfileStore.h
+    src/core/StartupManager.cpp
+    src/core/StartupManager.h
+    src/core/SettingsService.cpp
+    src/core/SettingsService.h
+    src/core/StartupTransaction.h
     src/core/SettingsStore.cpp
     src/core/SettingsStore.h
     src/core/AutorunProvider.cpp
@@ -143,3 +148,14 @@ add_custom_target(WindowsProcessControlCenterWebAssets
 )
 
 add_dependencies(WindowsProcessControlCenter WindowsProcessControlCenterWebAssets)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(WPCCStartupTransactionTests tests/startup_transaction_test.cpp)
+    target_include_directories(WPCCStartupTransactionTests PRIVATE src)
+    add_test(NAME startup_transaction COMMAND WPCCStartupTransactionTests)
+    find_program(WPCC_NODE_EXECUTABLE node)
+    if(WPCC_NODE_EXECUTABLE)
+        add_test(NAME settings_queue COMMAND "${WPCC_NODE_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/settings_queue_test.js")
+    endif()
+endif()
