@@ -1,0 +1,22 @@
+name: Update release text
+on:
+  push:
+    branches: [codex/autostart-0.1.14]
+    paths:
+      - docs/RELEASE_0.1.14-rc.1.md
+      - .github/workflows/release-metadata.yml
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update title and notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release edit v0.1.14-rc.1 --title 'WPCC 0.1.14-rc.1: Startup fix' --notes-file docs/RELEASE_0.1.14-rc.1.md
