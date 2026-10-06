@@ -84,3 +84,6 @@ Desktop.ini
 *.temp
 
 build-release-verify/
+
+# Browser test dependencies
+node_modules/

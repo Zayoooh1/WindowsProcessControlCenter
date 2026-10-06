@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.1.14",
+    [string]$Version = "0.1.15",
     [string]$Configuration = "Release",
     [string]$BuildDirectory = "build",
     [switch]$SkipBuild

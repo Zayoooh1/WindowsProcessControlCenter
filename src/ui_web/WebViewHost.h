@@ -101,5 +101,6 @@ namespace wpcc
         unsigned long long m_previousSystemKernelTime = 0;
         unsigned long long m_previousSystemUserTime = 0;
         bool m_hasPreviousSystemTimes = false;
+        bool m_updateDownloadInProgress = false;
     };
 }

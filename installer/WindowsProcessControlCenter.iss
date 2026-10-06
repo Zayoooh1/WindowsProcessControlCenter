@@ -1,6 +1,6 @@
 #define MyAppName "Windows Process Control Center"
 #ifndef MyAppVersion
-#define MyAppVersion "0.1.14"
+#define MyAppVersion "0.1.15"
 #endif
 #ifndef MyBuildDir
 #define MyBuildDir "..\build\Release"

@@ -187,7 +187,7 @@
           <section class="panel autoruns-hero">
             <div>
               <h2>Autoruns</h2>
-              <p>Review and manage supported startup entries. Read-only items remain available in their categories.</p>
+              <p>Review what starts automatically. Disable a supported entry to prevent future automatic starts; this does not uninstall the program or stop it now.</p>
             </div>
             <button id="autorunsRefreshButton" class="primary-button" type="button">Refresh</button>
           </section>
@@ -243,28 +243,32 @@
               </div>
             </div>
 
+            <p id="autorunsCategoryHelp" class="autoruns-help"></p>
             <div id="autorunsWarning" class="settings-storage-notice hidden"></div>
 
             <div class="table-wrap autoruns-table-wrap">
               <table class="autoruns-table">
                 <thead>
                   <tr>
-                    <th class="autoruns-enabled-column"><button type="button" data-autoruns-sort="enabled">Enabled</button></th>
-                    <th class="autoruns-entry-column"><button type="button" data-autoruns-sort="entryName">Entry</button></th>
-                    <th class="autoruns-publisher-column"><button type="button" data-autoruns-sort="publisher">Publisher</button></th>
-                    <th class="autoruns-image-column"><button type="button" data-autoruns-sort="imagePath">Image Path</button></th>
-                    <th class="autoruns-command-column"><button type="button" data-autoruns-sort="command">Command / CLSID</button></th>
-                    <th class="autoruns-location-column"><button type="button" data-autoruns-sort="location">Location</button></th>
-                    <th class="autoruns-user-column"><button type="button" data-autoruns-sort="user">User</button></th>
-                    <th class="autoruns-status-column"><button type="button" data-autoruns-sort="status">Status</button></th>
+                    <th style="width:100px"><button type="button" data-autoruns-sort="enabled">State</button></th>
+                    <th style="width:22%"><button type="button" data-autoruns-sort="entryName">Program</button></th>
+                    <th style="width:16%"><button type="button" data-autoruns-sort="publisher">Publisher</button></th>
+                    <th style="width:130px"><button type="button" data-autoruns-sort="category">Source</button></th>
+                    <th><button type="button" data-autoruns-sort="imagePath">Image path</button></th>
+                    <th style="width:86px">Details</th>
                   </tr>
                 </thead>
                 <tbody id="autorunsRows">
                   <tr>
-                    <td colspan="8" class="empty-cell">Open Autoruns to load startup entries.</td>
+                    <td colspan="6" class="empty-cell">Open Autoruns to load startup entries.</td>
                   </tr>
                 </tbody>
               </table>
+            </div>
+            <div class="autoruns-pagination">
+              <span id="autorunsPageLabel">0 entries</span>
+              <button id="autorunsPrevious" class="secondary-button" type="button">Previous</button>
+              <button id="autorunsNext" class="secondary-button" type="button">Next</button>
             </div>
           </section>
         </section>
@@ -452,7 +456,7 @@
           <section class="settings-section">
             <div class="settings-section-heading">
               <h2>Updates</h2>
-              <p>Configure automatic update checking preferences. Actual GitHub release scanning is planned.</p>
+              <p>Choose your release channel and check GitHub for updates. Installation always requires your confirmation.</p>
             </div>
             <div class="settings-grid">
               <article class="panel setting-card">
@@ -480,14 +484,13 @@
 
               <article class="panel setting-card">
                 <div class="setting-copy">
-                  <h3>Install updates automatically</h3>
-                  <p>Automatic installation is planned for a future version. Current version will only check and prompt.
-                  </p>
+                  <h3>Update channel</h3>
+                  <p>Stable is recommended. Test releases include pre-release versions that may need further testing. Downloads and installation always require your confirmation.</p>
                 </div>
-                <label class="switch-control">
-                  <input id="autoInstallToggle" type="checkbox">
-                  <span class="switch-track"><span class="switch-thumb"></span></span>
-                </label>
+                <select id="updateChannelSelect" class="setting-select">
+                  <option value="stable">Stable releases</option>
+                  <option value="prerelease">Stable and test releases</option>
+                </select>
               </article>
 
               <article class="panel setting-card">
@@ -826,6 +829,7 @@
   </div>
   <input type="file" id="importFileInput" accept=".json,application/json" class="hidden">
   <script src="settings-queue.js"></script>
+  <script src="update-service.js"></script>
   <script src="app.js"></script>
 </body>
 

@@ -27,7 +27,7 @@ function Assert-Payload([string]$Directory) {
     if ((Get-FileHash (Join-Path $Directory 'WindowsProcessControlCenter.exe') -Algorithm SHA256).Hash -ne $expected) {
         throw "EXE differs from Release build: $Directory"
     }
-    foreach ($asset in @('index.html', 'app.js', 'settings-queue.js')) {
+    foreach ($asset in @('index.html', 'app.js', 'settings-queue.js', 'update-service.js')) {
         $built = Join-Path $root "build/Release/web/$asset"
         $packaged = Join-Path $Directory "web/$asset"
         if ((Get-FileHash $built).Hash -ne (Get-FileHash $packaged).Hash) {

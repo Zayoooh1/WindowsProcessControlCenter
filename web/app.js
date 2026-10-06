@@ -1,7 +1,8 @@
 const SETTINGS_STORAGE_KEY = "wpcc.settings";
 const VALID_UPDATE_INTERVALS = ["3d", "weekly", "monthly"];
 const UPDATE_STATE_KEY = "wpcc.updateState";
-const CURRENT_VERSION = "0.1.14";
+const CURRENT_VERSION = "0.1.15";
+const CURRENT_RELEASE = "0.1.15-rc.1";
 
 const DEFAULT_SETTINGS = {
   startScreen: "dashboard",
@@ -14,6 +15,7 @@ const DEFAULT_SETTINGS = {
   updateChecksEnabled: true,
   updateCheckInterval: "weekly",
   autoInstallUpdates: false,
+  updateChannel: "stable",
   ignoredUpdateVersion: null,
   autoRefreshInterval: "off",
   showPidColumn: true,
@@ -143,6 +145,7 @@ const state = {
   autorunsSortDirection: "asc",
   autorunsRequested: false,
   autorunsWarning: "",
+  autorunsPage: 0,
   pendingAutorunAction: null,
   affinityDraftMask: null,
   affinityDraftPid: null,
@@ -215,7 +218,7 @@ const elements = {
   updatesChecksToggle: document.getElementById("updatesChecksToggle"),
   updateIntervalSelect: document.getElementById("updateIntervalSelect"),
   autoRefreshSelect: document.getElementById("autoRefreshSelect"),
-  autoInstallToggle: document.getElementById("autoInstallToggle"),
+  updateChannelSelect: document.getElementById("updateChannelSelect"),
   ignoredUpdateVersionDisplay: document.getElementById("ignoredUpdateVersionDisplay"),
   resetIgnoredVersionButton: document.getElementById("resetIgnoredVersionButton"),
   manualCheckButton: document.getElementById("manualCheckButton"),
@@ -306,7 +309,8 @@ function normalizeSettings(value) {
     updateCheckInterval: VALID_UPDATE_INTERVALS.includes(source.updateCheckInterval)
       ? source.updateCheckInterval
       : "weekly",
-    autoInstallUpdates: Boolean(source.autoInstallUpdates),
+    autoInstallUpdates: false, // Downloads and installation always require a user action.
+    updateChannel: source.updateChannel === "prerelease" ? "prerelease" : "stable",
     ignoredUpdateVersion: source.ignoredUpdateVersion && typeof source.ignoredUpdateVersion === "string"
       ? source.ignoredUpdateVersion
       : null,
@@ -948,7 +952,7 @@ function isMicrosoftAutorun(entry) {
 
 function autorunsInSelectedCategory() {
   return state.autorunsEntries.filter((entry) => {
-    if (state.autorunsCategory === "everything") return isManageableAutorun(entry);
+    if (state.autorunsCategory === "everything") return true;
     return entry.category === state.autorunsCategory;
   });
 }
@@ -987,117 +991,85 @@ function filteredAutoruns(categoryEntries = autorunsInSelectedCategory()) {
   return entries;
 }
 
+const AUTORUN_CATEGORIES = {
+  everything: ["All sources", "Programs and components registered to start automatically. Unknown publishers are not a verdict on safety."],
+  logon: ["Sign-in", "Programs started when you sign in, using the registry or the Startup folder."],
+  scheduledTask: ["Scheduled task", "Programs started by Windows Task Scheduler, at sign-in, on a timer or after an event."],
+  service: ["Service", "Background components managed by Windows. Disabling a service can affect other programs."],
+  driver: ["Driver", "Components that help Windows communicate with hardware. These entries are read-only."],
+  explorer: ["Explorer", "Extensions used by File Explorer, such as context menus. These entries are read-only."],
+  winlogon: ["Windows sign-in", "Windows sign-in components. These system settings are read-only."],
+  appInit: ["AppInit", "Libraries configured to load into some programs. These advanced settings are read-only."],
+  imageHijack: ["Image Hijacks", "Launch overrides such as debuggers or monitoring tools. The name does not mean an entry is malicious. These settings are read-only. IFEO data may be shared by the 32-bit and 64-bit views."],
+  knownDll: ["Known DLL", "Libraries selected by the Windows program loader. These system settings are read-only."],
+};
 function renderAutoruns() {
   if (!elements.autorunsRows) return;
-
   elements.autorunsRefreshButton.disabled = state.autorunsLoading || state.pendingAutorunAction !== null;
-  elements.autorunsCategoryButtons.forEach((button) => {
-    const active = button.dataset.autorunsCategory === state.autorunsCategory;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", String(active));
+  elements.autorunsCategoryButtons.forEach(button => {
     const category = button.dataset.autorunsCategory;
-    const count = category === "everything"
-      ? state.autorunsEntries.reduce((total, entry) => total + (isManageableAutorun(entry) ? 1 : 0), 0)
-      : state.autorunsEntries.reduce((total, entry) => total + (entry.category === category ? 1 : 0), 0);
+    const active = category === state.autorunsCategory;
+    button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active));
+    const count = category === "everything" ? state.autorunsEntries.length : state.autorunsEntries.filter(e => e.category === category).length;
     button.textContent = `${button.dataset.autorunsLabel} (${count})`;
+    button.title = AUTORUN_CATEGORIES[category]?.[1] || "";
   });
-  elements.autorunsSortButtons.forEach((button) => {
+  elements.autorunsSortButtons.forEach(button => {
     const active = button.dataset.autorunsSort === state.autorunsSortColumn;
     button.classList.toggle("active", active);
     button.dataset.sortDirection = active ? state.autorunsSortDirection : "";
-    button.setAttribute("aria-sort", active ? (state.autorunsSortDirection === "asc" ? "ascending" : "descending") : "none");
   });
   elements.autorunsWarning.classList.toggle("hidden", !state.autorunsWarning);
   elements.autorunsWarning.textContent = state.autorunsWarning;
+  document.getElementById("autorunsCategoryHelp").textContent = AUTORUN_CATEGORIES[state.autorunsCategory]?.[1] || "";
   elements.autorunsHideMicrosoftToggle.checked = state.autorunsHideMicrosoft;
   elements.autorunsHideWindowsToggle.checked = state.autorunsHideWindows;
-
-  const categoryEntries = autorunsInSelectedCategory();
-  const entries = filteredAutoruns(categoryEntries);
-  elements.autorunsCount.textContent = `${entries.length} of ${categoryEntries.length} visible`;
+  const entries = filteredAutoruns();
+  const pageSize = 100;
+  state.autorunsPage = Math.min(state.autorunsPage, Math.max(0, Math.ceil(entries.length / pageSize) - 1));
+  const offset = state.autorunsPage * pageSize;
+  elements.autorunsCount.textContent = `${entries.length} matching entries`;
+  document.getElementById("autorunsPageLabel").textContent = entries.length ? `${offset + 1} to ${Math.min(offset + pageSize, entries.length)} of ${entries.length}` : "0 entries";
+  document.getElementById("autorunsPrevious").disabled = state.autorunsPage === 0;
+  document.getElementById("autorunsNext").disabled = offset + pageSize >= entries.length;
   elements.autorunsRows.replaceChildren();
-
-  if (state.autorunsLoading) {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 8;
-    cell.className = "empty-cell";
-    cell.textContent = "Loading Autoruns entries...";
-    row.appendChild(cell);
-    elements.autorunsRows.appendChild(row);
-    return;
+  if (state.autorunsLoading || !entries.length) {
+    const row = document.createElement("tr"), cell = document.createElement("td"); cell.colSpan = 6; cell.className = "empty-cell";
+    cell.textContent = state.autorunsLoading ? "Loading startup entries..." :
+      (state.autorunsWarning ? "Some locations could not be read. See the scan warning above; no available entries match this view." : "No entries match this category and the current filters.");
+    row.append(cell); elements.autorunsRows.append(row); return;
   }
-
-  if (entries.length === 0) {
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    cell.colSpan = 8;
-    cell.className = "empty-cell";
-    const hasVisibilityFilter = state.autorunsQuery || state.autorunsHideMicrosoft || state.autorunsHideWindows;
-    cell.textContent = hasVisibilityFilter ? "No autorun entries match the current filters." : "No Autoruns entries found in this category.";
-    row.appendChild(cell);
-    elements.autorunsRows.appendChild(row);
-    return;
+  const fragment = document.createDocumentFragment();
+  for (const entry of entries.slice(offset, offset + pageSize)) {
+    const row = document.createElement("tr"); row.dataset.autorunId = entry.id;
+    const addCell = (text, className = "") => { const cell = document.createElement("td"); cell.className = className; cell.textContent = text; cell.title = text; row.append(cell); return cell; };
+    const stateCell = addCell("", "autorun-state");
+    const toggle = document.createElement("input"); toggle.type = "checkbox"; toggle.className = "autoruns-enabled-toggle";
+    toggle.checked = entry.enabled === true; toggle.indeterminate = entry.enabledKnown === false;
+    toggle.disabled = state.pendingAutorunAction !== null || entry.canSetEnabled === false || entry.enabledKnown === false;
+    toggle.setAttribute("aria-label", `Toggle startup for ${entry.entryName}`);
+    toggle.title = entry.readOnlyReason || "Disable to prevent this entry from starting automatically. This does not uninstall the program or stop a running process.";
+    toggle.addEventListener("change", () => { if (toggle.disabled || state.pendingAutorunAction !== null) return;
+      state.pendingAutorunAction = entry.id; renderAutoruns(); postToHost({ type: "setAutorunEnabled", id: entry.id, enabled: !entry.enabled }); });
+    const label = document.createElement("span");
+    label.textContent = entry.canSetEnabled === false ? "Read-only" : entry.enabledKnown === false ? "Unknown" : entry.enabled ? "Enabled" : "Disabled";
+    stateCell.append(toggle, label);
+    addCell(entry.entryName || "Unnamed entry", "autorun-name");
+    addCell(entry.publisher || "Unknown", "autorun-publisher");
+    addCell(AUTORUN_CATEGORIES[entry.category]?.[0] || entry.category || "Other", "autorun-source");
+    addCell(entry.imagePath || "Not resolved", "autorun-path");
+    const detailCell = addCell(""); const button = document.createElement("button"); button.type = "button"; button.className = "secondary-button autorun-details-button"; button.textContent = "Details";
+    button.setAttribute("aria-expanded", "false"); button.setAttribute("aria-label", `Details for ${entry.entryName}`); detailCell.append(button);
+    const detailRow = document.createElement("tr"); detailRow.className = "autorun-details-row"; detailRow.hidden = true;
+    const detail = document.createElement("td"); detail.colSpan = 6; const list = document.createElement("dl");
+    for (const [name, value] of [["Program", entry.entryName], ["Publisher", entry.publisher ? entry.publisher + " (file metadata; signature not verified)" : "Unknown (file metadata unavailable)"], ["Image path", entry.imagePath], ["Command / CLSID", entry.command], ["Startup location", entry.location], ["User", entry.user], ["Status", entry.status], ["Changing this entry", entry.readOnlyReason || (entry.requiresElevation ? "Administrator privileges are required. " : "") + "Disabling prevents future automatic starts for this entry. It does not remove the program or stop it now. Services may support other programs."]]) {
+      const term = document.createElement("dt"), valueNode = document.createElement("dd"); term.textContent = name; valueNode.textContent = value || "Not available"; list.append(term, valueNode);
+    }
+    detail.append(list); detailRow.append(detail);
+    button.addEventListener("click", () => { detailRow.hidden = !detailRow.hidden; button.setAttribute("aria-expanded", String(!detailRow.hidden)); });
+    fragment.append(row, detailRow);
   }
-
-  for (const entry of entries) {
-    const row = document.createElement("tr");
-    row.dataset.autorunId = entry.id;
-
-    const enabledCell = document.createElement("td");
-    const enabledToggle = document.createElement("input");
-    enabledToggle.type = "checkbox";
-    enabledToggle.className = "autoruns-enabled-toggle";
-    enabledToggle.checked = entry.enabled === true;
-    enabledToggle.indeterminate = entry.enabledKnown === false;
-    enabledToggle.disabled = state.pendingAutorunAction !== null || entry.canSetEnabled === false || entry.enabledKnown === false;
-    enabledToggle.setAttribute("aria-label", `${entry.enabled ? "Disable" : "Enable"} ${entry.entryName}`);
-    if (entry.canSetEnabled === false || entry.enabledKnown === false) {
-      enabledToggle.title = entry.readOnlyReason || "This entry is read-only.";
-    } else if (entry.requiresElevation) {
-      enabledToggle.title = "Changing this entry may require administrator privileges.";
-    }
-    enabledToggle.addEventListener("change", () => {
-      if (state.pendingAutorunAction !== null) return;
-      state.pendingAutorunAction = entry.id;
-      renderAutoruns();
-      postToHost({
-        type: "setAutorunEnabled",
-        id: entry.id,
-        enabled: !entry.enabled,
-      });
-    });
-    enabledCell.appendChild(enabledToggle);
-    row.appendChild(enabledCell);
-
-    const values = [entry.entryName, entry.publisher || "\u2014", entry.imagePath, entry.command, entry.location, entry.user];
-    for (const value of values) {
-      const cell = document.createElement("td");
-      cell.textContent = value || "\u2014";
-      cell.title = value || "";
-      row.appendChild(cell);
-    }
-
-    const statusCell = document.createElement("td");
-    const statusBadge = document.createElement("span");
-    statusBadge.className = `badge ${autorunStatusTone(entry.status)}`;
-    statusBadge.textContent = entry.status || "Unresolved command";
-    if (entry.canSetEnabled === false || entry.enabledKnown === false) {
-      statusBadge.title = entry.readOnlyReason || "This entry is read-only.";
-    } else if (entry.requiresElevation) {
-      statusBadge.title = "Changing this entry may require administrator privileges.";
-    }
-    statusCell.appendChild(statusBadge);
-    if (entry.requiresElevation && entry.canSetEnabled !== false) {
-      const elevationBadge = document.createElement("span");
-      elevationBadge.className = "badge warning autoruns-elevation-badge";
-      elevationBadge.textContent = "Admin to change";
-      elevationBadge.title = "Changing this entry may require administrator privileges.";
-      statusCell.appendChild(elevationBadge);
-    }
-    row.appendChild(statusCell);
-    elements.autorunsRows.appendChild(row);
-  }
+  elements.autorunsRows.append(fragment);
 }
 
 function requestSystemMetrics() {
@@ -1704,11 +1676,10 @@ function renderSettings() {
   elements.updateIntervalSelect.value = state.settings.updateCheckInterval;
   elements.updateIntervalSelect.disabled = !state.settings.updateChecksEnabled;
   elements.autoRefreshSelect.value = state.settings.autoRefreshInterval;
-  elements.autoInstallToggle.checked = state.settings.autoInstallUpdates;
-  elements.autoInstallToggle.disabled = false;
+  elements.updateChannelSelect.value = state.settings.updateChannel;
   elements.ignoredUpdateVersionDisplay.textContent = state.settings.ignoredUpdateVersion || "None";
   elements.resetIgnoredVersionButton.disabled = !state.settings.ignoredUpdateVersion;
-  elements.manualCheckButton.disabled = false;
+  elements.manualCheckButton.disabled = updateCheckPending;
   renderUpdateStatus();
 }
 
@@ -1723,6 +1694,8 @@ function loadUpdateState() {
     };
     const parsed = JSON.parse(raw);
     return {
+      error: parsed.error || null,
+      channel: parsed.channel || "stable",
       lastCheckedAt: parsed.lastCheckedAt || null,
       lastKnownVersion: parsed.lastKnownVersion || null,
       latestReleaseUrl: parsed.latestReleaseUrl || null,
@@ -1746,23 +1719,8 @@ function saveUpdateState(obj) {
   }
 }
 
-function parseSemVer(input) {
-  if (!input || typeof input !== "string") return null;
-  const s = input.trim().replace(/^v/i, "");
-  const m = s.match(/^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
-  if (!m) return null;
-  return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) };
-}
-
-function compareSemVer(aStr, bStr) {
-  const a = parseSemVer(aStr);
-  const b = parseSemVer(bStr);
-  if (!a || !b) return null;
-  if (a.major !== b.major) return a.major < b.major ? -1 : 1;
-  if (a.minor !== b.minor) return a.minor < b.minor ? -1 : 1;
-  if (a.patch !== b.patch) return a.patch < b.patch ? -1 : 1;
-  return 0;
-}
+function parseSemVer(input) { return WPCCUpdates.parse(input); }
+function compareSemVer(a, b) { return WPCCUpdates.compare(a, b); }
 
 function formatDateIso(d) {
   try {
@@ -1780,9 +1738,10 @@ function renderUpdateStatus() {
     return;
   }
 
+  if (stateObj.error) { elements.updateStatusArea.textContent = stateObj.error; return; }
   const latest = stateObj.lastKnownVersion || "Unknown";
-  let status = "Last checked: " + formatDateIso(stateObj.lastCheckedAt) + " — ";
-  const cmp = compareSemVer(CURRENT_VERSION, latest);
+  let status = "Last checked: " + formatDateIso(stateObj.lastCheckedAt) + ": ";
+  const cmp = compareSemVer(CURRENT_RELEASE, latest);
   if (stateObj.lastKnownVersion === null) {
     status += "Failed to determine latest release.";
   } else if (stateObj.ignoredVersion && stateObj.ignoredVersion === stateObj.lastKnownVersion) {
@@ -1798,127 +1757,44 @@ function renderUpdateStatus() {
   elements.updateStatusArea.textContent = status;
 }
 
+let updateCheckPending = false;
 async function checkForUpdates(manual = false) {
-  if (!elements.updateStatusArea) return;
+  if (!elements.updateStatusArea || updateCheckPending) return;
+  updateCheckPending = true;
+  elements.manualCheckButton.disabled = true;
   elements.updateStatusArea.textContent = "Checking for updates...";
-
   const abort = new AbortController();
-  const timeout = setTimeout(() => abort.abort(), 8000);
-  let updateState = loadUpdateState();
+  const timeout = setTimeout(() => abort.abort(), 10000);
+  const updateState = loadUpdateState();
   try {
-    const resp = await fetch("https://api.github.com/repos/Zayoooh1/WindowsProcessControlCenter/releases/latest", {
-      method: "GET",
-      headers: { Accept: "application/vnd.github.v3+json" },
-      signal: abort.signal,
-    });
-    if (!resp.ok) {
-      // Provide a friendly message for 404 which commonly means no public release
-      if (resp.status === 404) {
-        elements.updateStatusArea.textContent = "Failed to check for updates. The GitHub release endpoint returned 404. This may happen when the repository is private or no public release exists.";
-      } else {
-        const text = await resp.text().catch(() => "");
-        elements.updateStatusArea.textContent = `Failed to check for updates: ${resp.status} ${resp.statusText}`;
-      }
-      updateState.lastCheckedAt = new Date().toISOString();
-      saveUpdateState(updateState);
-      return;
-    }
-
-    const json = await resp.json().catch(() => null);
-    if (!json) {
-      elements.updateStatusArea.textContent = "Failed to parse update information.";
-      updateState.lastCheckedAt = new Date().toISOString();
-      saveUpdateState(updateState);
-      return;
-    }
-
-    if (json.prerelease) {
-      elements.updateStatusArea.textContent = "No stable release found.";
-      updateState.lastCheckedAt = new Date().toISOString();
-      saveUpdateState(updateState);
-      return;
-    }
-
-    const tag = json.tag_name || json.name || null;
-    const parsedVersion = tag ? tag.replace(/^v/i, "") : null;
-    const releaseUrl = json.html_url || null;
-    const releaseName = json.name || json.tag_name || "";
-
-    // detect assets
-    let installerExe = null;
-    let portableZip = null;
-    if (Array.isArray(json.assets)) {
-      for (const asset of json.assets) {
-        const name = String(asset.name || "").toLowerCase();
-        if (!installerExe && name.endsWith('.exe')) installerExe = asset.browser_download_url || null;
-        if (!portableZip && (name.endsWith('.zip') || name.endsWith('.portable.zip'))) portableZip = asset.browser_download_url || null;
-      }
-    }
-
+    const result = await WPCCUpdates.check({ current: CURRENT_RELEASE, channel: state.settings.updateChannel, signal: abort.signal });
     updateState.lastCheckedAt = new Date().toISOString();
-    updateState.lastKnownVersion = parsedVersion || null;
-    updateState.latestReleaseUrl = releaseUrl;
-    updateState.ignoredVersion = updateState.ignoredVersion || state.settings.ignoredUpdateVersion || null;
+    updateState.lastKnownVersion = result.release?.parsedVersion || null;
+    updateState.latestReleaseUrl = result.release?.releaseUrl || null;
+    updateState.channel = state.settings.updateChannel;
+    updateState.error = null;
     saveUpdateState(updateState);
-
-    // render status
-    if (!parsedVersion) {
-      elements.updateStatusArea.textContent = `Checked ${formatDateIso(updateState.lastCheckedAt)} — unable to parse latest version.`;
+    if (!result.release) {
+      elements.updateStatusArea.textContent = "No published releases were found in this update channel.";
       return;
     }
-
-    const cmp = compareSemVer(CURRENT_VERSION, parsedVersion);
-    if (cmp === null) {
-      elements.updateStatusArea.textContent = `Checked ${formatDateIso(updateState.lastCheckedAt)} — latest ${parsedVersion}. (Comparison unavailable)`;
-      return;
+    renderUpdateStatus();
+    if (result.available && (manual || updateState.ignoredVersion !== result.release.parsedVersion)) {
+      showUpdateModal(result.release);
     }
-
-    if (updateState.ignoredVersion && updateState.ignoredVersion === parsedVersion) {
-      renderUpdateStatus();
-      return;
-    }
-
-    if (cmp <= -1) {
-      // latest is greater
-      renderUpdateStatus();
-
-      // Auto updates download
-      if (state.settings.autoInstallUpdates) {
-        const downloadUrl = installerExe || portableZip;
-        if (downloadUrl) {
-          postToHost({
-            type: "downloadUpdate",
-            url: downloadUrl,
-          });
-        }
-      }
-
-      // show modal with release details
-      try {
-        showUpdateModal({
-          parsedVersion,
-          releaseName,
-          releaseUrl,
-          installerExe,
-          portableZip,
-          body: json.body || "",
-        });
-      } catch (e) {
-        // ignore modal errors
-      }
-    } else {
-      renderUpdateStatus();
-    }
-  } catch (e) {
-    if (e && e.name === 'AbortError') {
-      elements.updateStatusArea.textContent = 'Update check timed out.';
-    } else {
-      elements.updateStatusArea.textContent = 'Failed to check for updates.';
-    }
+  } catch (error) {
+    const message = error?.name === 'AbortError' ? 'Update check timed out. Check your connection and try again.' :
+      (error instanceof TypeError ? 'Could not connect to GitHub. Check your connection, proxy or firewall and try again.' : error.message || 'Update check failed.');
     updateState.lastCheckedAt = new Date().toISOString();
+    updateState.lastKnownVersion = null;
+    updateState.error = message;
     saveUpdateState(updateState);
+    elements.updateStatusArea.textContent = message;
+    if (manual) showError(message);
   } finally {
     clearTimeout(timeout);
+    updateCheckPending = false;
+    elements.manualCheckButton.disabled = false;
   }
 }
 
@@ -1936,12 +1812,18 @@ function runAutoUpdateCheckIfNeeded() {
   try {
     if (!state.settings.updateChecksEnabled) return;
     const updateState = loadUpdateState();
-    if (!shouldCheckByInterval(updateState)) return;
+    if (updateState.channel === state.settings.updateChannel && !shouldCheckByInterval(updateState)) return;
     // don't block UI
     setTimeout(() => checkForUpdates(false), 100);
   } catch (e) {
     // swallow
   }
+}
+
+function openUpdateLink(url) {
+  if (!WPCCUpdates.safeUrl(url)) return;
+  if (window.chrome?.webview) postToHost({ type: "OpenExternalUrl", url });
+  else window.open(url, "_blank", "noopener,noreferrer");
 }
 
 function closeUpdateModal() {
@@ -1951,6 +1833,7 @@ function closeUpdateModal() {
 function showUpdateModal(release) {
   // release: { parsedVersion, releaseName, releaseUrl, installerExe, portableZip, body }
   closeUpdateModal();
+  state.pendingInstallerFilePath = null;
 
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop update-modal-backdrop";
@@ -1968,7 +1851,7 @@ function showUpdateModal(release) {
   const info = document.createElement("div");
   info.className = "update-info";
   info.innerHTML = `
-    <p>Current version: <strong>${CURRENT_VERSION}</strong></p>
+    <p>Current version: <strong>${CURRENT_RELEASE}</strong></p>
     <p>Latest version: <strong>${release.parsedVersion}</strong></p>
   `;
   if (release.releaseName) {
@@ -1978,12 +1861,16 @@ function showUpdateModal(release) {
   }
   if (release.body) {
     const body = document.createElement("p");
-    const summary = String(release.body).split('\n').slice(0,3).join(' ');
+    const summary = String(release.body).split('\n').filter(line => line.trim()).slice(0, 12).join('\n');
     body.textContent = summary;
     body.className = "update-notes";
     info.appendChild(body);
   }
 
+  const guidance = document.createElement("p");
+  guidance.textContent = (release.prerelease ? "Test release. " : "Stable release. ") +
+    "Installed with Setup? Download the installer, then choose Install now. Using Portable? Download the ZIP, close WPCC and extract it into your Portable folder.";
+  info.appendChild(guidance);
   modal.appendChild(info);
 
   const actions = document.createElement("div");
@@ -1993,8 +1880,9 @@ function showUpdateModal(release) {
   openRelease.type = "button";
   openRelease.className = "primary-button";
   openRelease.textContent = "Open release page";
+  openRelease.disabled = !release.releaseUrl;
   openRelease.addEventListener("click", () => {
-    if (release.releaseUrl) window.open(release.releaseUrl, "_blank");
+    if (release.releaseUrl) openUpdateLink(release.releaseUrl);
   });
 
   const downloadInstaller = document.createElement("button");
@@ -2022,12 +1910,7 @@ function showUpdateModal(release) {
   downloadZip.addEventListener("click", (event) => {
     event.preventDefault();
     if (release.portableZip) {
-      postToHost({
-        type: "downloadUpdate",
-        url: release.portableZip,
-      });
-      actions.classList.add("hidden-view");
-      document.getElementById("updateProgressContainer").classList.remove("hidden-view");
+      openUpdateLink(release.portableZip);
     }
   });
 
@@ -2091,7 +1974,7 @@ function showUpdateModal(release) {
   const confirmInstall = document.createElement("button");
   confirmInstall.type = "button";
   confirmInstall.className = "primary-button";
-  confirmInstall.textContent = "Ok";
+  confirmInstall.textContent = "Install now";
   confirmInstall.addEventListener("click", () => {
     if (state.pendingInstallerFilePath) {
       postToHost({
@@ -3915,6 +3798,7 @@ bindUi(elements.quickProcessesButton, "click", () => setActiveView("processes"),
 bindUi(elements.autorunsRefreshButton, "click", requestAutoruns, "autorunsRefreshButton");
 bindUi(elements.autorunsSearchInput, "input", (event) => {
   state.autorunsQuery = event.target.value;
+  state.autorunsPage = 0;
   renderAutoruns();
 }, "autorunsSearchInput");
 bindUi(elements.autorunsHideMicrosoftToggle, "change", (event) => {
@@ -3928,6 +3812,7 @@ bindUi(elements.autorunsHideWindowsToggle, "change", (event) => {
 elements.autorunsCategoryButtons.forEach((button) => {
   button.addEventListener("click", () => {
     state.autorunsCategory = button.dataset.autorunsCategory;
+    state.autorunsPage = 0;
     renderAutoruns();
   });
 });
@@ -3967,7 +3852,11 @@ bindUi(elements.autoRefreshSelect, "change", (event) => {
   updateSetting("autoRefreshInterval", event.target.value);
   restartAutoRefresh();
 }, "autoRefreshSelect");
-bindUi(elements.autoInstallToggle, "change", (event) => updateSetting("autoInstallUpdates", event.target.checked), "autoInstallToggle");
+bindUi(elements.updateChannelSelect, "change", (event) => {
+  updateSetting("updateChannel", event.target.value);
+  const us = loadUpdateState(); us.lastCheckedAt = null; us.lastKnownVersion = null; us.channel = event.target.value; saveUpdateState(us);
+  renderUpdateStatus();
+}, "updateChannelSelect");
 bindUi(elements.resetSettingsButton, "click", () => {
   state.resetSettingsModalOpen = true;
   render();
@@ -4368,3 +4257,6 @@ function renderAutoApplyLogs(logs) {
 
 
 
+
+bindUi(document.getElementById("autorunsPrevious"), "click", () => { state.autorunsPage--; renderAutoruns(); }, "autorunsPrevious");
+bindUi(document.getElementById("autorunsNext"), "click", () => { state.autorunsPage++; renderAutoruns(); }, "autorunsNext");
