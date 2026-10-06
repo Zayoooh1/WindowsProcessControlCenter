@@ -5,7 +5,7 @@ if(POLICY CMP0091)
 endif()
 
 project(WindowsProcessControlCenter
-    VERSION 0.1.14
+    VERSION 0.1.15
     DESCRIPTION "Modern Windows desktop shell for process control workflows"
     LANGUAGES CXX
 )
@@ -81,6 +81,7 @@ add_executable(WindowsProcessControlCenter WIN32
     src/core/SettingsStore.h
     src/core/AutorunProvider.cpp
     src/core/AutorunProvider.h
+    src/core/RegistryViewReader.h
     src/core/ProcessProvider.cpp
     src/core/ProcessProvider.h
     src/platform/Win32Window.cpp
@@ -154,8 +155,16 @@ if(BUILD_TESTING)
     add_executable(WPCCStartupTransactionTests tests/startup_transaction_test.cpp)
     target_include_directories(WPCCStartupTransactionTests PRIVATE src)
     add_test(NAME startup_transaction COMMAND WPCCStartupTransactionTests)
+    if(WIN32)
+        add_executable(WPCCRegistryViewTests tests/registry_view_test.cpp)
+        target_include_directories(WPCCRegistryViewTests PRIVATE src)
+        target_compile_definitions(WPCCRegistryViewTests PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+        target_link_libraries(WPCCRegistryViewTests PRIVATE advapi32)
+        add_test(NAME registry_views COMMAND WPCCRegistryViewTests)
+    endif()
     find_program(WPCC_NODE_EXECUTABLE node)
     if(WPCC_NODE_EXECUTABLE)
+        add_test(NAME update_service COMMAND "${WPCC_NODE_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/update_service_test.js")
         add_test(NAME settings_queue COMMAND "${WPCC_NODE_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/settings_queue_test.js")
     endif()
 endif()

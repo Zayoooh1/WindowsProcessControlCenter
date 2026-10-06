@@ -996,6 +996,15 @@ namespace wpcc
             return;
         }
 
+        constexpr std::wstring_view prefix = L"https://github.com/Zayoooh1/WindowsProcessControlCenter/releases/download/";
+        if (!url.starts_with(prefix) || !url.ends_with(L"-Setup.exe") || url.find_first_of(L"\\\"\r\n") != std::wstring::npos)
+        {
+            OnDownloadComplete(false, L"Only the WPCC Setup asset can be downloaded for installation. Use the Portable ZIP link for Portable updates.");
+            return;
+        }
+        if (m_updateDownloadInProgress) { SendError("An update download is already in progress."); return; }
+        m_updateDownloadInProgress = true;
+
         HWND hwnd = m_hwnd;
         std::thread downloadThread([url, hwnd]() {
             wchar_t tempDir[MAX_PATH];
@@ -1048,6 +1057,7 @@ namespace wpcc
 
     void WebViewHost::OnDownloadComplete(bool success, const std::wstring& filePathOrError)
     {
+        m_updateDownloadInProgress = false;
         if (!m_webView)
         {
             return;
@@ -1199,11 +1209,13 @@ namespace wpcc
     void WebViewHost::HandleOpenExternalUrl(std::wstring_view messageJson)
     {
         auto request = m_bridge.ParseOpenExternalUrlRequest(messageJson);
-        if (!request.url.empty())
-        {
-            ::ShellExecuteA(NULL, "open", request.url.c_str(), NULL, NULL, SW_SHOWNORMAL);
-        }
+        // Open web links with the user's browser, not inside the elevated local WebView.
+        if (!request.url.starts_with("https://") || request.url.find_first_of("\\\"\r\n") != std::string::npos)
+        { SendError("Only valid HTTPS links can be opened."); return; }
+        const auto result = ::ShellExecuteA(nullptr, "open", request.url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        if (reinterpret_cast<INT_PTR>(result) <= 32) SendError("The link could not be opened in your browser.");
     }
+
     void WebViewHost::SendError(std::string_view message)
     {
         if (!m_webView)

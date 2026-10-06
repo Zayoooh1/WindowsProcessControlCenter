@@ -37,6 +37,7 @@ namespace wpcc
         AutorunSourceType sourceType = AutorunSourceType::RegistryValue;
 
         std::wstring entryName;
+        std::wstring publisher; // CompanyName file metadata, not signature verification.
         std::wstring command;
         std::wstring imagePath;
         std::wstring location;

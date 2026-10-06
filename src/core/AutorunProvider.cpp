@@ -1,4 +1,5 @@
 #include "core/AutorunProvider.h"
+#include "core/RegistryViewReader.h"
 
 #include <Windows.h>
 #include <ShlObj.h>
@@ -27,6 +28,27 @@ using Microsoft::WRL::ComPtr;
 
 namespace
 {
+    std::wstring FilePublisher(const std::wstring& path)
+    {
+        DWORD ignored = 0;
+        const DWORD size = GetFileVersionInfoSizeW(path.c_str(), &ignored);
+        if (!size || size > 4 * 1024 * 1024) return {};
+        std::vector<BYTE> data(size);
+        if (!GetFileVersionInfoW(path.c_str(), 0, size, data.data())) return {};
+        struct Translation { WORD language, codepage; };
+        Translation* translations = nullptr; UINT bytes = 0;
+        if (!VerQueryValueW(data.data(), L"\\VarFileInfo\\Translation", reinterpret_cast<void**>(&translations), &bytes)) return {};
+        for (UINT i = 0; i < bytes / sizeof(Translation); ++i)
+        {
+            wchar_t query[128]{};
+            swprintf_s(query, L"\\StringFileInfo\\%04x%04x\\CompanyName", translations[i].language, translations[i].codepage);
+            wchar_t* company = nullptr; UINT chars = 0;
+            if (VerQueryValueW(data.data(), query, reinterpret_cast<void**>(&company), &chars) && company && chars > 1)
+                return std::wstring(company, chars - 1);
+        }
+        return {};
+    }
+
     constexpr wchar_t RunKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     constexpr wchar_t RunOnceKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce";
     constexpr int DisabledStoreSchemaVersion = 1;
@@ -1386,60 +1408,23 @@ namespace
         std::vector<wpcc::AutorunEntry>& entries,
         std::wstring& warning)
     {
-        RegistryKey baseKey;
         const std::wstring sourceLabel = baseKeyPath.find(L"Image File Execution Options") != std::wstring_view::npos
             ? L"IFEO" : L"SilentProcessExit";
-        const std::wstring viewDescription = std::wstring(viewLabel) + L" view";
-        const LSTATUS openStatus = RegOpenKeyExW(HKEY_LOCAL_MACHINE, std::wstring(baseKeyPath).c_str(), 0,
-            KEY_ENUMERATE_SUB_KEYS | view, baseKey.Put());
-        if (openStatus == ERROR_FILE_NOT_FOUND)
-        {
-            return;
-        }
-        if (openStatus != ERROR_SUCCESS)
-        {
-            AppendWarning(warning, L"Image Hijacks: failed to read " + sourceLabel + L" (" + viewDescription + L").");
-            return;
-        }
-
-        DWORD subkeyCount = 0;
-        DWORD maximumSubkeyLength = 0;
-        if (RegQueryInfoKeyW(baseKey.Get(), nullptr, nullptr, nullptr, &subkeyCount, &maximumSubkeyLength,
-                nullptr, nullptr, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
-        {
-            AppendWarning(warning, L"Image Hijacks: failed to enumerate " + sourceLabel + L" (" + viewDescription + L").");
-            return;
-        }
-
+        const auto read = wpcc::ReadRegistryView(HKEY_LOCAL_MACHINE, std::wstring(baseKeyPath), view, valueNames);
+        for (const auto& error : read.errors)
+            AppendWarning(warning, L"Image Hijacks (" + sourceLabel + L", " + std::wstring(viewLabel) + L" view): " + wpcc::RegistryReadErrorText(error));
         constexpr wchar_t ReadOnlyReason[] =
-            L"Image execution options are security-sensitive and are displayed read-only until exact reversible restore semantics are available.";
-        for (DWORD index = 0; index < subkeyCount; ++index)
+            L"These options can redirect how a program starts. They are read-only because changing them safely requires an exact backup and restore.";
+        for (const auto& value : read.values)
         {
-            std::wstring targetName(static_cast<size_t>(maximumSubkeyLength) + 1, L'\0');
-            DWORD targetLength = static_cast<DWORD>(targetName.size());
-            if (RegEnumKeyExW(baseKey.Get(), index, targetName.data(), &targetLength, nullptr, nullptr, nullptr, nullptr) != ERROR_SUCCESS)
-            {
-                continue;
-            }
-            targetName.resize(targetLength);
-            const std::wstring targetPath = std::wstring(baseKeyPath) + L"\\" + targetName;
-            for (const std::wstring_view valueName : valueNames)
-            {
-                DWORD valueType = 0;
-                std::vector<unsigned char> valueData;
-                if (!TryReadRegistryValue(false, targetPath, view, valueName, valueType, valueData))
-                {
-                    continue;
-                }
-                const std::wstring command = RegistryValueDisplay(valueType, valueData);
-                const bool commandLike = valueName == L"Debugger" || valueName == L"MonitorProcess";
-                const std::wstring imagePath = commandLike ? ResolveRegistryImagePath(command) : L"";
-                AddReadOnlyRegistryEntry(
-                    wpcc::AutorunCategory::ImageHijack, false, targetPath, view, viewLabel, valueName,
-                    valueType, valueData, targetName + L" - " + std::wstring(valueName), command, imagePath,
-                    imagePath.empty() ? L"Configured hijack value" : StatusForImage({imagePath, true}),
-                    ReadOnlyReason, entries);
-            }
+            const std::wstring command = RegistryValueDisplay(value.type, value.data);
+            const bool commandLike = value.name == L"Debugger" || value.name == L"MonitorProcess";
+            const std::wstring imagePath = commandLike ? ResolveRegistryImagePath(command) : L"";
+            AddReadOnlyRegistryEntry(
+                wpcc::AutorunCategory::ImageHijack, false, value.keyPath, view, viewLabel, value.name,
+                value.type, value.data, value.target + L" - " + value.name, command, imagePath,
+                imagePath.empty() ? L"Configured launch option" : StatusForImage({imagePath, true}),
+                ReadOnlyReason, entries);
         }
     }
 
@@ -2296,6 +2281,15 @@ namespace wpcc
             AppendWarning(
                 result.warning,
                 L"One or more entries have colliding identifiers and cannot be changed safely.");
+        }
+
+        std::unordered_map<std::wstring, std::wstring> publishers;
+        for (auto& entry : result.entries)
+        {
+            if (entry.imagePath.empty()) continue;
+            auto [it, added] = publishers.try_emplace(entry.imagePath);
+            if (added) it->second = FilePublisher(entry.imagePath);
+            entry.publisher = it->second;
         }
 
         std::sort(result.entries.begin(), result.entries.end(), [](const AutorunEntry& left, const AutorunEntry& right) {

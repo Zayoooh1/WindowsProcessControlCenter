@@ -1381,7 +1381,7 @@ tbody tr.selected {
   min-height: 0;
   padding: var(--panel-padding);
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
   background: rgba(27, 34, 44, 0.94);
 }
 
@@ -1486,7 +1486,9 @@ tbody tr.selected {
 }
 
 .autoruns-table {
-  min-width: 1450px;
+  min-width: 740px;
+  width: 100%;
+  table-layout: fixed;
 }
 
 .autoruns-table tbody tr {
@@ -2993,4 +2995,27 @@ button:disabled { opacity: 0.58; cursor: not-allowed; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+}
+
+/* Compact startup rows and readable expanded details. */
+.autoruns-table td { height: 38px; padding: 4px 8px; font-size: 12px; }
+.autoruns-table .autorun-state { white-space: normal; text-align: left; }
+.autorun-state span { display: inline-block; margin-left: 5px; font-size: 11px; }
+.autorun-name { font-weight: 600; }
+.autorun-path { color: var(--muted); }
+.autoruns-table .autorun-details-row[hidden] { display: none; }
+.autoruns-table .autorun-details-row td { height: auto; white-space: normal; text-align: left; padding: 12px 16px; background: #171e28; }
+.autorun-details-row dl { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px 16px; }
+.autorun-details-row dt { color: var(--muted); }
+.autorun-details-row dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
+.autorun-details-button { min-height: 26px; padding: 3px 8px; font-size: 12px; }
+.autoruns-help { color: var(--muted); font-size: 12px; margin: 8px 0; line-height: 1.4; }
+.autoruns-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding-top: 8px; }
+.autoruns-pagination span { margin-right: auto; color: var(--muted); font-size: 12px; }
+.update-notes { white-space: pre-wrap; max-height: 180px; overflow: auto; }
+.update-modal { max-height: 90vh; overflow: auto; }
+@media (max-width: 900px) {
+  .autoruns-hero p { font-size: 12px; }
+  .autoruns-panel { padding: 10px; }
+  .autorun-details-row dl { grid-template-columns: 110px minmax(0, 1fr); }
 }

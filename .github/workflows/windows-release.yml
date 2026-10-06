@@ -30,6 +30,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'app.js syntax failed' }
           node --check web/settings-queue.js
           if ($LASTEXITCODE -ne 0) { throw 'settings-queue.js syntax failed' }
+      - name: Install browser test dependency
+        shell: pwsh
+        run: |
+          npm install --no-save --package-lock=false playwright@1.58.2
+          if ($LASTEXITCODE -ne 0) { throw 'Playwright installation failed' }
+          npx playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Chromium installation failed' }
+      - name: Browser integration tests
+        shell: pwsh
+        run: |
+          node tests/update_service_test.js
+          if ($LASTEXITCODE -ne 0) { throw 'Update service tests failed' }
+          node tests/ui_integration_test.js
+          if ($LASTEXITCODE -ne 0) { throw 'UI integration tests failed' }
       - name: Build Release, Portable and Setup
         shell: pwsh
         run: ./scripts/build_installer.ps1 -Version (Get-Content version.txt -Raw).Trim()
@@ -49,8 +63,14 @@ jobs:
         shell: pwsh
         run: ./scripts/verify_release.ps1
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: WPCC-0.1.14-windows-x64
+          name: WPCC-ui-verification
+          path: build/ui-results
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WPCC-0.1.15-windows-x64
           if-no-files-found: error
           path: |
             dist/*-Setup.exe
@@ -59,7 +79,7 @@ jobs:
 
   prerelease:
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/autostart-0.1.14'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/autoruns-updates-0.1.15' && contains(github.event.head_commit.message, '[publish]')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -68,7 +88,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: WPCC-0.1.14-windows-x64
+          name: WPCC-0.1.15-windows-x64
           path: dist
       - name: Publish tested commit as prerelease
         env:
@@ -79,14 +99,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag=v0.1.14-rc.1
+          tag=v0.1.15-rc.1
           # Never overwrite a published release or move its tag on a later push.
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists; choose a new RC tag before publishing again."
             exit 0
           fi
-          cp docs/RELEASE_0.1.14-rc.1.md release-body.md
+          cp docs/RELEASE_0.1.15-rc.1.md release-body.md
           printf '\n## Automated validation\n\nDebug and Release builds, CTest and package verification: [GitHub Actions](%s).\nCommit: `%s`.\n' "$RUN_URL" "$RELEASE_COMMIT" >> release-body.md
           gh release create "$tag" dist/*-Setup.exe dist/*-Portable.zip dist/SHA256SUMS.txt \
             --target "$RELEASE_COMMIT" --prerelease --latest=false \
-            --title 'WPCC 0.1.14-rc.1: Startup fix' --notes-file release-body.md
+            --title 'WPCC 0.1.15-rc.1: Autoruns and updates' --notes-file release-body.md

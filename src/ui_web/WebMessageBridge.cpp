@@ -514,7 +514,7 @@ namespace wpcc
             json << L"\"category\":\"" << categoryName(entry.category) << L"\",";
             json << L"\"sourceType\":\"" << sourceTypeName(entry.sourceType) << L"\",";
             json << L"\"entryName\":\"" << EscapeJson(WideToUtf8(entry.entryName)) << L"\",";
-            json << L"\"publisher\":\"\\u2014\",";
+            json << L"\"publisher\":\"" << EscapeJson(WideToUtf8(entry.publisher)) << L"\",";
             json << L"\"command\":\"" << EscapeJson(WideToUtf8(entry.command)) << L"\",";
             json << L"\"imagePath\":\"" << EscapeJson(WideToUtf8(entry.imagePath)) << L"\",";
             json << L"\"location\":\"" << EscapeJson(WideToUtf8(entry.location)) << L"\",";
