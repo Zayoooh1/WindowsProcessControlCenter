@@ -1,6 +1,6 @@
 # WPCC 0.1.15-rc.1: Autoruns and update fixes
 
-This is a pre-release. Automated Windows builds and tests must pass before publication. Real desktop use on Windows 10 and Windows 11 has not been verified. Browser UI tests use a simulated native host and simulated GitHub responses.
+This is a pre-release. Automated Windows Debug and Release builds, all four CTest suites in both configurations, browser integration tests and package verification passed. Real desktop use on Windows 10 and Windows 11 has not been verified. Browser UI tests use a simulated native host and simulated GitHub responses.
 
 ## Fixed
 

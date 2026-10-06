@@ -20,3 +20,7 @@ The shared update service selects the explicit stable or test channel, compares 
 ## Validation scope
 
 Windows CTest includes registry_views and update_service, plus existing startup_transaction and settings_queue tests, in Debug and Release. UI integration runs in Chromium against the actual frontend with simulated host/API responses. Screenshots at 1280x720 and 900x600 are uploaded by Actions. Successful browser tests are not native WebView2 or real-user desktop tests. Release notes state the remaining manual checks.
+
+## Completed Windows CI validation
+
+[Actions run 37455135875](https://github.com/Zayoooh1/WindowsProcessControlCenter/actions/runs/37455135875) passed at commit b889483f7c52af7bf3ec69e4ddb5ce3c49b9c692. Both configurations passed all four CTest suites. Chromium integration tests passed, and the uploaded screenshots were reviewed at 1280x720 and 900x600. Package verification passed for versions, manifest, matching Portable payload, silent Setup installation and clean uninstall. Publication rebuilds and retests the final documentation commit before attaching its packages.
